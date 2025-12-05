@@ -1,0 +1,57 @@
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker volumes and data
+postgres_data/
+mysql_data/
+redis_data/
+elasticsearch_data/
+pgadmin_data/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Documentation builds (keep source docs)
+*.pdf
+!docs/*.pdf
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Exclude all files in root except specific ones
+/*
+!/backend/
+!/frontend/
+!/docker/
+!/docker-compose.yml
+!/.gitignore
+!/README.md
+!/PROJECT_DESIGN_DOCUMENT.md
+!/INSTALLATION_COMPLETE.md
+!/SETUP_GUIDE.md
+!/QUICK_START.md
+!/setup.sh
