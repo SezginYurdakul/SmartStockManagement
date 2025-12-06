@@ -44,6 +44,7 @@ Thumbs.db
 
 # Exclude all files in root except specific ones
 /*
+!/backend/
 !/frontend/
 !/docker/
 !/docker-compose.yml
