@@ -30,17 +30,25 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/refresh', [AuthController::class, 'refresh']);
     });
 
-    // User management routes
-    Route::apiResource('users', UserController::class);
-    Route::post('users/{id}/restore', [UserController::class, 'restore']);
-    Route::delete('users/{id}/force', [UserController::class, 'forceDelete']);
+    // User management routes (permission-based)
+    Route::prefix('users')->group(function () {
+        Route::get('/', [UserController::class, 'index'])->middleware('permission:users.view');
+        Route::post('/', [UserController::class, 'store'])->middleware('permission:users.create');
+        Route::get('/{user}', [UserController::class, 'show'])->middleware('permission:users.view');
+        Route::put('/{user}', [UserController::class, 'update'])->middleware('permission:users.update');
+        Route::delete('/{user}', [UserController::class, 'destroy'])->middleware('permission:users.delete');
+        Route::post('/{id}/restore', [UserController::class, 'restore'])->middleware('permission:users.delete');
+        Route::delete('/{id}/force', [UserController::class, 'forceDelete'])->middleware('role:admin');
+    });
 
-    // Role management routes
-    Route::apiResource('roles', RoleController::class);
-    Route::post('roles/{role}/permissions/assign', [RoleController::class, 'assignPermissions']);
-    Route::post('roles/{role}/permissions/revoke', [RoleController::class, 'revokePermissions']);
+    // Role management routes (Admin only)
+    Route::middleware('role:admin')->group(function () {
+        Route::apiResource('roles', RoleController::class);
+        Route::post('roles/{role}/permissions/assign', [RoleController::class, 'assignPermissions']);
+        Route::post('roles/{role}/permissions/revoke', [RoleController::class, 'revokePermissions']);
 
-    // Permission management routes
-    Route::apiResource('permissions', PermissionController::class);
-    Route::get('permissions/modules/list', [PermissionController::class, 'modules']);
+        // Permission management routes (Admin only)
+        Route::apiResource('permissions', PermissionController::class);
+        Route::get('permissions/modules/list', [PermissionController::class, 'modules']);
+    });
 });
