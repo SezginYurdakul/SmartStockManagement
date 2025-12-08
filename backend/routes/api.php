@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -32,4 +34,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('users', UserController::class);
     Route::post('users/{id}/restore', [UserController::class, 'restore']);
     Route::delete('users/{id}/force', [UserController::class, 'forceDelete']);
+
+    // Role management routes
+    Route::apiResource('roles', RoleController::class);
+    Route::post('roles/{role}/permissions/assign', [RoleController::class, 'assignPermissions']);
+    Route::post('roles/{role}/permissions/revoke', [RoleController::class, 'revokePermissions']);
+
+    // Permission management routes
+    Route::apiResource('permissions', PermissionController::class);
+    Route::get('permissions/modules/list', [PermissionController::class, 'modules']);
 });
