@@ -3,13 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\UserService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
+    protected $userService;
+
+    public function __construct(UserService $userService)
+    {
+        $this->userService = $userService;
+    }
     /**
      * Display a listing of users
      * Required permission: users.view
@@ -26,16 +32,7 @@ class UserController extends Controller
         $perPage = $request->input('per_page', 15);
         $search = $request->input('search');
 
-        $query = User::with('roles');
-
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
-            });
-        }
-
-        $users = $query->latest()->paginate($perPage);
+        $users = $this->userService->getUsers($search, $perPage);
 
         return response()->json($users);
     }
@@ -61,20 +58,11 @@ class UserController extends Controller
             'role_ids.*' => 'exists:roles,id',
         ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-        ]);
-
-        // Assign roles if provided
-        if (isset($validated['role_ids'])) {
-            $user->roles()->attach($validated['role_ids']);
-        }
+        $user = $this->userService->createUser($validated);
 
         return response()->json([
             'message' => 'User created successfully',
-            'user' => $user->load('roles'),
+            'user' => $user,
         ], 201);
     }
 
@@ -124,20 +112,11 @@ class UserController extends Controller
             'role_ids.*' => 'exists:roles,id',
         ]);
 
-        if (isset($validated['password'])) {
-            $validated['password'] = Hash::make($validated['password']);
-        }
-
-        $user->update($validated);
-
-        // Update roles if provided
-        if (isset($validated['role_ids'])) {
-            $user->roles()->sync($validated['role_ids']);
-        }
+        $user = $this->userService->updateUser($user, $validated);
 
         return response()->json([
             'message' => 'User updated successfully',
-            'user' => $user->fresh()->load('roles'),
+            'user' => $user,
         ]);
     }
 
@@ -161,7 +140,7 @@ class UserController extends Controller
             ], 422);
         }
 
-        $user->delete();
+        $this->userService->deleteUser($user);
 
         return response()->json([
             'message' => 'User deleted successfully',
@@ -181,8 +160,13 @@ class UserController extends Controller
             ], 403);
         }
 
-        $user = User::withTrashed()->findOrFail($id);
-        $user->restore();
+        $user = $this->userService->restoreUser($id);
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'User not found',
+            ], 404);
+        }
 
         return response()->json([
             'message' => 'User restored successfully',
@@ -203,7 +187,13 @@ class UserController extends Controller
             ], 403);
         }
 
-        $user = User::withTrashed()->findOrFail($id);
+        $user = User::withTrashed()->find($id);
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'User not found',
+            ], 404);
+        }
 
         // Prevent deleting yourself
         if ($user->id === $request->user()->id) {
@@ -212,7 +202,7 @@ class UserController extends Controller
             ], 422);
         }
 
-        $user->forceDelete();
+        $this->userService->forceDeleteUser($id);
 
         return response()->json([
             'message' => 'User permanently deleted',

@@ -1,7 +1,10 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
@@ -52,5 +55,30 @@ Route::middleware('auth:sanctum')->group(function () {
         // Permission management routes (Admin only)
         Route::apiResource('permissions', PermissionController::class);
         Route::get('permissions/modules/list', [PermissionController::class, 'modules']);
+    });
+
+    // Category routes (permission-based)
+    Route::prefix('categories')->group(function () {
+        Route::get('/', [CategoryController::class, 'index'])->middleware('permission:categories.view');
+        Route::post('/', [CategoryController::class, 'store'])->middleware('permission:categories.create');
+        Route::get('/{category}', [CategoryController::class, 'show'])->middleware('permission:categories.view');
+        Route::put('/{category}', [CategoryController::class, 'update'])->middleware('permission:categories.update');
+        Route::delete('/{category}', [CategoryController::class, 'destroy'])->middleware('permission:categories.delete');
+    });
+
+    // Product routes (permission-based)
+    Route::prefix('products')->group(function () {
+        Route::get('/', [ProductController::class, 'index'])->middleware('permission:products.view');
+        Route::post('/', [ProductController::class, 'store'])->middleware('permission:products.create');
+        Route::get('/search', [ProductController::class, 'search'])->middleware('permission:products.view');
+        Route::get('/{product}', [ProductController::class, 'show'])->middleware('permission:products.view');
+        Route::put('/{product}', [ProductController::class, 'update'])->middleware('permission:products.update');
+        Route::delete('/{product}', [ProductController::class, 'destroy'])->middleware('permission:products.delete');
+
+        // Product image routes
+        Route::post('/{product}/images', [ProductImageController::class, 'upload'])->middleware('permission:products.update');
+        Route::put('/{product}/images/{image}', [ProductImageController::class, 'update'])->middleware('permission:products.update');
+        Route::delete('/{product}/images/{image}', [ProductImageController::class, 'destroy'])->middleware('permission:products.update');
+        Route::post('/{product}/images/reorder', [ProductImageController::class, 'reorder'])->middleware('permission:products.update');
     });
 });
