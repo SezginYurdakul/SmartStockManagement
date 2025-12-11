@@ -28,8 +28,9 @@ class CategoryController extends Controller
             $query->where('parent_id', $request->parent_id);
         }
 
-        // Flat list with pagination
-        $categories = $query->withCount('products')
+        // Flat list with pagination - parent bilgisi ile birlikte
+        $categories = $query->with('parent') // parent() methodunu kullanarak parent bilgisini yükle
+            ->withCount('products')
             ->orderBy('name')
             ->paginate($request->get('per_page', 15));
 
@@ -66,9 +67,8 @@ class CategoryController extends Controller
      */
     public function show(Category $category)
     {
-        $category->load(['products' => function ($query) {
-            $query->where('is_active', true)->take(10);
-        }]);
+        $category->load(['parent', 'children']);
+        $category->loadCount('products');
 
         return response()->json($category);
     }

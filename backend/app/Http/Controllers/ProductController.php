@@ -28,7 +28,8 @@ class ProductController extends Controller
             return response()->json($products);
         }
 
-        $query = Product::with(['category', 'primaryImage']);
+        $query = Product::with(['category', 'primaryImage'])
+            ->withCount('images');
 
         // Apply filters
         $filters = $request->only(['category_id', 'is_active', 'is_featured', 'stock_status']);
