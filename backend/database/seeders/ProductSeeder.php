@@ -14,7 +14,8 @@ class ProductSeeder extends Seeder
      */
     public function run(): void
     {
-        $categories = Category::all();
+        // Only get subcategories (categories with parent_id)
+        $categories = Category::whereNotNull('parent_id')->get();
 
         if ($categories->isEmpty()) {
             $this->command->warn('No categories found! Please run CategorySeeder first.');
@@ -426,8 +427,8 @@ class ProductSeeder extends Seeder
                 $productsCreated = 0;
                 $templateIndex = 0;
 
-                // Create exactly 30 products per category
-                while ($productsCreated < 30) {
+                // Create exactly 50 products per subcategory
+                while ($productsCreated < 50) {
                     $template = $templates[$templateIndex % count($templates)];
 
                     // Add variation to make products unique

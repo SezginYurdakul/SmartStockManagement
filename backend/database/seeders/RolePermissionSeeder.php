@@ -119,6 +119,32 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Can delete products',
             ],
 
+            // Category management permissions
+            [
+                'name' => 'categories.view',
+                'display_name' => 'View Categories',
+                'module' => 'categories',
+                'description' => 'Can view category list and details',
+            ],
+            [
+                'name' => 'categories.create',
+                'display_name' => 'Create Categories',
+                'module' => 'categories',
+                'description' => 'Can create new categories',
+            ],
+            [
+                'name' => 'categories.edit',
+                'display_name' => 'Edit Categories',
+                'module' => 'categories',
+                'description' => 'Can edit existing categories',
+            ],
+            [
+                'name' => 'categories.delete',
+                'display_name' => 'Delete Categories',
+                'module' => 'categories',
+                'description' => 'Can delete categories',
+            ],
+
             // Inventory management permissions (for future use)
             [
                 'name' => 'inventory.view',
@@ -183,6 +209,7 @@ class RolePermissionSeeder extends Seeder
         $staffPermissions = Permission::whereIn('name', [
             'users.view',
             'products.view',
+            'categories.view',
             'inventory.view',
             'reports.view',
         ])->get();

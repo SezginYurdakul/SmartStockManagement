@@ -40,7 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [UserController::class, 'index'])->middleware('permission:users.view');
         Route::post('/', [UserController::class, 'store'])->middleware('permission:users.create');
         Route::get('/{user}', [UserController::class, 'show'])->middleware('permission:users.view');
-        Route::put('/{user}', [UserController::class, 'update'])->middleware('permission:users.update');
+        Route::put('/{user}', [UserController::class, 'update'])->middleware('permission:users.edit');
         Route::delete('/{user}', [UserController::class, 'destroy'])->middleware('permission:users.delete');
         Route::post('/{id}/restore', [UserController::class, 'restore'])->middleware('permission:users.delete');
         Route::delete('/{id}/force', [UserController::class, 'forceDelete'])->middleware('role:admin');
@@ -62,7 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [CategoryController::class, 'index'])->middleware('permission:categories.view');
         Route::post('/', [CategoryController::class, 'store'])->middleware('permission:categories.create');
         Route::get('/{category}', [CategoryController::class, 'show'])->middleware('permission:categories.view');
-        Route::put('/{category}', [CategoryController::class, 'update'])->middleware('permission:categories.update');
+        Route::put('/{category}', [CategoryController::class, 'update'])->middleware('permission:categories.edit');
         Route::delete('/{category}', [CategoryController::class, 'destroy'])->middleware('permission:categories.delete');
     });
 
@@ -72,13 +72,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [ProductController::class, 'store'])->middleware('permission:products.create');
         Route::get('/search', [ProductController::class, 'search'])->middleware('permission:products.view');
         Route::get('/{product}', [ProductController::class, 'show'])->middleware('permission:products.view');
-        Route::put('/{product}', [ProductController::class, 'update'])->middleware('permission:products.update');
+        Route::put('/{product}', [ProductController::class, 'update'])->middleware('permission:products.edit');
         Route::delete('/{product}', [ProductController::class, 'destroy'])->middleware('permission:products.delete');
 
         // Product image routes
-        Route::post('/{product}/images', [ProductImageController::class, 'upload'])->middleware('permission:products.update');
-        Route::put('/{product}/images/{image}', [ProductImageController::class, 'update'])->middleware('permission:products.update');
-        Route::delete('/{product}/images/{image}', [ProductImageController::class, 'destroy'])->middleware('permission:products.update');
-        Route::post('/{product}/images/reorder', [ProductImageController::class, 'reorder'])->middleware('permission:products.update');
+        Route::post('/{product}/images', [ProductImageController::class, 'upload'])->middleware('permission:products.edit');
+        Route::put('/{product}/images/{image}', [ProductImageController::class, 'update'])->middleware('permission:products.edit');
+        Route::delete('/{product}/images/{image}', [ProductImageController::class, 'destroy'])->middleware('permission:products.edit');
+        Route::post('/{product}/images/reorder', [ProductImageController::class, 'reorder'])->middleware('permission:products.edit');
     });
 });
