@@ -3,51 +3,62 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\UserService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
+    protected $userService;
+
+    public function __construct(UserService $userService)
+    {
+        $this->userService = $userService;
+    }
     /**
      * Display a listing of users
+     * Required permission: users.view
      */
     public function index(Request $request): JsonResponse
     {
+        // Check permission
+        if (!$request->user()->hasPermission('users.view')) {
+            return response()->json([
+                'message' => 'Forbidden. You do not have permission to view users.',
+            ], 403);
+        }
+
         $perPage = $request->input('per_page', 15);
         $search = $request->input('search');
 
-        $query = User::query();
-
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
-            });
-        }
-
-        $users = $query->latest()->paginate($perPage);
+        $users = $this->userService->getUsers($search, $perPage);
 
         return response()->json($users);
     }
 
     /**
      * Store a newly created user
+     * Required permission: users.create
      */
     public function store(Request $request): JsonResponse
     {
+        // Check permission
+        if (!$request->user()->hasPermission('users.create')) {
+            return response()->json([
+                'message' => 'Forbidden. You do not have permission to create users.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
+            'role_ids' => 'sometimes|array',
+            'role_ids.*' => 'exists:roles,id',
         ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-        ]);
+        $user = $this->userService->createUser($validated);
 
         return response()->json([
             'message' => 'User created successfully',
@@ -57,19 +68,35 @@ class UserController extends Controller
 
     /**
      * Display the specified user
+     * Required permission: users.view
      */
-    public function show(User $user): JsonResponse
+    public function show(Request $request, User $user): JsonResponse
     {
+        // Check permission
+        if (!$request->user()->hasPermission('users.view')) {
+            return response()->json([
+                'message' => 'Forbidden. You do not have permission to view users.',
+            ], 403);
+        }
+
         return response()->json([
-            'user' => $user,
+            'user' => $user->load('roles.permissions'),
         ]);
     }
 
     /**
      * Update the specified user
+     * Required permission: users.update
      */
     public function update(Request $request, User $user): JsonResponse
     {
+        // Check permission
+        if (!$request->user()->hasPermission('users.update')) {
+            return response()->json([
+                'message' => 'Forbidden. You do not have permission to update users.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'email' => [
@@ -81,26 +108,39 @@ class UserController extends Controller
                 Rule::unique('users')->ignore($user->id),
             ],
             'password' => 'sometimes|required|string|min:8|confirmed',
+            'role_ids' => 'sometimes|array',
+            'role_ids.*' => 'exists:roles,id',
         ]);
 
-        if (isset($validated['password'])) {
-            $validated['password'] = Hash::make($validated['password']);
-        }
-
-        $user->update($validated);
+        $user = $this->userService->updateUser($user, $validated);
 
         return response()->json([
             'message' => 'User updated successfully',
-            'user' => $user->fresh(),
+            'user' => $user,
         ]);
     }
 
     /**
      * Remove the specified user
+     * Required permission: users.delete
      */
-    public function destroy(User $user): JsonResponse
+    public function destroy(Request $request, User $user): JsonResponse
     {
-        $user->delete();
+        // Check permission
+        if (!$request->user()->hasPermission('users.delete')) {
+            return response()->json([
+                'message' => 'Forbidden. You do not have permission to delete users.',
+            ], 403);
+        }
+
+        // Prevent deleting yourself
+        if ($user->id === $request->user()->id) {
+            return response()->json([
+                'message' => 'You cannot delete yourself.',
+            ], 422);
+        }
+
+        $this->userService->deleteUser($user);
 
         return response()->json([
             'message' => 'User deleted successfully',
@@ -109,25 +149,60 @@ class UserController extends Controller
 
     /**
      * Restore a soft deleted user
+     * Required permission: users.delete
      */
-    public function restore(int $id): JsonResponse
+    public function restore(Request $request, int $id): JsonResponse
     {
-        $user = User::withTrashed()->findOrFail($id);
-        $user->restore();
+        // Check permission
+        if (!$request->user()->hasPermission('users.delete')) {
+            return response()->json([
+                'message' => 'Forbidden. You do not have permission to restore users.',
+            ], 403);
+        }
+
+        $user = $this->userService->restoreUser($id);
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'User not found',
+            ], 404);
+        }
 
         return response()->json([
             'message' => 'User restored successfully',
-            'user' => $user,
+            'user' => $user->load('roles'),
         ]);
     }
 
     /**
      * Permanently delete a user
+     * Required role: Admin only
      */
-    public function forceDelete(int $id): JsonResponse
+    public function forceDelete(Request $request, int $id): JsonResponse
     {
-        $user = User::withTrashed()->findOrFail($id);
-        $user->forceDelete();
+        // Only admins can permanently delete
+        if (!$request->user()->hasRole('admin')) {
+            return response()->json([
+                'message' => 'Forbidden. Only administrators can permanently delete users.',
+            ], 403);
+        }
+
+        $user = User::withTrashed()->find($id);
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'User not found',
+            ], 404);
+        }
+
+        // Prevent deleting yourself
+        if ($user->id === $request->user()->id) {
+            return response()->json([
+                'message' => 'You cannot delete yourself.',
+            ], 422);
+        }
+
+        $this->userService->forceDeleteUser($id);
 
         return response()->json([
             'message' => 'User permanently deleted',

@@ -19,15 +19,14 @@ class DatabaseSeeder extends Seeder
         // Seed roles and permissions first
         $this->call(RolePermissionSeeder::class);
 
-        // Create test user with known credentials
-        $testUser = User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => Hash::make('password'),
-        ]);
+        // Seed test users
+        $this->call(UserSeeder::class);
 
-        // Assign admin role to test user
-        $testUser->assignRole('admin');
+        // Seed categories
+        $this->call(CategorySeeder::class);
+
+        // Seed products (depends on categories)
+        $this->call(ProductSeeder::class);
 
         // Uncomment to create additional random users
         // User::factory(10)->create();
