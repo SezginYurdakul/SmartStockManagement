@@ -22,6 +22,12 @@ class DatabaseSeeder extends Seeder
         // Seed test users
         $this->call(UserSeeder::class);
 
+        // Seed categories
+        $this->call(CategorySeeder::class);
+
+        // Seed products (depends on categories)
+        $this->call(ProductSeeder::class);
+
         // Uncomment to create additional random users
         // User::factory(10)->create();
     }
