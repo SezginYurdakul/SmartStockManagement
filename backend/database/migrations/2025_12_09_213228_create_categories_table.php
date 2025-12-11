@@ -16,9 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('slug')->unique();
             $table->text('description')->nullable();
-
-            // Nested Set columns (for kalnoy/nestedset package)
-            $table->nestedSet();
+            $table->foreignId('parent_id')->nullable()->constrained('categories')->nullOnDelete();
 
             $table->timestamps();
             $table->softDeletes();

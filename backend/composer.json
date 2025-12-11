@@ -8,7 +8,6 @@
     "require": {
         "php": "^8.2",
         "intervention/image": "^3.11",
-        "kalnoy/nestedset": "^6.0",
         "laravel/framework": "^12.0",
         "laravel/horizon": "^5.40",
         "laravel/sanctum": "^4.2",

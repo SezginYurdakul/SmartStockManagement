@@ -4,11 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Kalnoy\Nestedset\NodeTrait;
 
 class Category extends Model
 {
-    use SoftDeletes, NodeTrait;
+    use SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -26,10 +25,27 @@ class Category extends Model
     }
 
     /**
+     * Get parent category
+     */
+    public function parent()
+    {
+        return $this->belongsTo(Category::class, 'parent_id');
+    }
+
+    /**
+     * Get child categories
+     */
+    public function children()
+    {
+        return $this->hasMany(Category::class, 'parent_id');
+    }
+
+    /**
      * Get products including subcategories
      */
     public function allProducts()
     {
-        return Product::whereIn('category_id', $this->descendants()->pluck('id')->push($this->id));
+        $categoryIds = $this->children()->pluck('id')->push($this->id);
+        return Product::whereIn('category_id', $categoryIds);
     }
 }
