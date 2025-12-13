@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\PermissionController;
@@ -64,6 +65,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{category}', [CategoryController::class, 'show'])->middleware('permission:categories.view');
         Route::put('/{category}', [CategoryController::class, 'update'])->middleware('permission:categories.edit');
         Route::delete('/{category}', [CategoryController::class, 'destroy'])->middleware('permission:categories.delete');
+
+        // Category attribute management
+        Route::get('/{category}/attributes', [CategoryController::class, 'getAttributes'])->middleware('permission:categories.view');
+        Route::post('/{category}/attributes', [CategoryController::class, 'assignAttributes'])->middleware('permission:categories.edit');
+        Route::put('/{category}/attributes/{attribute}', [CategoryController::class, 'updateAttribute'])->middleware('permission:categories.edit');
+        Route::delete('/{category}/attributes/{attribute}', [CategoryController::class, 'removeAttribute'])->middleware('permission:categories.edit');
     });
 
     // Product routes (permission-based)
@@ -80,5 +87,48 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{product}/images/{image}', [ProductImageController::class, 'update'])->middleware('permission:products.edit');
         Route::delete('/{product}/images/{image}', [ProductImageController::class, 'destroy'])->middleware('permission:products.edit');
         Route::post('/{product}/images/reorder', [ProductImageController::class, 'reorder'])->middleware('permission:products.edit');
+
+        // Product attribute management
+        Route::get('/{product}/attributes', [ProductController::class, 'getAttributes'])->middleware('permission:products.view');
+        Route::post('/{product}/attributes', [ProductController::class, 'assignAttributes'])->middleware('permission:products.edit');
+        Route::put('/{product}/attributes/{attribute}', [ProductController::class, 'updateAttribute'])->middleware('permission:products.edit');
+        Route::delete('/{product}/attributes/{attribute}', [ProductController::class, 'removeAttribute'])->middleware('permission:products.edit');
+
+        // Product variant management
+        Route::get('/{product}/variants', [ProductController::class, 'getVariants'])->middleware('permission:products.view');
+        Route::post('/{product}/variants', [ProductController::class, 'createVariant'])->middleware('permission:products.edit');
+
+        // Automatic variant generation (rate limited: 10 requests per minute)
+        // NOTE: These specific routes MUST come BEFORE the {variant} parameter routes
+        Route::post('/{product}/variants/generate', [AttributeController::class, 'generateVariants'])
+            ->middleware(['permission:products.edit', 'throttle:variant-generate']);
+        Route::delete('/{product}/variants/clear', [AttributeController::class, 'clearVariants'])
+            ->middleware('permission:products.edit');
+
+        // Variant CRUD with ID parameter (must come AFTER specific routes like /generate and /clear)
+        Route::put('/{product}/variants/{variant}', [ProductController::class, 'updateVariant'])->middleware('permission:products.edit');
+        Route::delete('/{product}/variants/{variant}', [ProductController::class, 'deleteVariant'])->middleware('permission:products.edit');
+
+        // Force delete variants (Admin only - permanent deletion)
+        Route::delete('/{product}/variants/{variant}/force', [ProductController::class, 'forceDeleteVariant'])->middleware('role:admin');
+        Route::delete('/{product}/variants/force-clear', [AttributeController::class, 'forceClearVariants'])->middleware('role:admin');
     });
+
+    // Attribute routes (permission-based)
+    Route::prefix('attributes')->group(function () {
+        Route::get('/', [AttributeController::class, 'index'])->middleware('permission:products.view');
+        Route::post('/', [AttributeController::class, 'store'])->middleware('permission:products.create');
+        Route::get('/{attribute}', [AttributeController::class, 'show'])->middleware('permission:products.view');
+        Route::put('/{attribute}', [AttributeController::class, 'update'])->middleware('permission:products.edit');
+        Route::delete('/{attribute}', [AttributeController::class, 'destroy'])->middleware('permission:products.delete');
+
+        // Attribute value management
+        Route::post('/{attribute}/values', [AttributeController::class, 'addValues'])->middleware('permission:products.edit');
+        Route::put('/{attribute}/values/{value}', [AttributeController::class, 'updateValue'])->middleware('permission:products.edit');
+        Route::delete('/{attribute}/values/{value}', [AttributeController::class, 'destroyValue'])->middleware('permission:products.edit');
+    });
+
+    // Bulk variant generation (rate limited: 5 requests per minute - heavy operation)
+    Route::post('/variants/bulk-generate', [AttributeController::class, 'bulkGenerateVariants'])
+        ->middleware(['permission:products.edit', 'throttle:bulk-variant-generate']);
 });

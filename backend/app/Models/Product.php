@@ -91,6 +91,16 @@ class Product extends Model
     }
 
     /**
+     * Get the attributes for the product
+     */
+    public function attributes()
+    {
+        return $this->belongsToMany(Attribute::class, 'product_attributes')
+            ->withPivot('value')
+            ->withTimestamps();
+    }
+
+    /**
      * Get the images for the product
      */
     public function images()
