@@ -455,7 +455,7 @@ class ProductSeeder extends Seeder
                     $isActive = $productsCreated < 25 ? true : (rand(0, 1) === 1); // First 25 active, rest random
                     $isFeatured = $productsCreated < 5 ? true : (rand(0, 10) > 7); // First 5 featured, rest 30% chance
 
-                    Product::create([
+                    $product = Product::create([
                         'name' => $productName,
                         'slug' => $slug,
                         'sku' => $sku,
