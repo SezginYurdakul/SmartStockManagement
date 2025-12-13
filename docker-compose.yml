@@ -126,7 +126,10 @@ services:
       - "9300:9300"
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - ELASTIC_PASSWORD=${ELASTICSEARCH_PASS:-sezgin123}
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
       - bootstrap.memory_lock=true
     ulimits:
@@ -150,6 +153,7 @@ services:
       - "5601:5601"
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_SERVICEACCOUNTTOKEN=${KIBANA_SERVICE_TOKEN:-AAEAAWVsYXN0aWMva2liYW5hL2tpYmFuYV90b2tlbjp3VUpnR0IyLVJTeWtuU0FBMkduMkJ3}
     depends_on:
       - elasticsearch
     networks:
@@ -177,6 +181,23 @@ services:
     profiles:
       - postgres
       - database
+      - all
+
+  # Redis Commander (Redis GUI - Optional)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: sms_redis_commander
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - sms_network
+    profiles:
+      - redis
       - all
 
 networks:
