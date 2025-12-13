@@ -149,4 +149,181 @@ class ProductController extends Controller
 
         return response()->json($products);
     }
+
+    /**
+     * Get product attributes
+     */
+    public function getAttributes(Product $product)
+    {
+        $attributes = $product->attributes()->with('values')->get();
+        return response()->json($attributes);
+    }
+
+    /**
+     * Assign attributes to product
+     */
+    public function assignAttributes(Request $request, Product $product)
+    {
+        $request->validate([
+            'attributes' => 'required|array',
+            'attributes.*.attribute_id' => 'required|exists:attributes,id',
+            'attributes.*.value' => 'required|string',
+        ]);
+
+        foreach ($request->attributes as $attr) {
+            $product->attributes()->syncWithoutDetaching([
+                $attr['attribute_id'] => ['value' => $attr['value']]
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Attributes assigned successfully',
+            'attributes' => $product->attributes()->with('values')->get()
+        ]);
+    }
+
+    /**
+     * Update product attribute
+     */
+    public function updateAttribute(Request $request, Product $product, $attributeId)
+    {
+        $request->validate([
+            'value' => 'required|string',
+        ]);
+
+        $product->attributes()->updateExistingPivot($attributeId, [
+            'value' => $request->value
+        ]);
+
+        return response()->json([
+            'message' => 'Attribute updated successfully'
+        ]);
+    }
+
+    /**
+     * Remove attribute from product
+     */
+    public function removeAttribute(Product $product, $attributeId)
+    {
+        $product->attributes()->detach($attributeId);
+
+        return response()->json([
+            'message' => 'Attribute removed successfully'
+        ]);
+    }
+
+    /**
+     * Get product variants
+     */
+    public function getVariants(Product $product)
+    {
+        $variants = $product->variants()->get();
+        return response()->json($variants);
+    }
+
+    /**
+     * Create a single product variant manually
+     */
+    public function createVariant(Request $request, Product $product)
+    {
+        $validated = $request->validate([
+            'attributes' => 'required|array',
+            'price' => 'nullable|numeric|min:0',
+            'stock' => 'integer|min:0',
+            'is_active' => 'boolean',
+        ]);
+
+        // Check for duplicate variant
+        $existingVariant = $product->variants()
+            ->get()
+            ->first(function ($variant) use ($validated) {
+                $existing = $variant->attributes ?? [];
+                $new = $validated['attributes'];
+                ksort($existing);
+                ksort($new);
+                return $existing == $new;
+            });
+
+        if ($existingVariant) {
+            return response()->json([
+                'message' => 'Variant with these attributes already exists',
+                'variant' => $existingVariant
+            ], 409);
+        }
+
+        // Generate variant name and SKU
+        $variantName = implode(' - ', array_values($validated['attributes']));
+        $baseSku = $product->sku;
+        $suffix = strtoupper(implode('-', array_map('Illuminate\Support\Str::slug', array_values($validated['attributes']))));
+        $sku = "{$baseSku}-{$suffix}";
+
+        // Ensure SKU uniqueness
+        $counter = 1;
+        $originalSku = $sku;
+        while (\App\Models\ProductVariant::where('sku', $sku)->exists()) {
+            $sku = "{$originalSku}-{$counter}";
+            $counter++;
+        }
+
+        $variant = $product->variants()->create([
+            'name' => $variantName,
+            'sku' => $sku,
+            'price' => $validated['price'] ?? null,
+            'stock' => $validated['stock'] ?? 0,
+            'attributes' => $validated['attributes'],
+            'is_active' => $validated['is_active'] ?? true,
+        ]);
+
+        return response()->json([
+            'message' => 'Variant created successfully',
+            'variant' => $variant
+        ], 201);
+    }
+
+    /**
+     * Update a product variant
+     */
+    public function updateVariant(Request $request, Product $product, $variantId)
+    {
+        $variant = $product->variants()->findOrFail($variantId);
+
+        $validated = $request->validate([
+            'price' => 'nullable|numeric|min:0',
+            'stock' => 'integer|min:0',
+            'is_active' => 'boolean',
+        ]);
+
+        $variant->update($validated);
+
+        return response()->json([
+            'message' => 'Variant updated successfully',
+            'variant' => $variant
+        ]);
+    }
+
+    /**
+     * Delete a product variant (soft delete)
+     */
+    public function deleteVariant(Product $product, $variantId)
+    {
+        $variant = $product->variants()->findOrFail($variantId);
+        $variant->delete();
+
+        return response()->json([
+            'message' => 'Variant deleted successfully'
+        ]);
+    }
+
+    /**
+     * Force delete a product variant (permanent)
+     */
+    public function forceDeleteVariant(Product $product, $variantId)
+    {
+        $variant = $product->variants()->withTrashed()->findOrFail($variantId);
+        $variant->forceDelete();
+
+        return response()->json([
+            'message' => 'Variant permanently deleted'
+        ]);
+    }
 }
