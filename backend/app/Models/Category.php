@@ -25,6 +25,17 @@ class Category extends Model
     }
 
     /**
+     * Get the attributes for this category
+     */
+    public function attributes()
+    {
+        return $this->belongsToMany(Attribute::class, 'category_attributes')
+            ->withPivot('is_required', 'order')
+            ->withTimestamps()
+            ->orderBy('order');
+    }
+
+    /**
      * Get parent category
      */
     public function parent()

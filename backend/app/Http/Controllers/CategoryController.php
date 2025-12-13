@@ -125,4 +125,74 @@ class CategoryController extends Controller
             'message' => 'Category deleted successfully'
         ]);
     }
+
+    /**
+     * Get category attributes
+     */
+    public function getAttributes(Category $category)
+    {
+        $attributes = $category->attributes()->with('values')->get();
+        return response()->json($attributes);
+    }
+
+    /**
+     * Assign attributes to category
+     */
+    public function assignAttributes(Request $request, Category $category)
+    {
+        $request->validate([
+            'attributes' => 'required|array',
+            'attributes.*.attribute_id' => 'required|exists:attributes,id',
+            'attributes.*.is_required' => 'boolean',
+            'attributes.*.order' => 'integer|min:0',
+        ]);
+
+        foreach ($request->attributes as $attr) {
+            $category->attributes()->syncWithoutDetaching([
+                $attr['attribute_id'] => [
+                    'is_required' => $attr['is_required'] ?? false,
+                    'order' => $attr['order'] ?? 0
+                ]
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Attributes assigned successfully',
+            'attributes' => $category->attributes()->with('values')->get()
+        ]);
+    }
+
+    /**
+     * Update category attribute
+     */
+    public function updateAttribute(Request $request, Category $category, $attributeId)
+    {
+        $request->validate([
+            'is_required' => 'boolean',
+            'order' => 'integer|min:0',
+        ]);
+
+        $category->attributes()->updateExistingPivot($attributeId,
+            array_filter([
+                'is_required' => $request->is_required ?? null,
+                'order' => $request->order ?? null,
+            ], fn($value) => $value !== null)
+        );
+
+        return response()->json([
+            'message' => 'Attribute updated successfully'
+        ]);
+    }
+
+    /**
+     * Remove attribute from category
+     */
+    public function removeAttribute(Category $category, $attributeId)
+    {
+        $category->attributes()->detach($attributeId);
+
+        return response()->json([
+            'message' => 'Attribute removed successfully'
+        ]);
+    }
 }
