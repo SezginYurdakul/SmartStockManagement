@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Exceptions\BusinessException;
 use App\Models\Product;
 use App\Services\ProductService;
 use Illuminate\Http\Request;
@@ -136,15 +137,35 @@ class ProductController extends Controller
     }
 
     /**
+     * Restore a soft-deleted product
+     */
+    public function restore($id)
+    {
+        $product = $this->productService->restore($id);
+
+        return response()->json([
+            'message' => 'Product restored successfully',
+            'data' => $product->load(['category', 'images'])
+        ]);
+    }
+
+    /**
      * Search products using Elasticsearch
+     *
+     * Accepts: ?search=keyword or ?query=keyword or ?q=keyword
      */
     public function search(Request $request)
     {
-        $request->validate([
-            'query' => 'required|string|min:2'
-        ]);
+        // Accept multiple parameter names for flexibility
+        $searchTerm = $request->input('search')
+            ?? $request->input('query')
+            ?? $request->input('q');
 
-        $products = Product::search($request->query)
+        if (!$searchTerm || strlen($searchTerm) < 2) {
+            throw new BusinessException('The search term is required and must be at least 2 characters.', 422);
+        }
+
+        $products = Product::search($searchTerm)
             ->paginate($request->get('per_page', 15));
 
         return response()->json($products);

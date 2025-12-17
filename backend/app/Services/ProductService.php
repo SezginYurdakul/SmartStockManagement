@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\BusinessException;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -190,6 +191,52 @@ class ProductService
             ]);
 
             throw new Exception("Failed to delete product: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Restore a soft-deleted product
+     */
+    public function restore(int $id): Product
+    {
+        Log::info('Restoring product', ['product_id' => $id]);
+
+        $product = Product::withTrashed()->findOrFail($id);
+
+        if (!$product->trashed()) {
+            throw new BusinessException("Product is not deleted", 400);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Restore the product (this triggers the restored event in model)
+            $product->restore();
+
+            // Restore associated variants
+            $product->variants()->withTrashed()->restore();
+
+            // Restore associated images
+            $product->images()->withTrashed()->restore();
+
+            DB::commit();
+
+            Log::info('Product restored successfully', [
+                'product_id' => $product->id,
+                'name' => $product->name,
+            ]);
+
+            return $product->fresh();
+
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            Log::error('Failed to restore product', [
+                'product_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new Exception("Failed to restore product: {$e->getMessage()}");
         }
     }
 

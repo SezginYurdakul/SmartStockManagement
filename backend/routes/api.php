@@ -8,7 +8,6 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get("/", function () {
@@ -77,10 +76,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('products')->group(function () {
         Route::get('/', [ProductController::class, 'index'])->middleware('permission:products.view');
         Route::post('/', [ProductController::class, 'store'])->middleware('permission:products.create');
+
+        // Search endpoints - multiple URL options for flexibility
+        // All accept: ?search=, ?query=, or ?q= parameters
         Route::get('/search', [ProductController::class, 'search'])->middleware('permission:products.view');
+        Route::get('/query', [ProductController::class, 'search'])->middleware('permission:products.view');
+        Route::get('/find', [ProductController::class, 'search'])->middleware('permission:products.view');
+
         Route::get('/{product}', [ProductController::class, 'show'])->middleware('permission:products.view');
         Route::put('/{product}', [ProductController::class, 'update'])->middleware('permission:products.edit');
         Route::delete('/{product}', [ProductController::class, 'destroy'])->middleware('permission:products.delete');
+        Route::post('/{id}/restore', [ProductController::class, 'restore'])->middleware('permission:products.delete');
 
         // Product image routes
         Route::post('/{product}/images', [ProductImageController::class, 'upload'])->middleware('permission:products.edit');
