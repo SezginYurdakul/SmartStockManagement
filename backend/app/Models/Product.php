@@ -68,10 +68,29 @@ class Product extends Model
 
     /**
      * Determine if the model should be searchable.
+     * Only index active products that are not soft deleted.
      */
-    public function shouldBeSearchable()
+    public function shouldBeSearchable(): bool
     {
-        return $this->is_active;
+        return $this->is_active && !$this->trashed();
+    }
+
+    /**
+     * Boot the model and register event listeners for search indexing.
+     */
+    protected static function booted(): void
+    {
+        // Set is_active to false and remove from search index when soft deleted
+        static::softDeleted(function (Product $product) {
+            $product->updateQuietly(['is_active' => false]);
+            $product->unsearchable();
+        });
+
+        // Re-activate and add to search index when restored
+        static::restored(function (Product $product) {
+            $product->updateQuietly(['is_active' => true]);
+            $product->searchable();
+        });
     }
 
     /**
