@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\BusinessException;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;

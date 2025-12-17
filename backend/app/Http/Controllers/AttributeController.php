@@ -6,16 +6,19 @@ use App\Jobs\GenerateVariantsJob;
 use App\Models\Attribute;
 use App\Models\AttributeValue;
 use App\Models\Product;
+use App\Services\AttributeService;
 use App\Services\VariantGeneratorService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class AttributeController extends Controller
 {
+    protected $attributeService;
     protected $variantGenerator;
 
-    public function __construct(VariantGeneratorService $variantGenerator)
+    public function __construct(AttributeService $attributeService, VariantGeneratorService $variantGenerator)
     {
+        $this->attributeService = $attributeService;
         $this->variantGenerator = $variantGenerator;
     }
 
@@ -24,21 +27,8 @@ class AttributeController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Attribute::with(['values' => function ($q) {
-            $q->where('is_active', true)->orderBy('order');
-        }]);
-
-        // Filter by type
-        if ($request->has('type')) {
-            $query->where('type', $request->type);
-        }
-
-        // Filter by variant attributes only
-        if ($request->has('variant_only') && $request->variant_only) {
-            $query->where('is_variant_attribute', true);
-        }
-
-        $attributes = $query->orderBy('order')->get();
+        $filters = $request->only(['type', 'variant_only']);
+        $attributes = $this->attributeService->getAll($filters);
 
         return response()->json($attributes);
     }
@@ -48,7 +38,7 @@ class AttributeController extends Controller
      */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'name' => 'required|string|unique:attributes|max:255',
             'display_name' => 'required|string|max:255',
             'type' => 'required|in:select,text,number,boolean',
@@ -58,29 +48,18 @@ class AttributeController extends Controller
             'is_visible' => 'boolean',
             'is_required' => 'boolean',
             'description' => 'nullable|string',
-            'values' => 'array', // Optional initial values
-
-
-
-                                                            'values.*.label' => 'nullable|string',
+            'values' => 'array',
+            'values.*.value' => 'required|string',
+            'values.*.label' => 'nullable|string',
             'values.*.order' => 'integer|min:0',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        $attribute = $this->attributeService->create($validated);
 
-        $attribute = Attribute::create($request->except('values'));
-
-        // Create initial values if provided
-        if ($request->has('values')) {
-            foreach ($request->values as $valueData) {
-                $attribute->values()->create($valueData);
-            }
-            $attribute->load('values');
-        }
-
-        return response()->json($attribute, 201);
+        return response()->json([
+            'message' => 'Attribute created successfully',
+            'data' => $attribute
+        ], 201);
     }
 
     /**
@@ -100,8 +79,8 @@ class AttributeController extends Controller
      */
     public function update(Request $request, Attribute $attribute)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'string|unique:attributes,name,' . $attribute->id . '|max:255',
+        $validated = $request->validate([
+            'name' => ['string', 'max:255', Rule::unique('attributes')->ignore($attribute->id)],
             'display_name' => 'string|max:255',
             'type' => 'in:select,text,number,boolean',
             'order' => 'integer|min:0',
@@ -112,13 +91,12 @@ class AttributeController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        $attribute = $this->attributeService->update($attribute, $validated);
 
-        $attribute->update($request->all());
-
-        return response()->json($attribute);
+        return response()->json([
+            'message' => 'Attribute updated successfully',
+            'data' => $attribute
+        ]);
     }
 
     /**
@@ -126,8 +104,11 @@ class AttributeController extends Controller
      */
     public function destroy(Attribute $attribute)
     {
-        $attribute->delete();
-        return response()->json(['message' => 'Attribute deleted successfully']);
+        $this->attributeService->delete($attribute);
+
+        return response()->json([
+            'message' => 'Attribute deleted successfully'
+        ]);
     }
 
     /**
@@ -135,7 +116,7 @@ class AttributeController extends Controller
      */
     public function addValues(Request $request, Attribute $attribute)
     {
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'values' => 'required|array',
             'values.*.value' => 'required|string',
             'values.*.label' => 'nullable|string',
@@ -143,18 +124,7 @@ class AttributeController extends Controller
             'values.*.is_active' => 'boolean',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $createdValues = [];
-        foreach ($request->values as $valueData) {
-            // Check if value already exists
-            $existing = $attribute->values()->where('value', $valueData['value'])->first();
-            if (!$existing) {
-                $createdValues[] = $attribute->values()->create($valueData);
-            }
-        }
+        $createdValues = $this->attributeService->addValues($attribute, $validated['values']);
 
         return response()->json([
             'message' => count($createdValues) . ' values added successfully',
@@ -167,24 +137,19 @@ class AttributeController extends Controller
      */
     public function updateValue(Request $request, Attribute $attribute, AttributeValue $value)
     {
-        if ($value->attribute_id !== $attribute->id) {
-            return response()->json(['error' => 'Value does not belong to this attribute'], 403);
-        }
-
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'value' => 'string',
             'label' => 'nullable|string',
             'order' => 'integer|min:0',
             'is_active' => 'boolean',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        $value = $this->attributeService->updateValue($attribute, $value, $validated);
 
-        $value->update($request->all());
-
-        return response()->json($value);
+        return response()->json([
+            'message' => 'Value updated successfully',
+            'data' => $value
+        ]);
     }
 
     /**
@@ -192,36 +157,19 @@ class AttributeController extends Controller
      */
     public function destroyValue(Attribute $attribute, AttributeValue $value)
     {
-        if ($value->attribute_id !== $attribute->id) {
-            return response()->json(['error' => 'Value does not belong to this attribute'], 403);
-        }
+        $this->attributeService->deleteValue($attribute, $value);
 
-        $value->delete();
-        return response()->json(['message' => 'Value deleted successfully']);
+        return response()->json([
+            'message' => 'Value deleted successfully'
+        ]);
     }
 
     /**
-     * MAGIC ENDPOINT: Generate product variants automatically
-     *
-     * Example request:
-     * POST /api/products/{product}/variants/generate
-     * {
-     *   "attribute_ids": [1, 2],  // Color and Size attribute IDs
-     *   "base_price": 100,
-     *   "base_stock": 10,
-     *   "price_increments": {
-     *     "XL": 10,
-     *     "XXL": 20
-     *   },
-     *   "clear_existing": true
-     * }
-     *
-     * Result: If Color has 5 values and Size has 4 values,
-     * this will generate 5 × 4 = 20 variants automatically!
+     * Generate product variants automatically
      */
     public function generateVariants(Request $request, Product $product)
     {
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'attribute_ids' => 'required|array|min:1',
             'attribute_ids.*' => 'exists:attributes,id',
             'base_price' => 'numeric|min:0',
@@ -230,32 +178,21 @@ class AttributeController extends Controller
             'clear_existing' => 'boolean',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        $variants = $this->variantGenerator->generateVariants(
+            $product,
+            $validated['attribute_ids'],
+            [
+                'base_price' => $validated['base_price'] ?? $product->price,
+                'base_stock' => $validated['base_stock'] ?? 10,
+                'price_increments' => $validated['price_increments'] ?? [],
+                'clear_existing' => $validated['clear_existing'] ?? false,
+            ]
+        );
 
-        try {
-            $variants = $this->variantGenerator->generateVariants(
-                $product,
-                $request->attribute_ids,
-                [
-                    'base_price' => $request->base_price ?? $product->price,
-                    'base_stock' => $request->base_stock ?? 10,
-                    'price_increments' => $request->price_increments ?? [],
-                    'clear_existing' => $request->clear_existing ?? false,
-                ]
-            );
-
-            return response()->json([
-                'message' => count($variants) . ' variants generated successfully',
-                'variants' => $variants
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Failed to generate variants',
-                'message' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'message' => count($variants) . ' variants generated successfully',
+            'variants' => $variants
+        ], 201);
     }
 
     /**
@@ -286,20 +223,10 @@ class AttributeController extends Controller
 
     /**
      * Bulk generate variants for multiple products
-     *
-     * Example request:
-     * POST /api/variants/bulk-generate
-     * {
-     *   "product_ids": [1, 2, 3, 4, 5],       // Specific products
-     *   "category_id": 5,                      // OR all products in category
-     *   "attribute_ids": [1, 3],               // Color and Storage
-     *   "base_stock": 10,
-     *   "clear_existing": false
-     * }
      */
     public function bulkGenerateVariants(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'product_ids' => 'required_without:category_id|array',
             'product_ids.*' => 'exists:products,id',
             'category_id' => 'required_without:product_ids|exists:categories,id',
@@ -307,29 +234,24 @@ class AttributeController extends Controller
             'attribute_ids.*' => 'exists:attributes,id',
             'base_stock' => 'integer|min:0',
             'clear_existing' => 'boolean',
-            'limit' => 'integer|min:1|max:100', // Max products per request (sync mode)
-            'offset' => 'integer|min:0', // Skip first N products (sync mode)
-            'async' => 'boolean', // Process in background via queue
+            'limit' => 'integer|min:1|max:100',
+            'offset' => 'integer|min:0',
+            'async' => 'boolean',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
         // Get products
-        if ($request->has('product_ids')) {
-            $products = Product::whereIn('id', $request->product_ids)->get();
+        if (isset($validated['product_ids'])) {
+            $products = Product::whereIn('id', $validated['product_ids'])->get();
             $totalProducts = $products->count();
         } else {
-            $totalProducts = Product::where('category_id', $request->category_id)->count();
+            $totalProducts = Product::where('category_id', $validated['category_id'])->count();
 
-            // For async mode, get all products; for sync mode, use pagination
             if ($request->boolean('async')) {
-                $products = Product::where('category_id', $request->category_id)->get();
+                $products = Product::where('category_id', $validated['category_id'])->get();
             } else {
-                $limit = $request->limit ?? 50;
-                $offset = $request->offset ?? 0;
-                $products = Product::where('category_id', $request->category_id)
+                $limit = $validated['limit'] ?? 50;
+                $offset = $validated['offset'] ?? 0;
+                $products = Product::where('category_id', $validated['category_id'])
                     ->skip($offset)
                     ->take($limit)
                     ->get();
@@ -337,20 +259,23 @@ class AttributeController extends Controller
         }
 
         if ($products->isEmpty()) {
-            return response()->json(['error' => 'No products found'], 404);
+            return response()->json([
+                'message' => 'No products found',
+                'error' => 'not_found'
+            ], 404);
         }
 
-        // ASYNC MODE: Dispatch jobs to queue
+        // ASYNC MODE
         if ($request->boolean('async')) {
             $jobOptions = [
-                'base_stock' => $request->base_stock ?? 10,
-                'clear_existing' => $request->clear_existing ?? false,
+                'base_stock' => $validated['base_stock'] ?? 10,
+                'clear_existing' => $validated['clear_existing'] ?? false,
             ];
 
             foreach ($products as $product) {
                 GenerateVariantsJob::dispatch(
                     $product->id,
-                    $request->attribute_ids,
+                    $validated['attribute_ids'],
                     array_merge($jobOptions, ['base_price' => $product->price])
                 );
             }
@@ -359,11 +284,10 @@ class AttributeController extends Controller
                 'message' => "Variant generation queued for {$products->count()} products",
                 'mode' => 'async',
                 'jobs_dispatched' => $products->count(),
-                'note' => 'Variants will be generated in the background. Check logs for progress.'
             ], 202);
         }
 
-        // SYNC MODE: Process immediately with pagination
+        // SYNC MODE
         $results = [
             'success' => [],
             'failed' => [],
@@ -381,11 +305,11 @@ class AttributeController extends Controller
             try {
                 $variants = $this->variantGenerator->generateVariants(
                     $product,
-                    $request->attribute_ids,
+                    $validated['attribute_ids'],
                     [
                         'base_price' => $product->price,
-                        'base_stock' => $request->base_stock ?? 10,
-                        'clear_existing' => $request->clear_existing ?? false,
+                        'base_stock' => $validated['base_stock'] ?? 10,
+                        'clear_existing' => $validated['clear_existing'] ?? false,
                     ]
                 );
 

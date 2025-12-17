@@ -2,37 +2,30 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Services\CategoryService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class CategoryController extends Controller
 {
+    protected $categoryService;
+
+    public function __construct(CategoryService $categoryService)
+    {
+        $this->categoryService = $categoryService;
+    }
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
-        $query = Category::query();
+        $filters = $request->only(['parent_id']);
+        $tree = $request->boolean('tree');
+        $perPage = $request->get('per_page', 15);
 
-        // Hierarchical tree structure
-        if ($request->boolean('tree')) {
-            $categories = $query->get()->toTree();
-            return response()->json($categories);
-        }
-
-        // Filter by parent
-        if ($request->has('parent_id')) {
-            $query->where('parent_id', $request->parent_id);
-        }
-
-        // Flat list with pagination - parent bilgisi ile birlikte
-        $categories = $query->with('parent') // parent() methodunu kullanarak parent bilgisini yükle
-            ->withCount('products')
-            ->orderBy('name')
-            ->paginate($request->get('per_page', 15));
+        $categories = $this->categoryService->getAll($filters, $tree, $perPage);
 
         return response()->json($categories);
     }
@@ -49,12 +42,7 @@ class CategoryController extends Controller
             'parent_id' => 'nullable|exists:categories,id',
         ]);
 
-        // Auto-generate slug if not provided
-        if (empty($validated['slug'])) {
-            $validated['slug'] = Str::slug($validated['name']);
-        }
-
-        $category = Category::create($validated);
+        $category = $this->categoryService->create($validated);
 
         return response()->json([
             'message' => 'Category created successfully',
@@ -85,14 +73,7 @@ class CategoryController extends Controller
             'parent_id' => 'nullable|exists:categories,id',
         ]);
 
-        // Prevent category from being its own parent
-        if (isset($validated['parent_id']) && $validated['parent_id'] == $category->id) {
-            return response()->json([
-                'message' => 'Category cannot be its own parent'
-            ], 422);
-        }
-
-        $category->update($validated);
+        $category = $this->categoryService->update($category, $validated);
 
         return response()->json([
             'message' => 'Category updated successfully',
@@ -105,21 +86,7 @@ class CategoryController extends Controller
      */
     public function destroy(Category $category)
     {
-        // Check if category has products
-        if ($category->products()->count() > 0) {
-            return response()->json([
-                'message' => 'Cannot delete category with products. Please move or delete products first.'
-            ], 422);
-        }
-
-        // Check if category has children
-        if ($category->children()->count() > 0) {
-            return response()->json([
-                'message' => 'Cannot delete category with subcategories. Please delete subcategories first.'
-            ], 422);
-        }
-
-        $category->delete();
+        $this->categoryService->delete($category);
 
         return response()->json([
             'message' => 'Category deleted successfully'
@@ -131,7 +98,8 @@ class CategoryController extends Controller
      */
     public function getAttributes(Category $category)
     {
-        $attributes = $category->attributes()->with('values')->get();
+        $attributes = $this->categoryService->getAttributes($category);
+
         return response()->json($attributes);
     }
 
@@ -147,18 +115,11 @@ class CategoryController extends Controller
             'attributes.*.order' => 'integer|min:0',
         ]);
 
-        foreach ($request->attributes as $attr) {
-            $category->attributes()->syncWithoutDetaching([
-                $attr['attribute_id'] => [
-                    'is_required' => $attr['is_required'] ?? false,
-                    'order' => $attr['order'] ?? 0
-                ]
-            ]);
-        }
+        $this->categoryService->assignAttributes($category, $request->attributes);
 
         return response()->json([
             'message' => 'Attributes assigned successfully',
-            'attributes' => $category->attributes()->with('values')->get()
+            'attributes' => $this->categoryService->getAttributes($category)
         ]);
     }
 
@@ -167,17 +128,12 @@ class CategoryController extends Controller
      */
     public function updateAttribute(Request $request, Category $category, $attributeId)
     {
-        $request->validate([
+        $validated = $request->validate([
             'is_required' => 'boolean',
             'order' => 'integer|min:0',
         ]);
 
-        $category->attributes()->updateExistingPivot($attributeId,
-            array_filter([
-                'is_required' => $request->is_required ?? null,
-                'order' => $request->order ?? null,
-            ], fn($value) => $value !== null)
-        );
+        $this->categoryService->updateAttribute($category, $attributeId, $validated);
 
         return response()->json([
             'message' => 'Attribute updated successfully'
@@ -189,7 +145,7 @@ class CategoryController extends Controller
      */
     public function removeAttribute(Category $category, $attributeId)
     {
-        $category->attributes()->detach($attributeId);
+        $this->categoryService->removeAttribute($category, $attributeId);
 
         return response()->json([
             'message' => 'Attribute removed successfully'
