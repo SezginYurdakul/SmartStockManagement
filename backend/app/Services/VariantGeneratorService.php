@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Attribute;
+use App\Models\AttributeValue;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
@@ -30,6 +31,9 @@ class VariantGeneratorService
             throw new \Exception('No variant attributes found');
         }
 
+        // Get selected value IDs filter (if provided)
+        $selectedValueIds = $options['selected_value_ids'] ?? [];
+
         // Prepare attribute values for cartesian product
         $attributeValueSets = [];
         foreach ($attributes as $attribute) {
@@ -37,7 +41,27 @@ class VariantGeneratorService
                 throw new \Exception("Attribute '{$attribute->display_name}' has no values");
             }
 
-            $attributeValueSets[$attribute->id] = $attribute->activeValues->pluck('value')->toArray();
+            // Check if specific value IDs are selected for this attribute
+            $attributeIdStr = (string) $attribute->id;
+            if (!empty($selectedValueIds) && isset($selectedValueIds[$attributeIdStr])) {
+                // Use only the selected values by ID
+                $requestedIds = $selectedValueIds[$attributeIdStr];
+
+                // Get values that match the requested IDs and belong to this attribute
+                $filteredValues = $attribute->activeValues
+                    ->whereIn('id', $requestedIds)
+                    ->pluck('value')
+                    ->toArray();
+
+                if (empty($filteredValues)) {
+                    throw new \Exception("None of the selected value IDs exist for attribute '{$attribute->display_name}'");
+                }
+
+                $attributeValueSets[$attribute->id] = array_values($filteredValues);
+            } else {
+                // Use all active values
+                $attributeValueSets[$attribute->id] = $attribute->activeValues->pluck('value')->toArray();
+            }
         }
 
         // Generate all combinations (Cartesian product)
@@ -46,8 +70,20 @@ class VariantGeneratorService
         // Default options - null means "to be set later via update"
         $basePrice = $options['base_price'] ?? null;
         $baseStock = $options['base_stock'] ?? null;
-        $priceIncrements = $options['price_increments'] ?? [];
+        $priceIncrementsById = $options['price_increments'] ?? [];
         $clearExisting = $options['clear_existing'] ?? false;
+
+        // Convert price_increments from value_id => increment to value_string => increment
+        $priceIncrements = [];
+        if (!empty($priceIncrementsById)) {
+            $valueIds = array_keys($priceIncrementsById);
+            $values = AttributeValue::whereIn('id', $valueIds)->pluck('value', 'id');
+            foreach ($priceIncrementsById as $valueId => $increment) {
+                if (isset($values[$valueId])) {
+                    $priceIncrements[$values[$valueId]] = $increment;
+                }
+            }
+        }
 
         // Clear existing variants if requested
         if ($clearExisting) {
@@ -66,7 +102,8 @@ class VariantGeneratorService
                 foreach ($combination as $attributeId => $value) {
                     $attribute = $attributes->firstWhere('id', $attributeId);
                     $variantParts[] = $value;
-                    $variantAttributes[$attribute->name] = $value;
+                    // Use lowercase key for consistency with existing variants
+                    $variantAttributes[strtolower($attribute->name)] = $value;
 
                     // Apply price increment if specified and base price is set
                     if ($basePrice !== null && isset($priceIncrements[$value])) {
@@ -74,10 +111,20 @@ class VariantGeneratorService
                     }
                 }
 
-                // Check if variant with same attributes already exists
+                // Check if variant with same attributes already exists (including soft-deleted)
                 $existingVariant = $this->findExistingVariant($product, $variantAttributes);
                 if ($existingVariant) {
-                    // Skip duplicate variant
+                    // If soft-deleted, restore it with updated values
+                    if ($existingVariant->trashed()) {
+                        $existingVariant->restore();
+                        $existingVariant->update([
+                            'price' => $variantPrice,
+                            'stock' => $baseStock,
+                            'is_active' => $variantPrice !== null && $baseStock !== null,
+                        ]);
+                        $generatedVariants[] = $existingVariant->fresh();
+                    }
+                    // Skip if already active
                     continue;
                 }
 
@@ -148,11 +195,11 @@ class VariantGeneratorService
 
         $sku = "{$baseSku}-{$suffix}";
 
-        // Ensure uniqueness
+        // Ensure uniqueness (including soft-deleted variants)
         $counter = 1;
         $originalSku = $sku;
 
-        while (ProductVariant::where('sku', $sku)->exists()) {
+        while (ProductVariant::withTrashed()->where('sku', $sku)->exists()) {
             $sku = "{$originalSku}-{$counter}";
             $counter++;
         }
@@ -169,18 +216,22 @@ class VariantGeneratorService
      */
     private function findExistingVariant(Product $product, array $attributes): ?ProductVariant
     {
-        // Get all variants for this product
-        $variants = $product->variants()->get();
+        // Get all variants for this product (including soft-deleted)
+        $variants = $product->variants()->withTrashed()->get();
+
+        // Normalize input attributes (lowercase keys)
+        $normalizedAttrs = array_change_key_case($attributes, CASE_LOWER);
+        ksort($normalizedAttrs);
 
         foreach ($variants as $variant) {
             $variantAttrs = $variant->attributes ?? [];
 
-            // Sort both arrays by key for comparison
-            ksort($attributes);
-            ksort($variantAttrs);
+            // Normalize existing variant attributes (lowercase keys)
+            $normalizedVariantAttrs = array_change_key_case($variantAttrs, CASE_LOWER);
+            ksort($normalizedVariantAttrs);
 
-            // Compare attributes
-            if ($attributes == $variantAttrs) {
+            // Compare normalized attributes
+            if ($normalizedAttrs == $normalizedVariantAttrs) {
                 return $variant;
             }
         }

@@ -166,12 +166,25 @@ class AttributeController extends Controller
 
     /**
      * Generate product variants automatically
+     *
+     * Request body:
+     * - attribute_ids: required array of attribute IDs
+     * - selected_value_ids: optional object mapping attribute_id => [value_id1, value_id2, ...]
+     *   If not provided for an attribute, all active values are used
+     *   Example: {"1": [1, 3, 5], "2": [8, 10]}
+     * - base_price: optional starting price (defaults to product price)
+     * - base_stock: optional starting stock (defaults to 10)
+     * - price_increments: optional object mapping value_id => price_increment
+     * - clear_existing: optional boolean to delete existing variants first
      */
     public function generateVariants(Request $request, Product $product)
     {
         $validated = $request->validate([
             'attribute_ids' => 'required|array|min:1',
             'attribute_ids.*' => 'exists:attributes,id',
+            'selected_value_ids' => 'array',
+            'selected_value_ids.*' => 'array',
+            'selected_value_ids.*.*' => 'integer|exists:attribute_values,id',
             'base_price' => 'numeric|min:0',
             'base_stock' => 'integer|min:0',
             'price_increments' => 'array',
@@ -186,6 +199,7 @@ class AttributeController extends Controller
                 'base_stock' => $validated['base_stock'] ?? 10,
                 'price_increments' => $validated['price_increments'] ?? [],
                 'clear_existing' => $validated['clear_existing'] ?? false,
+                'selected_value_ids' => $validated['selected_value_ids'] ?? [],
             ]
         );
 
