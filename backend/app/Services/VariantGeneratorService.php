@@ -249,4 +249,147 @@ class VariantGeneratorService
     {
         return $product->variants()->delete();
     }
+
+    /**
+     * Expand existing variants with a new attribute dimension
+     *
+     * Takes existing variants and creates new combinations by adding
+     * values from a new attribute. Inherits price/stock from original variant.
+     *
+     * Example: 5 size variants + 3 colors = 15 new variants (originals soft-deleted)
+     *
+     * @param Product $product
+     * @param int $expandAttributeId The attribute ID to expand with
+     * @param array $expandValueIds The value IDs to add from the new attribute
+     * @param array $options Configuration options
+     * @return array Generated variants
+     */
+    public function expandVariants(Product $product, int $expandAttributeId, array $expandValueIds, array $options = []): array
+    {
+        // Get the new attribute
+        $newAttribute = Attribute::with('activeValues')
+            ->where('id', $expandAttributeId)
+            ->variantAttributes()
+            ->first();
+
+        if (!$newAttribute) {
+            throw new \Exception('Expand attribute not found or not a variant attribute');
+        }
+
+        // Get requested values from the new attribute
+        $newValues = $newAttribute->activeValues
+            ->whereIn('id', $expandValueIds)
+            ->all();
+
+        if (empty($newValues)) {
+            throw new \Exception("None of the selected value IDs exist for attribute '{$newAttribute->display_name}'");
+        }
+
+        // Get existing active variants
+        $existingVariants = $product->variants()->where('is_active', true)->get();
+
+        if ($existingVariants->isEmpty()) {
+            throw new \Exception('No active variants to expand. Use generateVariants instead.');
+        }
+
+        // Check if any existing variant already has this attribute
+        $firstVariantAttrs = array_change_key_case($existingVariants->first()->attributes ?? [], CASE_LOWER);
+        $newAttributeKey = strtolower($newAttribute->name);
+
+        if (isset($firstVariantAttrs[$newAttributeKey])) {
+            throw new \Exception("Variants already have '{$newAttribute->display_name}' attribute. Use generateVariants with clear_existing instead.");
+        }
+
+        $inheritPriceStock = $options['inherit_price_stock'] ?? true;
+        $deleteOriginals = $options['delete_originals'] ?? true;
+        $priceIncrementsById = $options['price_increments'] ?? [];
+
+        // Convert price_increments from value_id => increment to value_string => increment
+        $priceIncrements = [];
+        if (!empty($priceIncrementsById)) {
+            $valueIds = array_keys($priceIncrementsById);
+            $values = AttributeValue::whereIn('id', $valueIds)->pluck('value', 'id');
+            foreach ($priceIncrementsById as $valueId => $increment) {
+                if (isset($values[$valueId])) {
+                    $priceIncrements[$values[$valueId]] = $increment;
+                }
+            }
+        }
+
+        $generatedVariants = [];
+
+        DB::transaction(function () use (
+            $product,
+            $existingVariants,
+            $newAttribute,
+            $newValues,
+            $inheritPriceStock,
+            $deleteOriginals,
+            $priceIncrements,
+            &$generatedVariants
+        ) {
+            foreach ($existingVariants as $existingVariant) {
+                $originalAttrs = $existingVariant->attributes ?? [];
+                $originalPrice = $existingVariant->price;
+                $originalStock = $existingVariant->stock;
+
+                foreach ($newValues as $newValue) {
+                    // Build new attributes (original + new)
+                    $newVariantAttrs = array_change_key_case($originalAttrs, CASE_LOWER);
+                    $newVariantAttrs[strtolower($newAttribute->name)] = $newValue->value;
+
+                    // Check if this combination already exists
+                    $existing = $this->findExistingVariant($product, $newVariantAttrs);
+                    if ($existing) {
+                        if ($existing->trashed()) {
+                            $existing->restore();
+                            $existing->update([
+                                'price' => $inheritPriceStock ? $originalPrice : null,
+                                'stock' => $inheritPriceStock ? $originalStock : null,
+                                'is_active' => $inheritPriceStock && $originalPrice !== null && $originalStock !== null,
+                            ]);
+                            $generatedVariants[] = $existing->fresh();
+                        }
+                        continue;
+                    }
+
+                    // Build variant name
+                    $nameParts = array_values($originalAttrs);
+                    $nameParts[] = $newValue->value;
+                    $variantName = implode(' - ', $nameParts);
+
+                    // Generate SKU
+                    $variantSku = $this->generateVariantSku($product, $nameParts);
+
+                    // Calculate price with increment
+                    $variantPrice = $inheritPriceStock ? $originalPrice : null;
+                    if ($variantPrice !== null && isset($priceIncrements[$newValue->value])) {
+                        $variantPrice += $priceIncrements[$newValue->value];
+                    }
+
+                    $variantStock = $inheritPriceStock ? $originalStock : null;
+                    $isComplete = $variantPrice !== null && $variantStock !== null;
+
+                    $variant = ProductVariant::create([
+                        'product_id' => $product->id,
+                        'name' => $variantName,
+                        'sku' => $variantSku,
+                        'price' => $variantPrice,
+                        'stock' => $variantStock,
+                        'attributes' => $newVariantAttrs,
+                        'is_active' => $isComplete,
+                    ]);
+
+                    $generatedVariants[] = $variant;
+                }
+
+                // Soft-delete original variant after expansion
+                if ($deleteOriginals) {
+                    $existingVariant->delete();
+                }
+            }
+        });
+
+        return $generatedVariants;
+    }
 }

@@ -108,6 +108,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // NOTE: These specific routes MUST come BEFORE the {variant} parameter routes
         Route::post('/{product}/variants/generate', [AttributeController::class, 'generateVariants'])
             ->middleware(['permission:products.edit', 'throttle:variant-generate']);
+        Route::post('/{product}/variants/expand', [AttributeController::class, 'expandVariants'])
+            ->middleware(['permission:products.edit', 'throttle:variant-generate']);
         Route::delete('/{product}/variants/clear', [AttributeController::class, 'clearVariants'])
             ->middleware('permission:products.edit');
 
