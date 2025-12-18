@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\CurrencyResource;
+use App\Http\Resources\ExchangeRateResource;
 use App\Models\Currency;
 use App\Services\CurrencyService;
 use Illuminate\Http\Request;
@@ -37,21 +39,17 @@ class CurrencyController extends Controller
 
         $currencies = $query->orderBy('code')->get();
 
-        return response()->json([
-            'data' => $currencies,
-        ]);
+        return CurrencyResource::collection($currencies);
     }
 
     /**
      * Get active currencies (for dropdowns)
      */
-    public function active(): JsonResponse
+    public function active()
     {
         $currencies = $this->currencyService->getActiveCurrencies();
 
-        return response()->json([
-            'data' => $currencies,
-        ]);
+        return CurrencyResource::collection($currencies);
     }
 
     /**
@@ -74,20 +72,18 @@ class CurrencyController extends Controller
 
         $currency = $this->currencyService->createCurrency($validated);
 
-        return response()->json([
-            'message' => 'Currency created successfully',
-            'data' => $currency,
-        ], 201);
+        return (new CurrencyResource($currency))
+            ->additional(['message' => 'Currency created successfully'])
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
      * Display the specified currency
      */
-    public function show(Currency $currency): JsonResponse
+    public function show(Currency $currency)
     {
-        return response()->json([
-            'data' => $currency,
-        ]);
+        return new CurrencyResource($currency);
     }
 
     /**
@@ -107,10 +103,8 @@ class CurrencyController extends Controller
 
         $currency = $this->currencyService->updateCurrency($currency, $validated);
 
-        return response()->json([
-            'message' => 'Currency updated successfully',
-            'data' => $currency,
-        ]);
+        return (new CurrencyResource($currency))
+            ->additional(['message' => 'Currency updated successfully']);
     }
 
     /**
@@ -128,14 +122,12 @@ class CurrencyController extends Controller
     /**
      * Toggle currency active status
      */
-    public function toggleActive(Currency $currency): JsonResponse
+    public function toggleActive(Currency $currency)
     {
         $currency->update(['is_active' => !$currency->is_active]);
 
-        return response()->json([
-            'message' => 'Currency status updated successfully',
-            'data' => $currency->fresh(),
-        ]);
+        return (new CurrencyResource($currency->fresh()))
+            ->additional(['message' => 'Currency status updated successfully']);
     }
 
     /**
@@ -192,10 +184,10 @@ class CurrencyController extends Controller
             $validated['source'] ?? 'manual'
         );
 
-        return response()->json([
-            'message' => 'Exchange rate set successfully',
-            'data' => $exchangeRate,
-        ], 201);
+        return (new ExchangeRateResource($exchangeRate))
+            ->additional(['message' => 'Exchange rate set successfully'])
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
@@ -215,9 +207,7 @@ class CurrencyController extends Controller
             $validated['days'] ?? 30
         );
 
-        return response()->json([
-            'data' => $history,
-        ]);
+        return ExchangeRateResource::collection($history);
     }
 
     /**

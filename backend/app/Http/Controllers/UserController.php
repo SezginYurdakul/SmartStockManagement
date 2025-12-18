@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\UserService;
 use Illuminate\Http\Request;
@@ -34,7 +35,7 @@ class UserController extends Controller
 
         $users = $this->userService->getUsers($search, $perPage);
 
-        return response()->json($users);
+        return UserResource::collection($users);
     }
 
     /**
@@ -60,10 +61,10 @@ class UserController extends Controller
 
         $user = $this->userService->createUser($validated);
 
-        return response()->json([
-            'message' => 'User created successfully',
-            'user' => $user,
-        ], 201);
+        return (new UserResource($user))
+            ->additional(['message' => 'User created successfully'])
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
@@ -79,9 +80,9 @@ class UserController extends Controller
             ], 403);
         }
 
-        return response()->json([
-            'user' => $this->userService->getUser($user),
-        ]);
+        $user->load(['roles', 'company']);
+
+        return new UserResource($user);
     }
 
     /**
@@ -114,10 +115,8 @@ class UserController extends Controller
 
         $user = $this->userService->updateUser($user, $validated);
 
-        return response()->json([
-            'message' => 'User updated successfully',
-            'user' => $user,
-        ]);
+        return (new UserResource($user))
+            ->additional(['message' => 'User updated successfully']);
     }
 
     /**
@@ -168,10 +167,10 @@ class UserController extends Controller
             ], 404);
         }
 
-        return response()->json([
-            'message' => 'User restored successfully',
-            'user' => $user->load('roles'),
-        ]);
+        $user->load(['roles', 'company']);
+
+        return (new UserResource($user))
+            ->additional(['message' => 'User restored successfully']);
     }
 
     /**

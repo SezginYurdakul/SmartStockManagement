@@ -4,6 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Exceptions\BusinessException;
+use App\Http\Resources\ProductListResource;
+use App\Http\Resources\ProductResource;
+use App\Http\Resources\ProductAttributeResource;
+use App\Http\Resources\ProductVariantResource;
 use App\Models\Product;
 use App\Services\ProductService;
 use Illuminate\Http\Request;
@@ -26,11 +30,11 @@ class ProductController extends Controller
         if ($request->has('search')) {
             $products = Product::search($request->search)
                 ->paginate($request->get('per_page', 15));
-            return response()->json($products);
+            return ProductListResource::collection($products);
         }
 
         $query = Product::with(['categories', 'primaryImage'])
-            ->withCount('images');
+            ->withCount('variants');
 
         // Apply filters
         $filters = $request->only(['category_id', 'is_active', 'is_featured', 'stock_status']);
@@ -45,7 +49,7 @@ class ProductController extends Controller
 
         $products = $query->paginate($request->get('per_page', 15));
 
-        return response()->json($products);
+        return ProductListResource::collection($products);
     }
 
     /**
@@ -73,11 +77,12 @@ class ProductController extends Controller
         ]);
 
         $product = $this->productService->create($validated);
+        $product->load(['categories', 'images', 'productType', 'unitOfMeasure']);
 
-        return response()->json([
-            'message' => 'Product created successfully',
-            'data' => $product->load(['categories', 'images'])
-        ], 201);
+        return (new ProductResource($product))
+            ->additional(['message' => 'Product created successfully'])
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
@@ -85,7 +90,16 @@ class ProductController extends Controller
      */
     public function show(Product $product)
     {
-        return response()->json($this->productService->getProduct($product));
+        $product->load([
+            'categories',
+            'images',
+            'productType',
+            'unitOfMeasure',
+            'attributes.values',
+            'prices.currency',
+        ])->loadCount('variants');
+
+        return new ProductResource($product);
     }
 
     /**
@@ -113,11 +127,10 @@ class ProductController extends Controller
         ]);
 
         $product = $this->productService->update($product, $validated);
+        $product->load(['categories', 'images', 'productType', 'unitOfMeasure']);
 
-        return response()->json([
-            'message' => 'Product updated successfully',
-            'data' => $product->load(['categories', 'images'])
-        ]);
+        return (new ProductResource($product))
+            ->additional(['message' => 'Product updated successfully']);
     }
 
     /**
@@ -138,11 +151,10 @@ class ProductController extends Controller
     public function restore($id)
     {
         $product = $this->productService->restore($id);
+        $product->load(['categories', 'images', 'productType', 'unitOfMeasure']);
 
-        return response()->json([
-            'message' => 'Product restored successfully',
-            'data' => $product->load(['categories', 'images'])
-        ]);
+        return (new ProductResource($product))
+            ->additional(['message' => 'Product restored successfully']);
     }
 
     /**
@@ -164,7 +176,7 @@ class ProductController extends Controller
         $products = Product::search($searchTerm)
             ->paginate($request->get('per_page', 15));
 
-        return response()->json($products);
+        return ProductListResource::collection($products);
     }
 
     /**
@@ -173,7 +185,7 @@ class ProductController extends Controller
     public function getAttributes(Product $product)
     {
         $attributes = $product->attributes()->with('values')->get();
-        return response()->json($attributes);
+        return ProductAttributeResource::collection($attributes);
     }
 
     /**
@@ -193,10 +205,8 @@ class ProductController extends Controller
             ]);
         }
 
-        return response()->json([
-            'message' => 'Attributes assigned successfully',
-            'attributes' => $product->attributes()->with('values')->get()
-        ]);
+        return ProductAttributeResource::collection($product->attributes()->with('values')->get())
+            ->additional(['message' => 'Attributes assigned successfully']);
     }
 
     /**
@@ -235,7 +245,7 @@ class ProductController extends Controller
     public function getVariants(Product $product)
     {
         $variants = $product->variants()->get();
-        return response()->json($variants);
+        return ProductVariantResource::collection($variants);
     }
 
     /**
@@ -262,10 +272,10 @@ class ProductController extends Controller
             });
 
         if ($existingVariant) {
-            return response()->json([
-                'message' => 'Variant with these attributes already exists',
-                'variant' => $existingVariant
-            ], 409);
+            return (new ProductVariantResource($existingVariant))
+                ->additional(['message' => 'Variant with these attributes already exists'])
+                ->response()
+                ->setStatusCode(409);
         }
 
         // Generate variant name and SKU
@@ -291,10 +301,10 @@ class ProductController extends Controller
             'is_active' => $validated['is_active'] ?? true,
         ]);
 
-        return response()->json([
-            'message' => 'Variant created successfully',
-            'variant' => $variant
-        ], 201);
+        return (new ProductVariantResource($variant))
+            ->additional(['message' => 'Variant created successfully'])
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
@@ -312,10 +322,8 @@ class ProductController extends Controller
 
         $variant->update($validated);
 
-        return response()->json([
-            'message' => 'Variant updated successfully',
-            'variant' => $variant
-        ]);
+        return (new ProductVariantResource($variant))
+            ->additional(['message' => 'Variant updated successfully']);
     }
 
     /**
