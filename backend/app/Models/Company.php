@@ -68,6 +68,14 @@ class Company extends Model
     }
 
     /**
+     * Get all product types belonging to this company
+     */
+    public function productTypes(): HasMany
+    {
+        return $this->hasMany(ProductType::class);
+    }
+
+    /**
      * Check if a currency is supported by this company
      */
     public function supportsCurrency(string $currency): bool

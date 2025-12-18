@@ -14,6 +14,7 @@ class Product extends Model
 
     protected $fillable = [
         'company_id',
+        'product_type_id',
         'name',
         'slug',
         'sku',
@@ -103,6 +104,14 @@ class Product extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Get the product type
+     */
+    public function productType(): BelongsTo
+    {
+        return $this->belongsTo(ProductType::class);
     }
 
     /**
