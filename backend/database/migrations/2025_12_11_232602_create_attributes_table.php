@@ -13,7 +13,8 @@ return new class extends Migration
     {
         Schema::create('attributes', function (Blueprint $table) {
             $table->id();
-            $table->string('name')->unique(); // e.g., 'color', 'size', 'storage'
+            $table->foreignId('company_id')->constrained()->cascadeOnDelete();
+            $table->string('name'); // e.g., 'color', 'size', 'storage' - unique per company
             $table->string('display_name'); // e.g., 'Renk', 'Beden', 'Depolama'
             $table->enum('type', ['select', 'text', 'number', 'boolean'])->default('select');
             $table->integer('order')->default(0); // Display order
@@ -24,7 +25,8 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->timestamps();
 
-            $table->index('name');
+            $table->unique(['company_id', 'name']); // Name unique per company
+            $table->index('company_id');
             $table->index('type');
             $table->index('is_variant_attribute');
         });

@@ -2,15 +2,18 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Laravel\Scout\Searchable;
 
 class Product extends Model
 {
-    use SoftDeletes, Searchable;
+    use SoftDeletes, Searchable, BelongsToCompany;
 
     protected $fillable = [
+        'company_id',
         'name',
         'slug',
         'sku',
@@ -24,6 +27,7 @@ class Product extends Model
         'is_active',
         'is_featured',
         'meta_data',
+        'created_by',
     ];
 
     protected $casts = [
@@ -91,6 +95,14 @@ class Product extends Model
             $product->updateQuietly(['is_active' => true]);
             $product->searchable();
         });
+    }
+
+    /**
+     * Get the user who created this product
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     /**
