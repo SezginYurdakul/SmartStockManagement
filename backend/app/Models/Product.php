@@ -21,7 +21,6 @@ class Product extends Model
         'cost_price',
         'stock',
         'low_stock_threshold',
-        'category_id',
         'is_active',
         'is_featured',
         'meta_data',
@@ -51,8 +50,9 @@ class Product extends Model
             'description' => $this->description,
             'short_description' => $this->short_description,
             'price' => $this->price,
-            'category' => $this->category?->name,
-            'category_id' => $this->category_id,
+            'categories' => $this->categories->pluck('name')->toArray(),
+            'category_ids' => $this->categories->pluck('id')->toArray(),
+            'primary_category' => $this->primaryCategory?->name,
             'is_active' => $this->is_active,
             'is_featured' => $this->is_featured,
         ];
@@ -94,11 +94,40 @@ class Product extends Model
     }
 
     /**
-     * Get the category that owns the product
+     * Get all categories for the product
+     */
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class, 'category_product')
+            ->withPivot('is_primary')
+            ->withTimestamps();
+    }
+
+    /**
+     * Get the primary category for the product
+     */
+    public function primaryCategory()
+    {
+        return $this->belongsToMany(Category::class, 'category_product')
+            ->wherePivot('is_primary', true)
+            ->limit(1);
+    }
+
+    /**
+     * Get the primary category (single model, not collection)
+     */
+    public function getPrimaryCategoryAttribute()
+    {
+        return $this->categories()->wherePivot('is_primary', true)->first();
+    }
+
+    /**
+     * Alias for backwards compatibility
+     * @deprecated Use categories() or primaryCategory instead
      */
     public function category()
     {
-        return $this->belongsTo(Category::class);
+        return $this->primaryCategory();
     }
 
     /**

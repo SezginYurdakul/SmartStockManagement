@@ -29,7 +29,7 @@ class ProductController extends Controller
             return response()->json($products);
         }
 
-        $query = Product::with(['category', 'primaryImage'])
+        $query = Product::with(['categories', 'primaryImage'])
             ->withCount('images');
 
         // Apply filters
@@ -64,17 +64,19 @@ class ProductController extends Controller
             'cost_price' => 'nullable|numeric|min:0',
             'stock' => 'required|integer|min:0',
             'low_stock_threshold' => 'nullable|integer|min:0',
-            'category_id' => 'nullable|exists:categories,id',
             'is_active' => 'boolean',
             'is_featured' => 'boolean',
             'meta_data' => 'nullable|array',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'exists:categories,id',
+            'primary_category_id' => 'nullable|exists:categories,id',
         ]);
 
         $product = $this->productService->create($validated);
 
         return response()->json([
             'message' => 'Product created successfully',
-            'data' => $product->load(['category', 'images'])
+            'data' => $product->load(['categories', 'images'])
         ], 201);
     }
 
@@ -83,15 +85,7 @@ class ProductController extends Controller
      */
     public function show(Product $product)
     {
-        $product->load([
-            'category',
-            'images',
-            'variants' => function ($query) {
-                $query->where('is_active', true);
-            }
-        ]);
-
-        return response()->json($product);
+        return response()->json($this->productService->getProduct($product));
     }
 
     /**
@@ -110,17 +104,19 @@ class ProductController extends Controller
             'cost_price' => 'nullable|numeric|min:0',
             'stock' => 'sometimes|required|integer|min:0',
             'low_stock_threshold' => 'nullable|integer|min:0',
-            'category_id' => 'nullable|exists:categories,id',
             'is_active' => 'boolean',
             'is_featured' => 'boolean',
             'meta_data' => 'nullable|array',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'exists:categories,id',
+            'primary_category_id' => 'nullable|exists:categories,id',
         ]);
 
         $product = $this->productService->update($product, $validated);
 
         return response()->json([
             'message' => 'Product updated successfully',
-            'data' => $product->load(['category', 'images'])
+            'data' => $product->load(['categories', 'images'])
         ]);
     }
 
@@ -145,7 +141,7 @@ class ProductController extends Controller
 
         return response()->json([
             'message' => 'Product restored successfully',
-            'data' => $product->load(['category', 'images'])
+            'data' => $product->load(['categories', 'images'])
         ]);
     }
 
