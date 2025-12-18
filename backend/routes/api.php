@@ -3,6 +3,7 @@
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImageController;
@@ -139,4 +140,21 @@ Route::middleware('auth:sanctum')->group(function () {
     // Bulk variant generation (rate limited: 5 requests per minute - heavy operation)
     Route::post('/variants/bulk-generate', [AttributeController::class, 'bulkGenerateVariants'])
         ->middleware(['permission:products.edit', 'throttle:bulk-variant-generate']);
+
+    // Currency routes
+    Route::prefix('currencies')->group(function () {
+        Route::get('/', [CurrencyController::class, 'index'])->middleware('permission:settings.view');
+        Route::get('/active', [CurrencyController::class, 'active'])->middleware('permission:settings.view');
+        Route::post('/', [CurrencyController::class, 'store'])->middleware('permission:settings.edit');
+        Route::get('/{currency}', [CurrencyController::class, 'show'])->middleware('permission:settings.view');
+        Route::put('/{currency}', [CurrencyController::class, 'update'])->middleware('permission:settings.edit');
+        Route::delete('/{currency}', [CurrencyController::class, 'destroy'])->middleware('permission:settings.edit');
+        Route::post('/{currency}/toggle-active', [CurrencyController::class, 'toggleActive'])->middleware('permission:settings.edit');
+
+        // Exchange rate management
+        Route::get('/exchange-rate/get', [CurrencyController::class, 'getExchangeRate'])->middleware('permission:settings.view');
+        Route::post('/exchange-rate/set', [CurrencyController::class, 'setExchangeRate'])->middleware('permission:settings.edit');
+        Route::get('/exchange-rate/history', [CurrencyController::class, 'exchangeRateHistory'])->middleware('permission:settings.view');
+        Route::post('/convert', [CurrencyController::class, 'convert'])->middleware('permission:settings.view');
+    });
 });

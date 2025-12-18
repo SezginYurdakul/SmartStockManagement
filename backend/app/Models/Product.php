@@ -124,6 +124,38 @@ class Product extends Model
     }
 
     /**
+     * Get all prices for the product
+     */
+    public function prices()
+    {
+        return $this->hasMany(ProductPrice::class);
+    }
+
+    /**
+     * Get active prices
+     */
+    public function activePrices()
+    {
+        return $this->prices()->active()->validOn();
+    }
+
+    /**
+     * Get price in a specific currency
+     */
+    public function getPriceInCurrency(string $currencyCode, string $priceType = 'base', float $quantity = 1): ?float
+    {
+        $price = $this->prices()
+            ->active()
+            ->validOn()
+            ->inCurrency($currencyCode)
+            ->ofType($priceType)
+            ->forQuantity($quantity)
+            ->first();
+
+        return $price?->unit_price;
+    }
+
+    /**
      * Get all categories for the product
      */
     public function categories()
