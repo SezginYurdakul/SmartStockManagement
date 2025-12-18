@@ -15,6 +15,7 @@ class Product extends Model
     protected $fillable = [
         'company_id',
         'product_type_id',
+        'uom_id',
         'name',
         'slug',
         'sku',
@@ -112,6 +113,14 @@ class Product extends Model
     public function productType(): BelongsTo
     {
         return $this->belongsTo(ProductType::class);
+    }
+
+    /**
+     * Get the unit of measure
+     */
+    public function unitOfMeasure(): BelongsTo
+    {
+        return $this->belongsTo(UnitOfMeasure::class, 'uom_id');
     }
 
     /**

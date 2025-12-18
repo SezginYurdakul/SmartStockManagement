@@ -76,6 +76,14 @@ class Company extends Model
     }
 
     /**
+     * Get all units of measure belonging to this company
+     */
+    public function unitsOfMeasure(): HasMany
+    {
+        return $this->hasMany(UnitOfMeasure::class);
+    }
+
+    /**
      * Check if a currency is supported by this company
      */
     public function supportsCurrency(string $currency): bool
