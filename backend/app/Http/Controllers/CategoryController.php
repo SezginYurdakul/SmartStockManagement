@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\AttributeResource;
+use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use App\Services\CategoryService;
 use Illuminate\Http\Request;
@@ -27,7 +29,7 @@ class CategoryController extends Controller
 
         $categories = $this->categoryService->getAll($filters, $tree, $perPage);
 
-        return response()->json($categories);
+        return CategoryResource::collection($categories);
     }
 
     /**
@@ -44,10 +46,10 @@ class CategoryController extends Controller
 
         $category = $this->categoryService->create($validated);
 
-        return response()->json([
-            'message' => 'Category created successfully',
-            'data' => $category
-        ], 201);
+        return (new CategoryResource($category))
+            ->additional(['message' => 'Category created successfully'])
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
@@ -55,10 +57,10 @@ class CategoryController extends Controller
      */
     public function show(Category $category)
     {
-        $category->load(['parent', 'children']);
+        $category->load(['parent', 'children', 'attributes.values']);
         $category->loadCount('products');
 
-        return response()->json($category);
+        return new CategoryResource($category);
     }
 
     /**
@@ -75,10 +77,8 @@ class CategoryController extends Controller
 
         $category = $this->categoryService->update($category, $validated);
 
-        return response()->json([
-            'message' => 'Category updated successfully',
-            'data' => $category
-        ]);
+        return (new CategoryResource($category))
+            ->additional(['message' => 'Category updated successfully']);
     }
 
     /**
@@ -100,7 +100,7 @@ class CategoryController extends Controller
     {
         $attributes = $this->categoryService->getAttributes($category);
 
-        return response()->json($attributes);
+        return AttributeResource::collection($attributes);
     }
 
     /**
@@ -117,10 +117,8 @@ class CategoryController extends Controller
 
         $this->categoryService->assignAttributes($category, $request->attributes);
 
-        return response()->json([
-            'message' => 'Attributes assigned successfully',
-            'attributes' => $this->categoryService->getAttributes($category)
-        ]);
+        return AttributeResource::collection($this->categoryService->getAttributes($category))
+            ->additional(['message' => 'Attributes assigned successfully']);
     }
 
     /**

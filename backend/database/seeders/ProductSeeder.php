@@ -466,7 +466,6 @@ class ProductSeeder extends Seeder
                         'cost_price' => number_format($costPrice, 2, '.', ''),
                         'stock' => $stock,
                         'low_stock_threshold' => $lowStockThreshold,
-                        'category_id' => $category->id,
                         'is_active' => $isActive,
                         'is_featured' => $isFeatured,
                         'meta_data' => [
@@ -476,6 +475,9 @@ class ProductSeeder extends Seeder
                             'variant' => $variant,
                         ],
                     ]);
+
+                    // Attach category as primary
+                    $product->categories()->attach($category->id, ['is_primary' => true]);
 
                     $productsCreated++;
                     $templateIndex++;

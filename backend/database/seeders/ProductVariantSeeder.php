@@ -133,7 +133,9 @@ class ProductVariantSeeder extends Seeder
             }
 
             // Get limited products from this category
-            $products = Product::where('category_id', $category->id)
+            $products = Product::whereHas('categories', function ($q) use ($category) {
+                    $q->where('categories.id', $category->id);
+                })
                 ->take($config['products_to_seed'])
                 ->get();
 

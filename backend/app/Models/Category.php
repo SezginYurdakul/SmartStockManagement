@@ -2,26 +2,57 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Category extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, BelongsToCompany;
 
     protected $fillable = [
+        'company_id',
         'name',
         'slug',
         'description',
         'parent_id',
+        'is_active',
+        'sort_order',
+        'created_by',
     ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+        'sort_order' => 'integer',
+    ];
+
+    /**
+     * Get the user who created this category
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 
     /**
      * Get all products in this category
      */
     public function products()
     {
-        return $this->hasMany(Product::class);
+        return $this->belongsToMany(Product::class, 'category_product')
+            ->withPivot('is_primary')
+            ->withTimestamps();
+    }
+
+    /**
+     * Get products where this is the primary category
+     */
+    public function primaryProducts()
+    {
+        return $this->belongsToMany(Product::class, 'category_product')
+            ->wherePivot('is_primary', true)
+            ->withTimestamps();
     }
 
     /**
@@ -57,6 +88,8 @@ class Category extends Model
     public function allProducts()
     {
         $categoryIds = $this->children()->pluck('id')->push($this->id);
-        return Product::whereIn('category_id', $categoryIds);
+        return Product::whereHas('categories', function ($query) use ($categoryIds) {
+            $query->whereIn('categories.id', $categoryIds);
+        });
     }
 }

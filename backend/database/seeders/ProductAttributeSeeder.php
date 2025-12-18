@@ -97,7 +97,7 @@ class ProductAttributeSeeder extends Seeder
             'office-furniture' => 'Metal',
         ];
 
-        $products = Product::with('category')->get();
+        $products = Product::with('categories')->get();
         $assignedCount = 0;
         $batchSize = 100;
         $processed = 0;
@@ -105,7 +105,7 @@ class ProductAttributeSeeder extends Seeder
         $this->command->info("Processing {$products->count()} products...");
 
         foreach ($products as $product) {
-            $categorySlug = $product->category?->slug ?? '';
+            $categorySlug = $product->categories->first()?->slug ?? '';
 
             // Extract brand from product meta_data or name
             $productBrand = null;

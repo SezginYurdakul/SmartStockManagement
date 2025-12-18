@@ -12,13 +12,26 @@ use Exception;
 class ProductService
 {
     /**
+     * Get a single product with categories, images and variant count
+     */
+    public function getProduct(Product $product): Product
+    {
+        return $product->load(['categories', 'images'])
+            ->loadCount(['variants' => function ($query) {
+                $query->where('is_active', true);
+            }]);
+    }
+
+    /**
      * Apply filters to product query
      */
     public function applyFilters($query, array $filters)
     {
-        // Filter by category
+        // Filter by category (products that belong to this category)
         if (isset($filters['category_id'])) {
-            $query->where('category_id', $filters['category_id']);
+            $query->whereHas('categories', function ($q) use ($filters) {
+                $q->where('categories.id', $filters['category_id']);
+            });
         }
 
         // Filter by active status
@@ -84,7 +97,17 @@ class ProductService
                 Log::debug('Auto-generated slug', ['slug' => $data['slug']]);
             }
 
+            // Extract category data before creating product
+            $categoryIds = $data['category_ids'] ?? [];
+            $primaryCategoryId = $data['primary_category_id'] ?? null;
+            unset($data['category_ids'], $data['primary_category_id']);
+
             $product = Product::create($data);
+
+            // Sync categories if provided
+            if (!empty($categoryIds)) {
+                $this->syncCategories($product, $categoryIds, $primaryCategoryId);
+            }
 
             DB::commit();
 
@@ -123,7 +146,17 @@ class ProductService
         DB::beginTransaction();
 
         try {
+            // Extract category data before updating product
+            $categoryIds = $data['category_ids'] ?? null;
+            $primaryCategoryId = $data['primary_category_id'] ?? null;
+            unset($data['category_ids'], $data['primary_category_id']);
+
             $product->update($data);
+
+            // Sync categories if provided
+            if ($categoryIds !== null) {
+                $this->syncCategories($product, $categoryIds, $primaryCategoryId);
+            }
 
             DB::commit();
 
@@ -143,6 +176,33 @@ class ProductService
 
             throw new Exception("Failed to update product: {$e->getMessage()}");
         }
+    }
+
+    /**
+     * Sync categories for a product
+     */
+    public function syncCategories(Product $product, array $categoryIds, ?int $primaryCategoryId = null): void
+    {
+        // If no primary specified, use the first category
+        if ($primaryCategoryId === null && !empty($categoryIds)) {
+            $primaryCategoryId = $categoryIds[0];
+        }
+
+        // Build pivot data with is_primary flag
+        $syncData = [];
+        foreach ($categoryIds as $categoryId) {
+            $syncData[$categoryId] = [
+                'is_primary' => $categoryId == $primaryCategoryId,
+            ];
+        }
+
+        $product->categories()->sync($syncData);
+
+        Log::debug('Categories synced for product', [
+            'product_id' => $product->id,
+            'category_ids' => $categoryIds,
+            'primary_category_id' => $primaryCategoryId,
+        ]);
     }
 
     /**

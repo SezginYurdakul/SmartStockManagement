@@ -2,15 +2,20 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Laravel\Scout\Searchable;
 
 class Product extends Model
 {
-    use SoftDeletes, Searchable;
+    use SoftDeletes, Searchable, BelongsToCompany;
 
     protected $fillable = [
+        'company_id',
+        'product_type_id',
+        'uom_id',
         'name',
         'slug',
         'sku',
@@ -21,10 +26,10 @@ class Product extends Model
         'cost_price',
         'stock',
         'low_stock_threshold',
-        'category_id',
         'is_active',
         'is_featured',
         'meta_data',
+        'created_by',
     ];
 
     protected $casts = [
@@ -51,8 +56,9 @@ class Product extends Model
             'description' => $this->description,
             'short_description' => $this->short_description,
             'price' => $this->price,
-            'category' => $this->category?->name,
-            'category_id' => $this->category_id,
+            'categories' => $this->categories->pluck('name')->toArray(),
+            'category_ids' => $this->categories->pluck('id')->toArray(),
+            'primary_category' => $this->primaryCategory?->name,
             'is_active' => $this->is_active,
             'is_featured' => $this->is_featured,
         ];
@@ -94,11 +100,96 @@ class Product extends Model
     }
 
     /**
-     * Get the category that owns the product
+     * Get the user who created this product
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Get the product type
+     */
+    public function productType(): BelongsTo
+    {
+        return $this->belongsTo(ProductType::class);
+    }
+
+    /**
+     * Get the unit of measure
+     */
+    public function unitOfMeasure(): BelongsTo
+    {
+        return $this->belongsTo(UnitOfMeasure::class, 'uom_id');
+    }
+
+    /**
+     * Get all prices for the product
+     */
+    public function prices()
+    {
+        return $this->hasMany(ProductPrice::class);
+    }
+
+    /**
+     * Get active prices
+     */
+    public function activePrices()
+    {
+        return $this->prices()->active()->validOn();
+    }
+
+    /**
+     * Get price in a specific currency
+     */
+    public function getPriceInCurrency(string $currencyCode, string $priceType = 'base', float $quantity = 1): ?float
+    {
+        $price = $this->prices()
+            ->active()
+            ->validOn()
+            ->inCurrency($currencyCode)
+            ->ofType($priceType)
+            ->forQuantity($quantity)
+            ->first();
+
+        return $price?->unit_price;
+    }
+
+    /**
+     * Get all categories for the product
+     */
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class, 'category_product')
+            ->withPivot('is_primary')
+            ->withTimestamps();
+    }
+
+    /**
+     * Get the primary category for the product
+     */
+    public function primaryCategory()
+    {
+        return $this->belongsToMany(Category::class, 'category_product')
+            ->wherePivot('is_primary', true)
+            ->limit(1);
+    }
+
+    /**
+     * Get the primary category (single model, not collection)
+     */
+    public function getPrimaryCategoryAttribute()
+    {
+        return $this->categories()->wherePivot('is_primary', true)->first();
+    }
+
+    /**
+     * Alias for backwards compatibility
+     * @deprecated Use categories() or primaryCategory instead
      */
     public function category()
     {
-        return $this->belongsTo(Category::class);
+        return $this->primaryCategory();
     }
 
     /**

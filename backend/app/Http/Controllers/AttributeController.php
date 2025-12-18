@@ -166,12 +166,25 @@ class AttributeController extends Controller
 
     /**
      * Generate product variants automatically
+     *
+     * Request body:
+     * - attribute_ids: required array of attribute IDs
+     * - selected_value_ids: optional object mapping attribute_id => [value_id1, value_id2, ...]
+     *   If not provided for an attribute, all active values are used
+     *   Example: {"1": [1, 3, 5], "2": [8, 10]}
+     * - base_price: optional starting price (defaults to product price)
+     * - base_stock: optional starting stock (defaults to 10)
+     * - price_increments: optional object mapping value_id => price_increment
+     * - clear_existing: optional boolean to delete existing variants first
      */
     public function generateVariants(Request $request, Product $product)
     {
         $validated = $request->validate([
             'attribute_ids' => 'required|array|min:1',
             'attribute_ids.*' => 'exists:attributes,id',
+            'selected_value_ids' => 'array',
+            'selected_value_ids.*' => 'array',
+            'selected_value_ids.*.*' => 'integer|exists:attribute_values,id',
             'base_price' => 'numeric|min:0',
             'base_stock' => 'integer|min:0',
             'price_increments' => 'array',
@@ -186,6 +199,7 @@ class AttributeController extends Controller
                 'base_stock' => $validated['base_stock'] ?? 10,
                 'price_increments' => $validated['price_increments'] ?? [],
                 'clear_existing' => $validated['clear_existing'] ?? false,
+                'selected_value_ids' => $validated['selected_value_ids'] ?? [],
             ]
         );
 
@@ -219,6 +233,49 @@ class AttributeController extends Controller
             'message' => $count . ' variants permanently deleted',
             'deleted_count' => $count
         ]);
+    }
+
+    /**
+     * Expand existing variants with a new attribute dimension
+     *
+     * Takes existing variants and adds a new attribute to create expanded combinations.
+     * Price and stock are inherited from original variants by default.
+     *
+     * Example: 5 size variants + 3 colors = 15 new variants
+     *
+     * Request body:
+     * - expand_attribute_id: required, the attribute ID to expand with
+     * - expand_value_ids: required, array of value IDs from the expand attribute
+     * - inherit_price_stock: optional boolean (default: true) - inherit from original variants
+     * - delete_originals: optional boolean (default: true) - soft-delete original variants
+     * - price_increments: optional object mapping value_id => price_increment
+     */
+    public function expandVariants(Request $request, Product $product)
+    {
+        $validated = $request->validate([
+            'expand_attribute_id' => 'required|integer|exists:attributes,id',
+            'expand_value_ids' => 'required|array|min:1',
+            'expand_value_ids.*' => 'integer|exists:attribute_values,id',
+            'inherit_price_stock' => 'boolean',
+            'delete_originals' => 'boolean',
+            'price_increments' => 'array',
+        ]);
+
+        $variants = $this->variantGenerator->expandVariants(
+            $product,
+            $validated['expand_attribute_id'],
+            $validated['expand_value_ids'],
+            [
+                'inherit_price_stock' => $validated['inherit_price_stock'] ?? true,
+                'delete_originals' => $validated['delete_originals'] ?? true,
+                'price_increments' => $validated['price_increments'] ?? [],
+            ]
+        );
+
+        return response()->json([
+            'message' => count($variants) . ' variants created by expansion',
+            'variants' => $variants
+        ], 201);
     }
 
     /**
