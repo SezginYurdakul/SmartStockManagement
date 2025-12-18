@@ -80,7 +80,7 @@ class UserController extends Controller
         }
 
         return response()->json([
-            'user' => $user->load('roles.permissions'),
+            'user' => $this->userService->getUser($user),
         ]);
     }
 

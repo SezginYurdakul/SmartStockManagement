@@ -13,6 +13,14 @@ use Exception;
 class UserService
 {
     /**
+     * Get a single user with roles and permissions
+     */
+    public function getUser(User $user): User
+    {
+        return $user->load('roles');
+    }
+
+    /**
      * Get paginated users with optional search
      */
     public function getUsers(?string $search = null, int $perPage = 15): LengthAwarePaginator
