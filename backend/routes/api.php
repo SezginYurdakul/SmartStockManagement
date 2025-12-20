@@ -8,7 +8,10 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\StockController;
+use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
 Route::get("/", function () {
@@ -156,5 +159,47 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/exchange-rate/set', [CurrencyController::class, 'setExchangeRate'])->middleware('permission:settings.edit');
         Route::get('/exchange-rate/history', [CurrencyController::class, 'exchangeRateHistory'])->middleware('permission:settings.view');
         Route::post('/convert', [CurrencyController::class, 'convert'])->middleware('permission:settings.view');
+    });
+
+    // Warehouse routes
+    Route::prefix('warehouses')->group(function () {
+        Route::get('/', [WarehouseController::class, 'index'])->middleware('permission:inventory.view');
+        Route::get('/list', [WarehouseController::class, 'list'])->middleware('permission:inventory.view');
+        Route::post('/', [WarehouseController::class, 'store'])->middleware('permission:inventory.create');
+        Route::get('/{warehouse}', [WarehouseController::class, 'show'])->middleware('permission:inventory.view');
+        Route::put('/{warehouse}', [WarehouseController::class, 'update'])->middleware('permission:inventory.edit');
+        Route::delete('/{warehouse}', [WarehouseController::class, 'destroy'])->middleware('permission:inventory.delete');
+        Route::post('/{warehouse}/toggle-active', [WarehouseController::class, 'toggleActive'])->middleware('permission:inventory.edit');
+        Route::post('/{warehouse}/set-default', [WarehouseController::class, 'setDefault'])->middleware('permission:inventory.edit');
+        Route::get('/{warehouse}/stock-summary', [WarehouseController::class, 'stockSummary'])->middleware('permission:inventory.view');
+    });
+
+    // Stock routes
+    Route::prefix('stock')->group(function () {
+        Route::get('/', [StockController::class, 'index'])->middleware('permission:inventory.view');
+        Route::get('/low-stock', [StockController::class, 'lowStock'])->middleware('permission:inventory.view');
+        Route::get('/expiring', [StockController::class, 'expiring'])->middleware('permission:inventory.view');
+        Route::get('/product/{productId}', [StockController::class, 'productStock'])->middleware('permission:inventory.view');
+        Route::get('/warehouse/{warehouseId}', [StockController::class, 'warehouseStock'])->middleware('permission:inventory.view');
+
+        // Stock operations
+        Route::post('/receive', [StockController::class, 'receive'])->middleware('permission:inventory.create');
+        Route::post('/issue', [StockController::class, 'issue'])->middleware('permission:inventory.edit');
+        Route::post('/transfer', [StockController::class, 'transfer'])->middleware('permission:inventory.edit');
+        Route::post('/adjust', [StockController::class, 'adjust'])->middleware('permission:inventory.edit');
+        Route::post('/reserve', [StockController::class, 'reserve'])->middleware('permission:inventory.edit');
+        Route::post('/release-reservation', [StockController::class, 'releaseReservation'])->middleware('permission:inventory.edit');
+    });
+
+    // Stock Movement routes
+    Route::prefix('stock-movements')->group(function () {
+        Route::get('/', [StockMovementController::class, 'index'])->middleware('permission:inventory.view');
+        Route::get('/summary', [StockMovementController::class, 'summary'])->middleware('permission:inventory.view');
+        Route::get('/daily-report', [StockMovementController::class, 'dailyReport'])->middleware('permission:inventory.view');
+        Route::get('/audit-trail', [StockMovementController::class, 'auditTrail'])->middleware('permission:inventory.view');
+        Route::get('/product/{productId}', [StockMovementController::class, 'productMovements'])->middleware('permission:inventory.view');
+        Route::get('/warehouse/{warehouseId}', [StockMovementController::class, 'warehouseMovements'])->middleware('permission:inventory.view');
+        Route::get('/types/movement', [StockMovementController::class, 'movementTypes'])->middleware('permission:inventory.view');
+        Route::get('/types/transaction', [StockMovementController::class, 'transactionTypes'])->middleware('permission:inventory.view');
     });
 });
