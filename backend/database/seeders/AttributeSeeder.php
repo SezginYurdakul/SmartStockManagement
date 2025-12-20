@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Attribute;
+use App\Models\Company;
 use Illuminate\Database\Seeder;
 
 class AttributeSeeder extends Seeder
@@ -12,6 +13,10 @@ class AttributeSeeder extends Seeder
      */
     public function run(): void
     {
+        // Get default company
+        $company = Company::first();
+        $companyId = $company?->id;
+
         $attributes = [
             [
                 'name' => 'color',
@@ -187,6 +192,9 @@ class AttributeSeeder extends Seeder
         foreach ($attributes as $attributeData) {
             $values = $attributeData['values'] ?? [];
             unset($attributeData['values']);
+
+            // Add company_id
+            $attributeData['company_id'] = $companyId;
 
             // Create attribute
             $attribute = Attribute::create($attributeData);

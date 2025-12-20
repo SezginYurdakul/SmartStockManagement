@@ -145,18 +145,50 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Can delete categories',
             ],
 
-            // Inventory management permissions (for future use)
+            // Inventory management permissions
             [
                 'name' => 'inventory.view',
                 'display_name' => 'View Inventory',
                 'module' => 'inventory',
-                'description' => 'Can view inventory levels',
+                'description' => 'Can view inventory levels, warehouses, stock and movements',
+            ],
+            [
+                'name' => 'inventory.create',
+                'display_name' => 'Create Inventory',
+                'module' => 'inventory',
+                'description' => 'Can create warehouses and receive stock',
+            ],
+            [
+                'name' => 'inventory.edit',
+                'display_name' => 'Edit Inventory',
+                'module' => 'inventory',
+                'description' => 'Can edit warehouses, adjust stock, transfer stock',
+            ],
+            [
+                'name' => 'inventory.delete',
+                'display_name' => 'Delete Inventory',
+                'module' => 'inventory',
+                'description' => 'Can delete warehouses',
             ],
             [
                 'name' => 'inventory.adjust',
                 'display_name' => 'Adjust Inventory',
                 'module' => 'inventory',
-                'description' => 'Can adjust inventory levels',
+                'description' => 'Can adjust inventory levels (stock adjustments)',
+            ],
+
+            // Settings management permissions
+            [
+                'name' => 'settings.view',
+                'display_name' => 'View Settings',
+                'module' => 'settings',
+                'description' => 'Can view system settings, currencies, etc.',
+            ],
+            [
+                'name' => 'settings.edit',
+                'display_name' => 'Edit Settings',
+                'module' => 'settings',
+                'description' => 'Can edit system settings, currencies, etc.',
             ],
 
             // Reports permissions (for future use)

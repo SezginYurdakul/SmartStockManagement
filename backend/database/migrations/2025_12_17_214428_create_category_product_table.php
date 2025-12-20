@@ -24,19 +24,21 @@ return new class extends Migration
             $table->index(['product_id', 'is_primary']);
         });
 
-        // Migrate existing category_id data to pivot table
-        DB::statement('
-            INSERT INTO category_product (category_id, product_id, is_primary, created_at, updated_at)
-            SELECT category_id, id, true, NOW(), NOW()
-            FROM products
-            WHERE category_id IS NOT NULL
-        ');
+        // Migrate existing category_id data to pivot table (only if column exists)
+        if (Schema::hasColumn('products', 'category_id')) {
+            DB::statement('
+                INSERT INTO category_product (category_id, product_id, is_primary, created_at, updated_at)
+                SELECT category_id, id, true, NOW(), NOW()
+                FROM products
+                WHERE category_id IS NOT NULL
+            ');
 
-        // Remove category_id column from products table
-        Schema::table('products', function (Blueprint $table) {
-            $table->dropForeign(['category_id']);
-            $table->dropColumn('category_id');
-        });
+            // Remove category_id column from products table
+            Schema::table('products', function (Blueprint $table) {
+                $table->dropForeign(['category_id']);
+                $table->dropColumn('category_id');
+            });
+        }
     }
 
     /**

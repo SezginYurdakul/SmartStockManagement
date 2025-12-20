@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Category;
+use App\Models\Company;
 use App\Models\Product;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
@@ -14,6 +15,10 @@ class ProductSeeder extends Seeder
      */
     public function run(): void
     {
+        // Get default company
+        $company = Company::first();
+        $companyId = $company?->id;
+
         // Only get subcategories (categories with parent_id)
         $categories = Category::whereNotNull('parent_id')->get();
 
@@ -414,7 +419,7 @@ class ProductSeeder extends Seeder
         $conditions = ['New', 'Refurbished', 'Open Box'];
         $variants = ['Standard', 'Pro', 'Plus', 'Ultra', 'Max', 'Mini', 'Lite'];
 
-        Product::withoutSyncingToSearch(function () use ($categories, $productTemplates, $colors, $conditions, $variants) {
+        Product::withoutSyncingToSearch(function () use ($categories, $productTemplates, $colors, $conditions, $variants, $companyId) {
             foreach ($categories as $category) {
                 $templates = $productTemplates[$category->slug] ?? [];
 
@@ -456,6 +461,7 @@ class ProductSeeder extends Seeder
                     $isFeatured = $productsCreated < 5 ? true : (rand(0, 10) > 7); // First 5 featured, rest 30% chance
 
                     $product = Product::create([
+                        'company_id' => $companyId,
                         'name' => $productName,
                         'slug' => $slug,
                         'sku' => $sku,
