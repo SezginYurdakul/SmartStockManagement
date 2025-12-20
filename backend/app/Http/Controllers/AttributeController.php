@@ -8,6 +8,7 @@ use App\Models\AttributeValue;
 use App\Models\Product;
 use App\Services\AttributeService;
 use App\Services\VariantGeneratorService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -25,7 +26,7 @@ class AttributeController extends Controller
     /**
      * Display a listing of attributes
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $filters = $request->only(['type', 'variant_only']);
         $attributes = $this->attributeService->getAll($filters);
@@ -36,7 +37,7 @@ class AttributeController extends Controller
     /**
      * Store a newly created attribute
      */
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name' => 'required|string|unique:attributes|max:255',
@@ -65,7 +66,7 @@ class AttributeController extends Controller
     /**
      * Display the specified attribute
      */
-    public function show(Attribute $attribute)
+    public function show(Attribute $attribute): JsonResponse
     {
         $attribute->load(['values' => function ($q) {
             $q->orderBy('order');
@@ -77,7 +78,7 @@ class AttributeController extends Controller
     /**
      * Update the specified attribute
      */
-    public function update(Request $request, Attribute $attribute)
+    public function update(Request $request, Attribute $attribute): JsonResponse
     {
         $validated = $request->validate([
             'name' => ['string', 'max:255', Rule::unique('attributes')->ignore($attribute->id)],
@@ -102,7 +103,7 @@ class AttributeController extends Controller
     /**
      * Remove the specified attribute
      */
-    public function destroy(Attribute $attribute)
+    public function destroy(Attribute $attribute): JsonResponse
     {
         $this->attributeService->delete($attribute);
 
@@ -114,7 +115,7 @@ class AttributeController extends Controller
     /**
      * Add values to an attribute
      */
-    public function addValues(Request $request, Attribute $attribute)
+    public function addValues(Request $request, Attribute $attribute): JsonResponse
     {
         $validated = $request->validate([
             'values' => 'required|array',
@@ -135,7 +136,7 @@ class AttributeController extends Controller
     /**
      * Update an attribute value
      */
-    public function updateValue(Request $request, Attribute $attribute, AttributeValue $value)
+    public function updateValue(Request $request, Attribute $attribute, AttributeValue $value): JsonResponse
     {
         $validated = $request->validate([
             'value' => 'string',
@@ -155,7 +156,7 @@ class AttributeController extends Controller
     /**
      * Delete an attribute value
      */
-    public function destroyValue(Attribute $attribute, AttributeValue $value)
+    public function destroyValue(Attribute $attribute, AttributeValue $value): JsonResponse
     {
         $this->attributeService->deleteValue($attribute, $value);
 
@@ -177,7 +178,7 @@ class AttributeController extends Controller
      * - price_increments: optional object mapping value_id => price_increment
      * - clear_existing: optional boolean to delete existing variants first
      */
-    public function generateVariants(Request $request, Product $product)
+    public function generateVariants(Request $request, Product $product): JsonResponse
     {
         $validated = $request->validate([
             'attribute_ids' => 'required|array|min:1',
@@ -212,7 +213,7 @@ class AttributeController extends Controller
     /**
      * Clear all variants for a product (soft delete)
      */
-    public function clearVariants(Product $product)
+    public function clearVariants(Product $product): JsonResponse
     {
         $count = $this->variantGenerator->clearVariants($product);
 
@@ -225,7 +226,7 @@ class AttributeController extends Controller
     /**
      * Force clear all variants for a product (permanent delete)
      */
-    public function forceClearVariants(Product $product)
+    public function forceClearVariants(Product $product): JsonResponse
     {
         $count = $product->variants()->withTrashed()->forceDelete();
 
@@ -250,7 +251,7 @@ class AttributeController extends Controller
      * - delete_originals: optional boolean (default: true) - soft-delete original variants
      * - price_increments: optional object mapping value_id => price_increment
      */
-    public function expandVariants(Request $request, Product $product)
+    public function expandVariants(Request $request, Product $product): JsonResponse
     {
         $validated = $request->validate([
             'expand_attribute_id' => 'required|integer|exists:attributes,id',
@@ -281,7 +282,7 @@ class AttributeController extends Controller
     /**
      * Bulk generate variants for multiple products
      */
-    public function bulkGenerateVariants(Request $request)
+    public function bulkGenerateVariants(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'product_ids' => 'required_without:category_id|array',

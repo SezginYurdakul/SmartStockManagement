@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Services\ProductImageService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ProductImageController extends Controller
@@ -19,7 +20,7 @@ class ProductImageController extends Controller
     /**
      * Upload product images
      */
-    public function upload(Request $request, Product $product)
+    public function upload(Request $request, Product $product): JsonResponse
     {
         $request->validate([
             'images' => 'required|array|max:10',
@@ -46,7 +47,7 @@ class ProductImageController extends Controller
     /**
      * Update image details
      */
-    public function update(Request $request, Product $product, ProductImage $image)
+    public function update(Request $request, Product $product, ProductImage $image): JsonResponse
     {
         if (!$this->imageService->validateImageBelongsToProduct($image, $product)) {
             return response()->json([
@@ -71,7 +72,7 @@ class ProductImageController extends Controller
     /**
      * Delete product image
      */
-    public function destroy(Product $product, ProductImage $image)
+    public function destroy(Product $product, ProductImage $image): JsonResponse
     {
         if (!$this->imageService->validateImageBelongsToProduct($image, $product)) {
             return response()->json([
@@ -89,7 +90,7 @@ class ProductImageController extends Controller
     /**
      * Reorder images
      */
-    public function reorder(Request $request, Product $product)
+    public function reorder(Request $request, Product $product): JsonResponse
     {
         $request->validate([
             'images' => 'required|array',
@@ -97,7 +98,7 @@ class ProductImageController extends Controller
             'images.*.order' => 'required|integer|min:0',
         ]);
 
-        $this->imageService->reorderImages($product, $request->images);
+        $this->imageService->reorderImages($product, $request->input('images'));
 
         return response()->json([
             'message' => 'Images reordered successfully'
