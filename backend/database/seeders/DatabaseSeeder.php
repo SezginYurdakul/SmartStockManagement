@@ -57,5 +57,8 @@ class DatabaseSeeder extends Seeder
 
         // Seed stock and stock movements
         $this->call(StockSeeder::class);
+
+        // Seed suppliers (Phase 3 - Procurement)
+        $this->call(SupplierSeeder::class);
     }
 }
