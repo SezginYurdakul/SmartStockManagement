@@ -16,11 +16,23 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Seed roles and permissions first
+        // Seed company first (required for multi-tenant data)
+        $this->call(CompanySeeder::class);
+
+        // Seed roles and permissions
         $this->call(RolePermissionSeeder::class);
 
-        // Seed test users
+        // Seed test users (with company assignment)
         $this->call(UserSeeder::class);
+
+        // Seed currencies and exchange rates
+        $this->call(CurrencySeeder::class);
+
+        // Seed product types
+        $this->call(ProductTypeSeeder::class);
+
+        // Seed units of measure
+        $this->call(UnitOfMeasureSeeder::class);
 
         // Seed categories
         $this->call(CategorySeeder::class);
@@ -40,7 +52,13 @@ class DatabaseSeeder extends Seeder
         // Generate product variants (Color, Size, Storage combinations)
         $this->call(ProductVariantSeeder::class);
 
-        // Uncomment to create additional random users
-        // User::factory(10)->create();
+        // Seed warehouses
+        $this->call(WarehouseSeeder::class);
+
+        // Seed stock and stock movements
+        $this->call(StockSeeder::class);
+
+        // Seed suppliers (Phase 3 - Procurement)
+        $this->call(SupplierSeeder::class);
     }
 }

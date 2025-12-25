@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\BusinessException;
 use App\Models\Permission;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -69,7 +70,7 @@ class PermissionService
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            throw new Exception("Failed to create permission: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -111,7 +112,7 @@ class PermissionService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to update permission: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -133,7 +134,7 @@ class PermissionService
                 'roles_count' => $rolesCount,
             ]);
 
-            throw new Exception("Cannot delete permission that is assigned to {$rolesCount} role(s)");
+            throw new BusinessException("Cannot delete permission that is assigned to {$rolesCount} role(s)");
         }
 
         DB::beginTransaction();
@@ -157,7 +158,7 @@ class PermissionService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to delete permission: {$e->getMessage()}");
+            throw $e;
         }
     }
 

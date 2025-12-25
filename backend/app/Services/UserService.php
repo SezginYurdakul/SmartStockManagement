@@ -27,12 +27,13 @@ class UserService
     {
         $query = User::with('roles');
 
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
-            });
-        }
+    if ($search) {
+        $query->where(function ($q) use ($search) {
+            $q->where('first_name', 'like', "%{$search}%")
+            ->orWhere('last_name', 'like', "%{$search}%")
+            ->orWhere('email', 'like', "%{$search}%");
+        });
+    }
 
         return $query->latest()->paginate($perPage);
     }
@@ -43,7 +44,8 @@ class UserService
     public function createUser(array $data): User
     {
         Log::info('Creating new user', [
-            'name' => $data['name'],
+            'first_name' => $data['first_name'],
+            'last_name' => $data['last_name'],
             'email' => $data['email'],
         ]);
 
@@ -51,7 +53,8 @@ class UserService
 
         try {
             $user = User::create([
-                'name' => $data['name'],
+                'first_name' => $data['first_name'],
+                'last_name' => $data['last_name'],
                 'email' => $data['email'],
                 'password' => Hash::make($data['password']),
             ]);
@@ -83,7 +86,7 @@ class UserService
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            throw new Exception("Failed to create user: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -101,8 +104,10 @@ class UserService
 
         try {
             $updateData = [
-                'name' => $data['name'] ?? $user->name,
+                'first_name' => $data['first_name'] ?? $user->first_name,
+                'last_name' => $data['last_name'] ?? $user->last_name,
                 'email' => $data['email'] ?? $user->email,
+                'phone' => $data['phone'] ?? $user->phone,
             ];
 
             // Update password if provided
@@ -138,7 +143,7 @@ class UserService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to update user: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -167,7 +172,7 @@ class UserService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to delete user: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -201,7 +206,7 @@ class UserService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to restore user: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -236,7 +241,7 @@ class UserService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to permanently delete user: {$e->getMessage()}");
+            throw $e;
         }
     }
 

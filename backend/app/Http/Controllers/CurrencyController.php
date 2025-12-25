@@ -8,6 +8,8 @@ use App\Models\Currency;
 use App\Services\CurrencyService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class CurrencyController extends Controller
 {
@@ -21,7 +23,7 @@ class CurrencyController extends Controller
     /**
      * Display a listing of currencies
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request): AnonymousResourceCollection
     {
         $query = Currency::query();
 
@@ -45,7 +47,7 @@ class CurrencyController extends Controller
     /**
      * Get active currencies (for dropdowns)
      */
-    public function active()
+    public function active(): AnonymousResourceCollection
     {
         $currencies = $this->currencyService->getActiveCurrencies();
 
@@ -72,7 +74,7 @@ class CurrencyController extends Controller
 
         $currency = $this->currencyService->createCurrency($validated);
 
-        return (new CurrencyResource($currency))
+        return CurrencyResource::make($currency)
             ->additional(['message' => 'Currency created successfully'])
             ->response()
             ->setStatusCode(201);
@@ -81,15 +83,15 @@ class CurrencyController extends Controller
     /**
      * Display the specified currency
      */
-    public function show(Currency $currency)
+    public function show(Currency $currency): JsonResource
     {
-        return new CurrencyResource($currency);
+        return CurrencyResource::make($currency);
     }
 
     /**
      * Update the specified currency
      */
-    public function update(Request $request, Currency $currency): JsonResponse
+    public function update(Request $request, Currency $currency): JsonResource
     {
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:100',
@@ -103,7 +105,7 @@ class CurrencyController extends Controller
 
         $currency = $this->currencyService->updateCurrency($currency, $validated);
 
-        return (new CurrencyResource($currency))
+        return CurrencyResource::make($currency)
             ->additional(['message' => 'Currency updated successfully']);
     }
 
@@ -122,11 +124,11 @@ class CurrencyController extends Controller
     /**
      * Toggle currency active status
      */
-    public function toggleActive(Currency $currency)
+    public function toggleActive(Currency $currency): JsonResource
     {
         $currency->update(['is_active' => !$currency->is_active]);
 
-        return (new CurrencyResource($currency->fresh()))
+        return CurrencyResource::make($currency->fresh())
             ->additional(['message' => 'Currency status updated successfully']);
     }
 
@@ -184,7 +186,7 @@ class CurrencyController extends Controller
             $validated['source'] ?? 'manual'
         );
 
-        return (new ExchangeRateResource($exchangeRate))
+        return ExchangeRateResource::make($exchangeRate)
             ->additional(['message' => 'Exchange rate set successfully'])
             ->response()
             ->setStatusCode(201);
@@ -193,7 +195,7 @@ class CurrencyController extends Controller
     /**
      * Get exchange rate history
      */
-    public function exchangeRateHistory(Request $request): JsonResponse
+    public function exchangeRateHistory(Request $request): AnonymousResourceCollection
     {
         $validated = $request->validate([
             'from' => 'required|string|size:3|exists:currencies,code',

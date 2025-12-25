@@ -663,7 +663,7 @@ $exceptions->render(function (BusinessException $e, Request $request) {
         'message' => $e->getMessage(),
         'status' => $e->getStatusCode(),
         'url' => $request->fullUrl(),
-        'user_id' => auth()->id(),
+        'user_id' => Auth::id(),
         'input' => $request->except(['password']),
     ]);
 

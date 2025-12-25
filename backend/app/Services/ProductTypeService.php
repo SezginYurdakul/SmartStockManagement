@@ -93,7 +93,7 @@ class ProductTypeService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to create product type: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -128,7 +128,7 @@ class ProductTypeService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to update product type: {$e->getMessage()}");
+            throw $e;
         }
     }
 

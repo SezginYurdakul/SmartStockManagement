@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Services\UserService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
@@ -17,13 +19,13 @@ class UserController extends Controller
     {
         $this->userService = $userService;
     }
+
     /**
      * Display a listing of users
      * Required permission: users.view
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request): AnonymousResourceCollection|JsonResponse
     {
-        // Check permission
         if (!$request->user()->hasPermission('users.view')) {
             return response()->json([
                 'message' => 'Forbidden. You do not have permission to view users.',
@@ -44,7 +46,6 @@ class UserController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        // Check permission
         if (!$request->user()->hasPermission('users.create')) {
             return response()->json([
                 'message' => 'Forbidden. You do not have permission to create users.',
@@ -52,7 +53,8 @@ class UserController extends Controller
         }
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'role_ids' => 'sometimes|array',
@@ -61,7 +63,7 @@ class UserController extends Controller
 
         $user = $this->userService->createUser($validated);
 
-        return (new UserResource($user))
+        return UserResource::make($user)
             ->additional(['message' => 'User created successfully'])
             ->response()
             ->setStatusCode(201);
@@ -71,9 +73,8 @@ class UserController extends Controller
      * Display the specified user
      * Required permission: users.view
      */
-    public function show(Request $request, User $user): JsonResponse
+    public function show(Request $request, User $user): JsonResource|JsonResponse
     {
-        // Check permission
         if (!$request->user()->hasPermission('users.view')) {
             return response()->json([
                 'message' => 'Forbidden. You do not have permission to view users.',
@@ -82,24 +83,24 @@ class UserController extends Controller
 
         $user->load(['roles', 'company']);
 
-        return new UserResource($user);
+        return UserResource::make($user);
     }
 
     /**
      * Update the specified user
      * Required permission: users.update
      */
-    public function update(Request $request, User $user): JsonResponse
+    public function update(Request $request, User $user): JsonResource|JsonResponse
     {
-        // Check permission
-        if (!$request->user()->hasPermission('users.update')) {
+        if (!$request->user()->hasPermission('users.edit')) {
             return response()->json([
                 'message' => 'Forbidden. You do not have permission to update users.',
             ], 403);
         }
 
         $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'sometimes|required|string|max:255',
             'email' => [
                 'sometimes',
                 'required',
@@ -115,7 +116,7 @@ class UserController extends Controller
 
         $user = $this->userService->updateUser($user, $validated);
 
-        return (new UserResource($user))
+        return UserResource::make($user)
             ->additional(['message' => 'User updated successfully']);
     }
 
@@ -125,14 +126,12 @@ class UserController extends Controller
      */
     public function destroy(Request $request, User $user): JsonResponse
     {
-        // Check permission
         if (!$request->user()->hasPermission('users.delete')) {
             return response()->json([
                 'message' => 'Forbidden. You do not have permission to delete users.',
             ], 403);
         }
 
-        // Prevent deleting yourself
         if ($user->id === $request->user()->id) {
             return response()->json([
                 'message' => 'You cannot delete yourself.',
@@ -150,9 +149,8 @@ class UserController extends Controller
      * Restore a soft deleted user
      * Required permission: users.delete
      */
-    public function restore(Request $request, int $id): JsonResponse
+    public function restore(Request $request, int $id): JsonResource|JsonResponse
     {
-        // Check permission
         if (!$request->user()->hasPermission('users.delete')) {
             return response()->json([
                 'message' => 'Forbidden. You do not have permission to restore users.',
@@ -169,7 +167,7 @@ class UserController extends Controller
 
         $user->load(['roles', 'company']);
 
-        return (new UserResource($user))
+        return UserResource::make($user)
             ->additional(['message' => 'User restored successfully']);
     }
 
@@ -179,7 +177,6 @@ class UserController extends Controller
      */
     public function forceDelete(Request $request, int $id): JsonResponse
     {
-        // Only admins can permanently delete
         if (!$request->user()->hasRole('admin')) {
             return response()->json([
                 'message' => 'Forbidden. Only administrators can permanently delete users.',
@@ -194,7 +191,6 @@ class UserController extends Controller
             ], 404);
         }
 
-        // Prevent deleting yourself
         if ($user->id === $request->user()->id) {
             return response()->json([
                 'message' => 'You cannot delete yourself.',

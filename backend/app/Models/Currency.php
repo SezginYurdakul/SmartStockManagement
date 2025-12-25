@@ -109,11 +109,4 @@ class Currency extends Model
         return $query->where('is_active', true);
     }
 
-    /**
-     * Get the route key for the model (use code for URL binding)
-     */
-    public function getRouteKeyName(): string
-    {
-        return 'code';
-    }
 }

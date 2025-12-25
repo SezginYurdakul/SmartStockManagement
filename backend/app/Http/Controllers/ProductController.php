@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Exceptions\BusinessException;
 use App\Http\Resources\ProductListResource;
 use App\Http\Resources\ProductResource;
@@ -10,7 +9,10 @@ use App\Http\Resources\ProductAttributeResource;
 use App\Http\Resources\ProductVariantResource;
 use App\Models\Product;
 use App\Services\ProductService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
@@ -21,10 +23,11 @@ class ProductController extends Controller
     {
         $this->productService = $productService;
     }
+
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index(Request $request): AnonymousResourceCollection
     {
         // Search with Elasticsearch
         if ($request->has('search')) {
@@ -55,7 +58,7 @@ class ProductController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -79,7 +82,7 @@ class ProductController extends Controller
         $product = $this->productService->create($validated);
         $product->load(['categories', 'images', 'productType', 'unitOfMeasure']);
 
-        return (new ProductResource($product))
+        return ProductResource::make($product)
             ->additional(['message' => 'Product created successfully'])
             ->response()
             ->setStatusCode(201);
@@ -88,7 +91,7 @@ class ProductController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Product $product)
+    public function show(Product $product): JsonResource
     {
         $product->load([
             'categories',
@@ -99,13 +102,13 @@ class ProductController extends Controller
             'prices.currency',
         ])->loadCount('variants');
 
-        return new ProductResource($product);
+        return ProductResource::make($product);
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Product $product)
+    public function update(Request $request, Product $product): JsonResource
     {
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
@@ -129,14 +132,14 @@ class ProductController extends Controller
         $product = $this->productService->update($product, $validated);
         $product->load(['categories', 'images', 'productType', 'unitOfMeasure']);
 
-        return (new ProductResource($product))
+        return ProductResource::make($product)
             ->additional(['message' => 'Product updated successfully']);
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Product $product)
+    public function destroy(Product $product): JsonResponse
     {
         $this->productService->delete($product);
 
@@ -148,12 +151,12 @@ class ProductController extends Controller
     /**
      * Restore a soft-deleted product
      */
-    public function restore($id)
+    public function restore($id): JsonResource
     {
         $product = $this->productService->restore($id);
         $product->load(['categories', 'images', 'productType', 'unitOfMeasure']);
 
-        return (new ProductResource($product))
+        return ProductResource::make($product)
             ->additional(['message' => 'Product restored successfully']);
     }
 
@@ -162,7 +165,7 @@ class ProductController extends Controller
      *
      * Accepts: ?search=keyword or ?query=keyword or ?q=keyword
      */
-    public function search(Request $request)
+    public function search(Request $request): AnonymousResourceCollection
     {
         // Accept multiple parameter names for flexibility
         $searchTerm = $request->input('search')
@@ -182,7 +185,7 @@ class ProductController extends Controller
     /**
      * Get product attributes
      */
-    public function getAttributes(Product $product)
+    public function getAttributes(Product $product): AnonymousResourceCollection
     {
         $attributes = $product->attributes()->with('values')->get();
         return ProductAttributeResource::collection($attributes);
@@ -191,7 +194,7 @@ class ProductController extends Controller
     /**
      * Assign attributes to product
      */
-    public function assignAttributes(Request $request, Product $product)
+    public function assignAttributes(Request $request, Product $product): AnonymousResourceCollection
     {
         $request->validate([
             'attributes' => 'required|array',
@@ -199,7 +202,7 @@ class ProductController extends Controller
             'attributes.*.value' => 'required|string',
         ]);
 
-        foreach ($request->attributes as $attr) {
+        foreach ($request->input('attributes') as $attr) {
             $product->attributes()->syncWithoutDetaching([
                 $attr['attribute_id'] => ['value' => $attr['value']]
             ]);
@@ -212,7 +215,7 @@ class ProductController extends Controller
     /**
      * Update product attribute
      */
-    public function updateAttribute(Request $request, Product $product, $attributeId)
+    public function updateAttribute(Request $request, Product $product, $attributeId): JsonResponse
     {
         $request->validate([
             'value' => 'required|string',
@@ -230,7 +233,7 @@ class ProductController extends Controller
     /**
      * Remove attribute from product
      */
-    public function removeAttribute(Product $product, $attributeId)
+    public function removeAttribute(Product $product, $attributeId): JsonResponse
     {
         $product->attributes()->detach($attributeId);
 
@@ -242,7 +245,7 @@ class ProductController extends Controller
     /**
      * Get product variants
      */
-    public function getVariants(Product $product)
+    public function getVariants(Product $product): AnonymousResourceCollection
     {
         $variants = $product->variants()->get();
         return ProductVariantResource::collection($variants);
@@ -251,7 +254,7 @@ class ProductController extends Controller
     /**
      * Create a single product variant manually
      */
-    public function createVariant(Request $request, Product $product)
+    public function createVariant(Request $request, Product $product): JsonResponse
     {
         $validated = $request->validate([
             'attributes' => 'required|array',
@@ -272,7 +275,7 @@ class ProductController extends Controller
             });
 
         if ($existingVariant) {
-            return (new ProductVariantResource($existingVariant))
+            return ProductVariantResource::make($existingVariant)
                 ->additional(['message' => 'Variant with these attributes already exists'])
                 ->response()
                 ->setStatusCode(409);
@@ -301,7 +304,7 @@ class ProductController extends Controller
             'is_active' => $validated['is_active'] ?? true,
         ]);
 
-        return (new ProductVariantResource($variant))
+        return ProductVariantResource::make($variant)
             ->additional(['message' => 'Variant created successfully'])
             ->response()
             ->setStatusCode(201);
@@ -310,7 +313,7 @@ class ProductController extends Controller
     /**
      * Update a product variant
      */
-    public function updateVariant(Request $request, Product $product, $variantId)
+    public function updateVariant(Request $request, Product $product, $variantId): JsonResource
     {
         $variant = $product->variants()->findOrFail($variantId);
 
@@ -322,14 +325,14 @@ class ProductController extends Controller
 
         $variant->update($validated);
 
-        return (new ProductVariantResource($variant))
+        return ProductVariantResource::make($variant)
             ->additional(['message' => 'Variant updated successfully']);
     }
 
     /**
      * Delete a product variant (soft delete)
      */
-    public function deleteVariant(Product $product, $variantId)
+    public function deleteVariant(Product $product, $variantId): JsonResponse
     {
         $variant = $product->variants()->findOrFail($variantId);
         $variant->delete();
@@ -342,7 +345,7 @@ class ProductController extends Controller
     /**
      * Force delete a product variant (permanent)
      */
-    public function forceDeleteVariant(Product $product, $variantId)
+    public function forceDeleteVariant(Product $product, $variantId): JsonResponse
     {
         $variant = $product->variants()->withTrashed()->findOrFail($variantId);
         $variant->forceDelete();

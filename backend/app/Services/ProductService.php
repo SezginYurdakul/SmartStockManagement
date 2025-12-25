@@ -129,7 +129,7 @@ class ProductService
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            throw new Exception("Failed to create product: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -174,7 +174,7 @@ class ProductService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to update product: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -250,7 +250,7 @@ class ProductService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to delete product: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -296,7 +296,7 @@ class ProductService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to restore product: {$e->getMessage()}");
+            throw $e;
         }
     }
 

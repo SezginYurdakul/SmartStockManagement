@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Company;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -14,11 +15,16 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
+        // Get default company
+        $company = Company::first();
+
         // Create Admin User
         $admin = User::firstOrCreate(
             ['email' => 'admin@example.com'],
             [
-                'name' => 'Admin User',
+                'company_id' => $company?->id,
+                'first_name' => 'Admin',
+                'last_name' => 'User',
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
             ]
@@ -36,7 +42,9 @@ class UserSeeder extends Seeder
         $manager = User::firstOrCreate(
             ['email' => 'manager@example.com'],
             [
-                'name' => 'Manager User',
+                'company_id' => $company?->id,
+                'first_name' => 'Manager',
+                'last_name' => 'User',
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
             ]
@@ -54,7 +62,9 @@ class UserSeeder extends Seeder
         $staff = User::firstOrCreate(
             ['email' => 'staff@example.com'],
             [
-                'name' => 'Staff User',
+                'company_id' => $company?->id,
+                'first_name' => 'Staff',
+                'last_name' => 'User',
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
             ]

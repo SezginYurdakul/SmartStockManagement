@@ -7,6 +7,7 @@ use App\Models\Attribute;
 use App\Models\AttributeValue;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Exception;
 
 class AttributeService
 {
@@ -71,7 +72,7 @@ class AttributeService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to create attribute: {$e->getMessage()}");
+            throw $e;
         }
     }
 

@@ -4,11 +4,18 @@ use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CurrencyController;
+use App\Http\Controllers\GoodsReceivedNoteController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImageController;
+use App\Http\Controllers\ProductTypeController;
+use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\StockController;
+use App\Http\Controllers\StockMovementController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
 Route::get("/", function () {
@@ -123,6 +130,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{product}/variants/force-clear', [AttributeController::class, 'forceClearVariants'])->middleware('role:admin');
     });
 
+    // Product types routes (permission-based)
+    Route::prefix('producttypes')->group(function () {
+        Route::get('/', [ProductTypeController::class, 'index'])->middleware('permission:producttypes.view');
+        Route::get('/{productType}', [ProductTypeController::class, 'show'])->middleware('permission:producttypes.view');
+        Route::post('/', [ProductTypeController::class, 'store'])->middleware('permission:producttypes.create');
+        Route::put('/{productType}', [ProductTypeController::class, 'update'])->middleware('permission:producttypes.edit');
+        Route::delete('/{productType}', [ProductTypeController::class, 'destroy'])->middleware('permission:producttypes.delete');
+    });
     // Attribute routes (permission-based)
     Route::prefix('attributes')->group(function () {
         Route::get('/', [AttributeController::class, 'index'])->middleware('permission:products.view');
@@ -156,5 +171,110 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/exchange-rate/set', [CurrencyController::class, 'setExchangeRate'])->middleware('permission:settings.edit');
         Route::get('/exchange-rate/history', [CurrencyController::class, 'exchangeRateHistory'])->middleware('permission:settings.view');
         Route::post('/convert', [CurrencyController::class, 'convert'])->middleware('permission:settings.view');
+    });
+
+    // Warehouse routes
+    Route::prefix('warehouses')->group(function () {
+        Route::get('/', [WarehouseController::class, 'index'])->middleware('permission:inventory.view');
+        Route::get('/list', [WarehouseController::class, 'list'])->middleware('permission:inventory.view');
+        Route::post('/', [WarehouseController::class, 'store'])->middleware('permission:inventory.create');
+        Route::get('/{warehouse}', [WarehouseController::class, 'show'])->middleware('permission:inventory.view');
+        Route::put('/{warehouse}', [WarehouseController::class, 'update'])->middleware('permission:inventory.edit');
+        Route::delete('/{warehouse}', [WarehouseController::class, 'destroy'])->middleware('permission:inventory.delete');
+        Route::post('/{warehouse}/toggle-active', [WarehouseController::class, 'toggleActive'])->middleware('permission:inventory.edit');
+        Route::post('/{warehouse}/set-default', [WarehouseController::class, 'setDefault'])->middleware('permission:inventory.edit');
+        Route::get('/{warehouse}/stock-summary', [WarehouseController::class, 'stockSummary'])->middleware('permission:inventory.view');
+    });
+
+    // Stock routes
+    Route::prefix('stock')->group(function () {
+        Route::get('/', [StockController::class, 'index'])->middleware('permission:inventory.view');
+        Route::get('/low-stock', [StockController::class, 'lowStock'])->middleware('permission:inventory.view');
+        Route::get('/expiring', [StockController::class, 'expiring'])->middleware('permission:inventory.view');
+        Route::get('/product/{productId}', [StockController::class, 'productStock'])->middleware('permission:inventory.view');
+        Route::get('/warehouse/{warehouseId}', [StockController::class, 'warehouseStock'])->middleware('permission:inventory.view');
+
+        // Stock operations
+        Route::post('/receive', [StockController::class, 'receive'])->middleware('permission:inventory.create');
+        Route::post('/issue', [StockController::class, 'issue'])->middleware('permission:inventory.edit');
+        Route::post('/transfer', [StockController::class, 'transfer'])->middleware('permission:inventory.edit');
+        Route::post('/adjust', [StockController::class, 'adjust'])->middleware('permission:inventory.edit');
+        Route::post('/reserve', [StockController::class, 'reserve'])->middleware('permission:inventory.edit');
+        Route::post('/release-reservation', [StockController::class, 'releaseReservation'])->middleware('permission:inventory.edit');
+    });
+
+    // Stock Movement routes
+    Route::prefix('stock-movements')->group(function () {
+        Route::get('/', [StockMovementController::class, 'index'])->middleware('permission:inventory.view');
+        Route::get('/summary', [StockMovementController::class, 'summary'])->middleware('permission:inventory.view');
+        Route::get('/daily-report', [StockMovementController::class, 'dailyReport'])->middleware('permission:inventory.view');
+        Route::get('/audit-trail', [StockMovementController::class, 'auditTrail'])->middleware('permission:inventory.view');
+        Route::get('/product/{productId}', [StockMovementController::class, 'productMovements'])->middleware('permission:inventory.view');
+        Route::get('/warehouse/{warehouseId}', [StockMovementController::class, 'warehouseMovements'])->middleware('permission:inventory.view');
+        Route::get('/types/movement', [StockMovementController::class, 'movementTypes'])->middleware('permission:inventory.view');
+        Route::get('/types/transaction', [StockMovementController::class, 'transactionTypes'])->middleware('permission:inventory.view');
+    });
+
+    // ===================================================
+    // PROCUREMENT MODULE (Phase 3)
+    // ===================================================
+
+    // Supplier routes
+    Route::prefix('suppliers')->group(function () {
+        Route::get('/', [SupplierController::class, 'index'])->middleware('permission:purchasing.view');
+        Route::get('/list', [SupplierController::class, 'list'])->middleware('permission:purchasing.view');
+        Route::post('/', [SupplierController::class, 'store'])->middleware('permission:purchasing.create');
+        Route::get('/for-product/{productId}', [SupplierController::class, 'forProduct'])->middleware('permission:purchasing.view');
+        Route::get('/{supplier}', [SupplierController::class, 'show'])->middleware('permission:purchasing.view');
+        Route::put('/{supplier}', [SupplierController::class, 'update'])->middleware('permission:purchasing.edit');
+        Route::delete('/{supplier}', [SupplierController::class, 'destroy'])->middleware('permission:purchasing.delete');
+        Route::post('/{supplier}/toggle-active', [SupplierController::class, 'toggleActive'])->middleware('permission:purchasing.edit');
+        Route::get('/{supplier}/statistics', [SupplierController::class, 'statistics'])->middleware('permission:purchasing.view');
+
+        // Supplier product management
+        Route::post('/{supplier}/products', [SupplierController::class, 'attachProducts'])->middleware('permission:purchasing.edit');
+        Route::put('/{supplier}/products/{productId}', [SupplierController::class, 'updateProduct'])->middleware('permission:purchasing.edit');
+        Route::delete('/{supplier}/products/{productId}', [SupplierController::class, 'detachProduct'])->middleware('permission:purchasing.edit');
+    });
+
+    // Purchase Order routes
+    Route::prefix('purchase-orders')->group(function () {
+        Route::get('/', [PurchaseOrderController::class, 'index'])->middleware('permission:purchasing.view');
+        Route::post('/', [PurchaseOrderController::class, 'store'])->middleware('permission:purchasing.create');
+        Route::get('/statistics', [PurchaseOrderController::class, 'statistics'])->middleware('permission:purchasing.view');
+        Route::get('/overdue', [PurchaseOrderController::class, 'overdue'])->middleware('permission:purchasing.view');
+        Route::get('/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->middleware('permission:purchasing.view');
+        Route::put('/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->middleware('permission:purchasing.edit');
+        Route::delete('/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->middleware('permission:purchasing.delete');
+
+        // PO Item management
+        Route::post('/{purchaseOrder}/items', [PurchaseOrderController::class, 'addItems'])->middleware('permission:purchasing.edit');
+        Route::put('/{purchaseOrder}/items/{item}', [PurchaseOrderController::class, 'updateItem'])->middleware('permission:purchasing.edit');
+        Route::delete('/{purchaseOrder}/items/{item}', [PurchaseOrderController::class, 'deleteItem'])->middleware('permission:purchasing.edit');
+
+        // PO Workflow actions
+        Route::post('/{purchaseOrder}/submit', [PurchaseOrderController::class, 'submitForApproval'])->middleware('permission:purchasing.edit');
+        Route::post('/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->middleware('permission:purchasing.approve');
+        Route::post('/{purchaseOrder}/reject', [PurchaseOrderController::class, 'reject'])->middleware('permission:purchasing.approve');
+        Route::post('/{purchaseOrder}/send', [PurchaseOrderController::class, 'markAsSent'])->middleware('permission:purchasing.edit');
+        Route::post('/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->middleware('permission:purchasing.edit');
+        Route::post('/{purchaseOrder}/close', [PurchaseOrderController::class, 'close'])->middleware('permission:purchasing.edit');
+    });
+
+    // Goods Received Note (GRN) routes
+    Route::prefix('goods-received-notes')->group(function () {
+        Route::get('/', [GoodsReceivedNoteController::class, 'index'])->middleware('permission:purchasing.view');
+        Route::post('/', [GoodsReceivedNoteController::class, 'store'])->middleware('permission:purchasing.receive');
+        Route::get('/pending-inspection', [GoodsReceivedNoteController::class, 'pendingInspection'])->middleware('permission:purchasing.view');
+        Route::get('/for-purchase-order/{purchaseOrderId}', [GoodsReceivedNoteController::class, 'forPurchaseOrder'])->middleware('permission:purchasing.view');
+        Route::get('/{goodsReceivedNote}', [GoodsReceivedNoteController::class, 'show'])->middleware('permission:purchasing.view');
+        Route::put('/{goodsReceivedNote}', [GoodsReceivedNoteController::class, 'update'])->middleware('permission:purchasing.receive');
+        Route::delete('/{goodsReceivedNote}', [GoodsReceivedNoteController::class, 'destroy'])->middleware('permission:purchasing.receive');
+
+        // GRN Workflow actions
+        Route::post('/{goodsReceivedNote}/submit-inspection', [GoodsReceivedNoteController::class, 'submitForInspection'])->middleware('permission:purchasing.receive');
+        Route::post('/{goodsReceivedNote}/record-inspection', [GoodsReceivedNoteController::class, 'recordInspection'])->middleware('permission:purchasing.inspect');
+        Route::post('/{goodsReceivedNote}/complete', [GoodsReceivedNoteController::class, 'complete'])->middleware('permission:purchasing.receive');
+        Route::post('/{goodsReceivedNote}/cancel', [GoodsReceivedNoteController::class, 'cancel'])->middleware('permission:purchasing.receive');
     });
 });

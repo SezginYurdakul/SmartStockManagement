@@ -2,12 +2,15 @@
 
 namespace App\Services;
 
+use App\Exceptions\BusinessException;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Attribute;
 use App\Models\AttributeValue;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Exception;
 
 class VariantGeneratorService
 {
@@ -28,7 +31,7 @@ class VariantGeneratorService
             ->get();
 
         if ($attributes->isEmpty()) {
-            throw new \Exception('No variant attributes found');
+            throw new BusinessException('No variant attributes found');
         }
 
         // Get selected value IDs filter (if provided)
@@ -38,7 +41,7 @@ class VariantGeneratorService
         $attributeValueSets = [];
         foreach ($attributes as $attribute) {
             if ($attribute->activeValues->isEmpty()) {
-                throw new \Exception("Attribute '{$attribute->display_name}' has no values");
+                throw new BusinessException("Attribute '{$attribute->display_name}' has no values");
             }
 
             // Check if specific value IDs are selected for this attribute
@@ -54,7 +57,7 @@ class VariantGeneratorService
                     ->toArray();
 
                 if (empty($filteredValues)) {
-                    throw new \Exception("None of the selected value IDs exist for attribute '{$attribute->display_name}'");
+                    throw new BusinessException("None of the selected value IDs exist for attribute '{$attribute->display_name}'");
                 }
 
                 $attributeValueSets[$attribute->id] = array_values($filteredValues);
@@ -90,9 +93,17 @@ class VariantGeneratorService
             $product->variants()->delete();
         }
 
+        Log::info('Generating variants for product', [
+            'product_id' => $product->id,
+            'attribute_count' => count($attributeIds),
+            'combination_count' => count($combinations),
+        ]);
+
         $generatedVariants = [];
 
-        DB::transaction(function () use ($product, $combinations, $attributes, $basePrice, $baseStock, $priceIncrements, &$generatedVariants) {
+        DB::beginTransaction();
+
+        try {
             foreach ($combinations as $combination) {
                 // Build variant name and attributes
                 $variantParts = [];
@@ -147,9 +158,26 @@ class VariantGeneratorService
 
                 $generatedVariants[] = $variant;
             }
-        });
 
-        return $generatedVariants;
+            DB::commit();
+
+            Log::info('Variants generated successfully', [
+                'product_id' => $product->id,
+                'variants_created' => count($generatedVariants),
+            ]);
+
+            return $generatedVariants;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            Log::error('Failed to generate variants', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
     }
 
     /**
@@ -273,7 +301,7 @@ class VariantGeneratorService
             ->first();
 
         if (!$newAttribute) {
-            throw new \Exception('Expand attribute not found or not a variant attribute');
+            throw new BusinessException('Expand attribute not found or not a variant attribute');
         }
 
         // Get requested values from the new attribute
@@ -282,14 +310,14 @@ class VariantGeneratorService
             ->all();
 
         if (empty($newValues)) {
-            throw new \Exception("None of the selected value IDs exist for attribute '{$newAttribute->display_name}'");
+            throw new BusinessException("None of the selected value IDs exist for attribute '{$newAttribute->display_name}'");
         }
 
         // Get existing active variants
         $existingVariants = $product->variants()->where('is_active', true)->get();
 
         if ($existingVariants->isEmpty()) {
-            throw new \Exception('No active variants to expand. Use generateVariants instead.');
+            throw new BusinessException('No active variants to expand. Use generateVariants instead.');
         }
 
         // Check if any existing variant already has this attribute
@@ -297,7 +325,7 @@ class VariantGeneratorService
         $newAttributeKey = strtolower($newAttribute->name);
 
         if (isset($firstVariantAttrs[$newAttributeKey])) {
-            throw new \Exception("Variants already have '{$newAttribute->display_name}' attribute. Use generateVariants with clear_existing instead.");
+            throw new BusinessException("Variants already have '{$newAttribute->display_name}' attribute. Use generateVariants with clear_existing instead.");
         }
 
         $inheritPriceStock = $options['inherit_price_stock'] ?? true;
@@ -316,18 +344,18 @@ class VariantGeneratorService
             }
         }
 
+        Log::info('Expanding variants for product', [
+            'product_id' => $product->id,
+            'expand_attribute' => $newAttribute->name,
+            'existing_variants' => $existingVariants->count(),
+            'new_values_count' => count($newValues),
+        ]);
+
         $generatedVariants = [];
 
-        DB::transaction(function () use (
-            $product,
-            $existingVariants,
-            $newAttribute,
-            $newValues,
-            $inheritPriceStock,
-            $deleteOriginals,
-            $priceIncrements,
-            &$generatedVariants
-        ) {
+        DB::beginTransaction();
+
+        try {
             foreach ($existingVariants as $existingVariant) {
                 $originalAttrs = $existingVariant->attributes ?? [];
                 $originalPrice = $existingVariant->price;
@@ -388,8 +416,25 @@ class VariantGeneratorService
                     $existingVariant->delete();
                 }
             }
-        });
 
-        return $generatedVariants;
+            DB::commit();
+
+            Log::info('Variants expanded successfully', [
+                'product_id' => $product->id,
+                'variants_created' => count($generatedVariants),
+            ]);
+
+            return $generatedVariants;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            Log::error('Failed to expand variants', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
     }
 }

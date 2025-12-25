@@ -8,6 +8,7 @@ use App\Models\ProductPrice;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
+use Illuminate\Support\Facades\Auth;
 
 class PricingService
 {
@@ -50,7 +51,7 @@ class PricingService
         }
 
         // If not found, try to convert from base currency
-        $baseCurrency = auth()->user()?->company?->base_currency ?? 'USD';
+        $baseCurrency = Auth::user()?->company?->base_currency ?? 'USD';
 
         if ($currencyCode !== $baseCurrency) {
             $basePrice = $product->prices()
@@ -140,7 +141,7 @@ class PricingService
         } catch (Exception $e) {
             DB::rollBack();
             Log::error('Failed to set product price', ['error' => $e->getMessage()]);
-            throw new BusinessException("Failed to set product price: {$e->getMessage()}");
+            throw $e;
         }
     }
 

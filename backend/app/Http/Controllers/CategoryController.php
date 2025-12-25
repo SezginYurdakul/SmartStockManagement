@@ -6,7 +6,10 @@ use App\Http\Resources\AttributeResource;
 use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use App\Services\CategoryService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Validation\Rule;
 
 class CategoryController extends Controller
@@ -21,7 +24,7 @@ class CategoryController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index(Request $request): AnonymousResourceCollection
     {
         $filters = $request->only(['parent_id']);
         $tree = $request->boolean('tree');
@@ -35,7 +38,7 @@ class CategoryController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -46,7 +49,7 @@ class CategoryController extends Controller
 
         $category = $this->categoryService->create($validated);
 
-        return (new CategoryResource($category))
+        return CategoryResource::make($category)
             ->additional(['message' => 'Category created successfully'])
             ->response()
             ->setStatusCode(201);
@@ -55,18 +58,18 @@ class CategoryController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Category $category)
+    public function show(Category $category): JsonResource
     {
         $category->load(['parent', 'children', 'attributes.values']);
         $category->loadCount('products');
 
-        return new CategoryResource($category);
+        return CategoryResource::make($category);
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Category $category)
+    public function update(Request $request, Category $category): JsonResource
     {
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
@@ -77,14 +80,14 @@ class CategoryController extends Controller
 
         $category = $this->categoryService->update($category, $validated);
 
-        return (new CategoryResource($category))
+        return CategoryResource::make($category)
             ->additional(['message' => 'Category updated successfully']);
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Category $category)
+    public function destroy(Category $category): JsonResponse
     {
         $this->categoryService->delete($category);
 
@@ -96,7 +99,7 @@ class CategoryController extends Controller
     /**
      * Get category attributes
      */
-    public function getAttributes(Category $category)
+    public function getAttributes(Category $category): AnonymousResourceCollection
     {
         $attributes = $this->categoryService->getAttributes($category);
 
@@ -106,7 +109,7 @@ class CategoryController extends Controller
     /**
      * Assign attributes to category
      */
-    public function assignAttributes(Request $request, Category $category)
+    public function assignAttributes(Request $request, Category $category): AnonymousResourceCollection
     {
         $request->validate([
             'attributes' => 'required|array',
@@ -115,7 +118,7 @@ class CategoryController extends Controller
             'attributes.*.order' => 'integer|min:0',
         ]);
 
-        $this->categoryService->assignAttributes($category, $request->attributes);
+        $this->categoryService->assignAttributes($category, $request->input('attributes'));
 
         return AttributeResource::collection($this->categoryService->getAttributes($category))
             ->additional(['message' => 'Attributes assigned successfully']);
@@ -124,7 +127,7 @@ class CategoryController extends Controller
     /**
      * Update category attribute
      */
-    public function updateAttribute(Request $request, Category $category, $attributeId)
+    public function updateAttribute(Request $request, Category $category, $attributeId): JsonResponse
     {
         $validated = $request->validate([
             'is_required' => 'boolean',
@@ -141,7 +144,7 @@ class CategoryController extends Controller
     /**
      * Remove attribute from category
      */
-    public function removeAttribute(Category $category, $attributeId)
+    public function removeAttribute(Category $category, $attributeId): JsonResponse
     {
         $this->categoryService->removeAttribute($category, $attributeId);
 

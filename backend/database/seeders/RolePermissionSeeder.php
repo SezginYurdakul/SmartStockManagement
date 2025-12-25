@@ -145,18 +145,76 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Can delete categories',
             ],
 
-            // Inventory management permissions (for future use)
+            // Product Type management permissions
+            [
+                'name' => 'producttypes.view',
+                'display_name' => 'View Product Types',
+                'module' => 'producttypes',
+                'description' => 'Can view product type list and details',
+            ],
+            [
+                'name' => 'producttypes.create',
+                'display_name' => 'Create Product Types',
+                'module' => 'producttypes',
+                'description' => 'Can create new product types',
+            ],
+            [
+                'name' => 'producttypes.edit',
+                'display_name' => 'Edit Product Types',
+                'module' => 'producttypes',
+                'description' => 'Can edit existing product types',
+            ],
+            [
+                'name' => 'producttypes.delete',
+                'display_name' => 'Delete Product Types',
+                'module' => 'producttypes',
+                'description' => 'Can delete product types',
+            ],
+
+            // Inventory management permissions
             [
                 'name' => 'inventory.view',
                 'display_name' => 'View Inventory',
                 'module' => 'inventory',
-                'description' => 'Can view inventory levels',
+                'description' => 'Can view inventory levels, warehouses, stock and movements',
+            ],
+            [
+                'name' => 'inventory.create',
+                'display_name' => 'Create Inventory',
+                'module' => 'inventory',
+                'description' => 'Can create warehouses and receive stock',
+            ],
+            [
+                'name' => 'inventory.edit',
+                'display_name' => 'Edit Inventory',
+                'module' => 'inventory',
+                'description' => 'Can edit warehouses, adjust stock, transfer stock',
+            ],
+            [
+                'name' => 'inventory.delete',
+                'display_name' => 'Delete Inventory',
+                'module' => 'inventory',
+                'description' => 'Can delete warehouses',
             ],
             [
                 'name' => 'inventory.adjust',
                 'display_name' => 'Adjust Inventory',
                 'module' => 'inventory',
-                'description' => 'Can adjust inventory levels',
+                'description' => 'Can adjust inventory levels (stock adjustments)',
+            ],
+
+            // Settings management permissions
+            [
+                'name' => 'settings.view',
+                'display_name' => 'View Settings',
+                'module' => 'settings',
+                'description' => 'Can view system settings, currencies, etc.',
+            ],
+            [
+                'name' => 'settings.edit',
+                'display_name' => 'Edit Settings',
+                'module' => 'settings',
+                'description' => 'Can edit system settings, currencies, etc.',
             ],
 
             // Reports permissions (for future use)
@@ -171,6 +229,50 @@ class RolePermissionSeeder extends Seeder
                 'display_name' => 'Export Reports',
                 'module' => 'reports',
                 'description' => 'Can export reports',
+            ],
+
+            // Purchasing/Procurement permissions
+            [
+                'name' => 'purchasing.view',
+                'display_name' => 'View Purchasing',
+                'module' => 'purchasing',
+                'description' => 'Can view suppliers, purchase orders, and GRNs',
+            ],
+            [
+                'name' => 'purchasing.create',
+                'display_name' => 'Create Purchasing',
+                'module' => 'purchasing',
+                'description' => 'Can create suppliers and purchase orders',
+            ],
+            [
+                'name' => 'purchasing.edit',
+                'display_name' => 'Edit Purchasing',
+                'module' => 'purchasing',
+                'description' => 'Can edit suppliers and purchase orders',
+            ],
+            [
+                'name' => 'purchasing.delete',
+                'display_name' => 'Delete Purchasing',
+                'module' => 'purchasing',
+                'description' => 'Can delete suppliers and purchase orders',
+            ],
+            [
+                'name' => 'purchasing.approve',
+                'display_name' => 'Approve Purchase Orders',
+                'module' => 'purchasing',
+                'description' => 'Can approve or reject purchase orders',
+            ],
+            [
+                'name' => 'purchasing.receive',
+                'display_name' => 'Receive Goods',
+                'module' => 'purchasing',
+                'description' => 'Can receive goods (create and complete GRNs)',
+            ],
+            [
+                'name' => 'purchasing.inspect',
+                'display_name' => 'Inspect Goods',
+                'module' => 'purchasing',
+                'description' => 'Can inspect received goods and record inspection results',
             ],
         ];
 
@@ -210,9 +312,53 @@ class RolePermissionSeeder extends Seeder
             'users.view',
             'products.view',
             'categories.view',
+            'producttypes.view',
             'inventory.view',
+            'purchasing.view',
             'reports.view',
         ])->get();
         $staffRole->permissions()->sync($staffPermissions->pluck('id'));
+
+        // Create purchaser role
+        $purchaserRole = Role::firstOrCreate(
+            ['name' => 'purchaser'],
+            [
+                'display_name' => 'Purchaser',
+                'description' => 'Can manage suppliers, create and manage purchase orders',
+                'is_system_role' => true,
+            ]
+        );
+
+        $purchaserPermissions = Permission::whereIn('name', [
+            'products.view',
+            'categories.view',
+            'inventory.view',
+            'purchasing.view',
+            'purchasing.create',
+            'purchasing.edit',
+            'purchasing.receive',
+        ])->get();
+        $purchaserRole->permissions()->sync($purchaserPermissions->pluck('id'));
+
+        // Create warehouse role
+        $warehouseRole = Role::firstOrCreate(
+            ['name' => 'warehouse'],
+            [
+                'display_name' => 'Warehouse Staff',
+                'description' => 'Can manage inventory and receive goods',
+                'is_system_role' => true,
+            ]
+        );
+
+        $warehousePermissions = Permission::whereIn('name', [
+            'products.view',
+            'inventory.view',
+            'inventory.create',
+            'inventory.edit',
+            'purchasing.view',
+            'purchasing.receive',
+            'purchasing.inspect',
+        ])->get();
+        $warehouseRole->permissions()->sync($warehousePermissions->pluck('id'));
     }
 }

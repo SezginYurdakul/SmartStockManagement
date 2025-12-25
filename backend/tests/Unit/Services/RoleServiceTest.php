@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services;
 
+use App\Exceptions\BusinessException;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
@@ -75,7 +76,7 @@ class RoleServiceTest extends TestCase
             'description' => 'Content editor role',
         ];
 
-        $role = $this->roleService->createRole($data);
+        $role = $this->roleService->create($data);
 
         $this->assertInstanceOf(Role::class, $role);
         $this->assertEquals('editor', $role->name);
@@ -109,7 +110,7 @@ class RoleServiceTest extends TestCase
             'permission_ids' => [$permission1->id, $permission2->id],
         ];
 
-        $role = $this->roleService->createRole($data);
+        $role = $this->roleService->create($data);
 
         $this->assertCount(2, $role->permissions);
         $this->assertTrue($role->permissions->contains($permission1));
@@ -129,7 +130,7 @@ class RoleServiceTest extends TestCase
             'description' => 'Manages content',
         ];
 
-        $updatedRole = $this->roleService->updateRole($role, $updateData);
+        $updatedRole = $this->roleService->update($role, $updateData);
 
         $this->assertEquals('Content Editor', $updatedRole->display_name);
         $this->assertEquals('Manages content', $updatedRole->description);
@@ -171,7 +172,7 @@ class RoleServiceTest extends TestCase
             'permission_ids' => [$permission3->id],
         ];
 
-        $updatedRole = $this->roleService->updateRole($role, $updateData);
+        $updatedRole = $this->roleService->update($role, $updateData);
 
         $this->assertCount(1, $updatedRole->permissions);
         $this->assertTrue($updatedRole->permissions->contains($permission3));
@@ -187,10 +188,10 @@ class RoleServiceTest extends TestCase
             'is_system_role' => true,
         ]);
 
-        $this->expectException(Exception::class);
+        $this->expectException(BusinessException::class);
         $this->expectExceptionMessage('Cannot change system role name');
 
-        $this->roleService->updateRole($role, ['name' => 'super-admin']);
+        $this->roleService->update($role, ['name' => 'super-admin']);
     }
 
     /** @test */
@@ -201,7 +202,7 @@ class RoleServiceTest extends TestCase
             'display_name' => 'Editor',
         ]);
 
-        $result = $this->roleService->deleteRole($role);
+        $result = $this->roleService->delete($role);
 
         $this->assertTrue($result);
         $this->assertDatabaseMissing('roles', ['id' => $role->id]);
@@ -216,10 +217,10 @@ class RoleServiceTest extends TestCase
             'is_system_role' => true,
         ]);
 
-        $this->expectException(Exception::class);
+        $this->expectException(BusinessException::class);
         $this->expectExceptionMessage('Cannot delete system role');
 
-        $this->roleService->deleteRole($role);
+        $this->roleService->delete($role);
     }
 
     /** @test */
@@ -233,10 +234,10 @@ class RoleServiceTest extends TestCase
         $user = User::factory()->create();
         $user->roles()->attach($role->id);
 
-        $this->expectException(Exception::class);
+        $this->expectException(BusinessException::class);
         $this->expectExceptionMessage('Cannot delete role that is assigned to');
 
-        $this->roleService->deleteRole($role);
+        $this->roleService->delete($role);
     }
 
     /** @test */
@@ -404,7 +405,7 @@ class RoleServiceTest extends TestCase
         $user = User::factory()->create();
         $user->roles()->attach($role->id);
 
-        $roleWithRelations = $this->roleService->getRoleWithRelations($role);
+        $roleWithRelations = $this->roleService->getRole($role);
 
         $this->assertTrue($roleWithRelations->relationLoaded('permissions'));
         $this->assertTrue($roleWithRelations->relationLoaded('users'));
@@ -433,12 +434,7 @@ class RoleServiceTest extends TestCase
             'display_name' => 'Admin Duplicate',
         ];
 
-        try {
-            $this->roleService->createRole($data);
-        } catch (Exception $e) {
-            $this->assertStringContainsString('Failed to create role', $e->getMessage());
-            throw $e;
-        }
+        $this->roleService->create($data);
     }
 
     /** @test */
@@ -461,11 +457,6 @@ class RoleServiceTest extends TestCase
             'name' => 'admin', // Duplicate name
         ];
 
-        try {
-            $this->roleService->updateRole($role, $updateData);
-        } catch (Exception $e) {
-            $this->assertStringContainsString('Failed to update role', $e->getMessage());
-            throw $e;
-        }
+        $this->roleService->update($role, $updateData);
     }
 }
