@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\Product;
+use App\Models\ProductType;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -24,6 +25,16 @@ class ProductSeeder extends Seeder
 
         if ($categories->isEmpty()) {
             $this->command->warn('No categories found! Please run CategorySeeder first.');
+            return;
+        }
+
+        // Get product types
+        $finishedGoodsType = ProductType::where('code', 'FG')->first();
+        $sparePartsType = ProductType::where('code', 'SP')->first();
+        $consumablesType = ProductType::where('code', 'CON')->first();
+
+        if (!$finishedGoodsType) {
+            $this->command->warn('No product types found! Please run ProductTypeSeeder first.');
             return;
         }
 
@@ -419,7 +430,11 @@ class ProductSeeder extends Seeder
         $conditions = ['New', 'Refurbished', 'Open Box'];
         $variants = ['Standard', 'Pro', 'Plus', 'Ultra', 'Max', 'Mini', 'Lite'];
 
-        Product::withoutSyncingToSearch(function () use ($categories, $productTemplates, $colors, $conditions, $variants, $companyId) {
+        // Map category slugs to product types
+        $accessoryCategories = ['accessories', 'mobile-accessories', 'computer-accessories', 'gaming-accessories'];
+        $consumableCategories = ['office-supplies'];
+
+        Product::withoutSyncingToSearch(function () use ($categories, $productTemplates, $colors, $conditions, $variants, $companyId, $finishedGoodsType, $sparePartsType, $consumablesType, $accessoryCategories, $consumableCategories) {
             foreach ($categories as $category) {
                 $templates = $productTemplates[$category->slug] ?? [];
 
@@ -460,8 +475,17 @@ class ProductSeeder extends Seeder
                     $isActive = $productsCreated < 25 ? true : (rand(0, 1) === 1); // First 25 active, rest random
                     $isFeatured = $productsCreated < 5 ? true : (rand(0, 10) > 7); // First 5 featured, rest 30% chance
 
+                    // Determine product type based on category
+                    $productTypeId = $finishedGoodsType->id; // Default to Finished Goods
+                    if (in_array($category->slug, $accessoryCategories)) {
+                        $productTypeId = $sparePartsType?->id ?? $finishedGoodsType->id;
+                    } elseif (in_array($category->slug, $consumableCategories)) {
+                        $productTypeId = $consumablesType?->id ?? $finishedGoodsType->id;
+                    }
+
                     $product = Product::create([
                         'company_id' => $companyId,
+                        'product_type_id' => $productTypeId,
                         'name' => $productName,
                         'slug' => $slug,
                         'sku' => $sku,

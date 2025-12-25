@@ -145,6 +145,32 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Can delete categories',
             ],
 
+            // Product Type management permissions
+            [
+                'name' => 'producttypes.view',
+                'display_name' => 'View Product Types',
+                'module' => 'producttypes',
+                'description' => 'Can view product type list and details',
+            ],
+            [
+                'name' => 'producttypes.create',
+                'display_name' => 'Create Product Types',
+                'module' => 'producttypes',
+                'description' => 'Can create new product types',
+            ],
+            [
+                'name' => 'producttypes.edit',
+                'display_name' => 'Edit Product Types',
+                'module' => 'producttypes',
+                'description' => 'Can edit existing product types',
+            ],
+            [
+                'name' => 'producttypes.delete',
+                'display_name' => 'Delete Product Types',
+                'module' => 'producttypes',
+                'description' => 'Can delete product types',
+            ],
+
             // Inventory management permissions
             [
                 'name' => 'inventory.view',
@@ -286,6 +312,7 @@ class RolePermissionSeeder extends Seeder
             'users.view',
             'products.view',
             'categories.view',
+            'producttypes.view',
             'inventory.view',
             'purchasing.view',
             'reports.view',
