@@ -53,7 +53,8 @@ class UserController extends Controller
         }
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'role_ids' => 'sometimes|array',
@@ -91,14 +92,15 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user): JsonResource|JsonResponse
     {
-        if (!$request->user()->hasPermission('users.update')) {
+        if (!$request->user()->hasPermission('users.edit')) {
             return response()->json([
                 'message' => 'Forbidden. You do not have permission to update users.',
             ], 403);
         }
 
         $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'sometimes|required|string|max:255',
             'email' => [
                 'sometimes',
                 'required',

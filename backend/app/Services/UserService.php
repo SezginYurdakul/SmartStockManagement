@@ -104,8 +104,10 @@ class UserService
 
         try {
             $updateData = [
-                'name' => $data['name'] ?? $user->name,
+                'first_name' => $data['first_name'] ?? $user->first_name,
+                'last_name' => $data['last_name'] ?? $user->last_name,
                 'email' => $data['email'] ?? $user->email,
+                'phone' => $data['phone'] ?? $user->phone,
             ];
 
             // Update password if provided
