@@ -62,7 +62,7 @@ class UserController extends Controller
 
         $user = $this->userService->createUser($validated);
 
-        return (new UserResource($user))
+        return UserResource::make($user)
             ->additional(['message' => 'User created successfully'])
             ->response()
             ->setStatusCode(201);
@@ -82,7 +82,7 @@ class UserController extends Controller
 
         $user->load(['roles', 'company']);
 
-        return new UserResource($user);
+        return UserResource::make($user);
     }
 
     /**
@@ -114,7 +114,7 @@ class UserController extends Controller
 
         $user = $this->userService->updateUser($user, $validated);
 
-        return (new UserResource($user))
+        return UserResource::make($user)
             ->additional(['message' => 'User updated successfully']);
     }
 
@@ -165,7 +165,7 @@ class UserController extends Controller
 
         $user->load(['roles', 'company']);
 
-        return (new UserResource($user))
+        return UserResource::make($user)
             ->additional(['message' => 'User restored successfully']);
     }
 

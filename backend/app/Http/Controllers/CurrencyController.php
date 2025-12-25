@@ -74,7 +74,7 @@ class CurrencyController extends Controller
 
         $currency = $this->currencyService->createCurrency($validated);
 
-        return (new CurrencyResource($currency))
+        return CurrencyResource::make($currency)
             ->additional(['message' => 'Currency created successfully'])
             ->response()
             ->setStatusCode(201);
@@ -85,7 +85,7 @@ class CurrencyController extends Controller
      */
     public function show(Currency $currency): JsonResource
     {
-        return new CurrencyResource($currency);
+        return CurrencyResource::make($currency);
     }
 
     /**
@@ -105,7 +105,7 @@ class CurrencyController extends Controller
 
         $currency = $this->currencyService->updateCurrency($currency, $validated);
 
-        return (new CurrencyResource($currency))
+        return CurrencyResource::make($currency)
             ->additional(['message' => 'Currency updated successfully']);
     }
 
@@ -128,7 +128,7 @@ class CurrencyController extends Controller
     {
         $currency->update(['is_active' => !$currency->is_active]);
 
-        return (new CurrencyResource($currency->fresh()))
+        return CurrencyResource::make($currency->fresh())
             ->additional(['message' => 'Currency status updated successfully']);
     }
 
@@ -186,7 +186,7 @@ class CurrencyController extends Controller
             $validated['source'] ?? 'manual'
         );
 
-        return (new ExchangeRateResource($exchangeRate))
+        return ExchangeRateResource::make($exchangeRate)
             ->additional(['message' => 'Exchange rate set successfully'])
             ->response()
             ->setStatusCode(201);

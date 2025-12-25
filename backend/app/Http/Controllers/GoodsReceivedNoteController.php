@@ -75,7 +75,7 @@ class GoodsReceivedNoteController extends Controller
 
         return response()->json([
             'message' => 'Goods Received Note created successfully',
-            'data' => new GoodsReceivedNoteResource($grn),
+            'data' => GoodsReceivedNoteResource::make($grn),
         ], 201);
     }
 
@@ -84,7 +84,7 @@ class GoodsReceivedNoteController extends Controller
      */
     public function show(GoodsReceivedNote $goodsReceivedNote): JsonResource
     {
-        return new GoodsReceivedNoteResource(
+        return GoodsReceivedNoteResource::make(
             $this->grnService->getGoodsReceivedNote($goodsReceivedNote)
         );
     }
@@ -121,7 +121,7 @@ class GoodsReceivedNoteController extends Controller
 
         $grn = $this->grnService->update($goodsReceivedNote, $validated);
 
-        return (new GoodsReceivedNoteResource($grn))
+        return GoodsReceivedNoteResource::make($grn)
             ->additional(['message' => 'Goods Received Note updated successfully']);
     }
 
@@ -146,7 +146,7 @@ class GoodsReceivedNoteController extends Controller
 
         return response()->json([
             'message' => 'GRN submitted for inspection',
-            'data' => new GoodsReceivedNoteResource($grn),
+            'data' => GoodsReceivedNoteResource::make($grn),
         ]);
     }
 
@@ -170,7 +170,7 @@ class GoodsReceivedNoteController extends Controller
 
         return response()->json([
             'message' => 'Inspection results recorded',
-            'data' => new GoodsReceivedNoteResource($grn),
+            'data' => GoodsReceivedNoteResource::make($grn),
         ]);
     }
 
@@ -183,7 +183,7 @@ class GoodsReceivedNoteController extends Controller
 
         return response()->json([
             'message' => 'GRN completed and stock updated',
-            'data' => new GoodsReceivedNoteResource($grn),
+            'data' => GoodsReceivedNoteResource::make($grn),
         ]);
     }
 
@@ -200,7 +200,7 @@ class GoodsReceivedNoteController extends Controller
 
         return response()->json([
             'message' => 'GRN cancelled',
-            'data' => new GoodsReceivedNoteResource($grn),
+            'data' => GoodsReceivedNoteResource::make($grn),
         ]);
     }
 

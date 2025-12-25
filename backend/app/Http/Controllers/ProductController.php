@@ -82,7 +82,7 @@ class ProductController extends Controller
         $product = $this->productService->create($validated);
         $product->load(['categories', 'images', 'productType', 'unitOfMeasure']);
 
-        return (new ProductResource($product))
+        return ProductResource::make($product)
             ->additional(['message' => 'Product created successfully'])
             ->response()
             ->setStatusCode(201);
@@ -102,7 +102,7 @@ class ProductController extends Controller
             'prices.currency',
         ])->loadCount('variants');
 
-        return new ProductResource($product);
+        return ProductResource::make($product);
     }
 
     /**
@@ -132,7 +132,7 @@ class ProductController extends Controller
         $product = $this->productService->update($product, $validated);
         $product->load(['categories', 'images', 'productType', 'unitOfMeasure']);
 
-        return (new ProductResource($product))
+        return ProductResource::make($product)
             ->additional(['message' => 'Product updated successfully']);
     }
 
@@ -156,7 +156,7 @@ class ProductController extends Controller
         $product = $this->productService->restore($id);
         $product->load(['categories', 'images', 'productType', 'unitOfMeasure']);
 
-        return (new ProductResource($product))
+        return ProductResource::make($product)
             ->additional(['message' => 'Product restored successfully']);
     }
 
@@ -275,7 +275,7 @@ class ProductController extends Controller
             });
 
         if ($existingVariant) {
-            return (new ProductVariantResource($existingVariant))
+            return ProductVariantResource::make($existingVariant)
                 ->additional(['message' => 'Variant with these attributes already exists'])
                 ->response()
                 ->setStatusCode(409);
@@ -304,7 +304,7 @@ class ProductController extends Controller
             'is_active' => $validated['is_active'] ?? true,
         ]);
 
-        return (new ProductVariantResource($variant))
+        return ProductVariantResource::make($variant)
             ->additional(['message' => 'Variant created successfully'])
             ->response()
             ->setStatusCode(201);
@@ -325,7 +325,7 @@ class ProductController extends Controller
 
         $variant->update($validated);
 
-        return (new ProductVariantResource($variant))
+        return ProductVariantResource::make($variant)
             ->additional(['message' => 'Variant updated successfully']);
     }
 

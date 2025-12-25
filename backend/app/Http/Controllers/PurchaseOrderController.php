@@ -78,7 +78,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'message' => 'Purchase order created successfully',
-            'data' => new PurchaseOrderResource($purchaseOrder),
+            'data' => PurchaseOrderResource::make($purchaseOrder),
         ], 201);
     }
 
@@ -87,7 +87,7 @@ class PurchaseOrderController extends Controller
      */
     public function show(PurchaseOrder $purchaseOrder): JsonResource
     {
-        return new PurchaseOrderResource(
+        return PurchaseOrderResource::make(
             $this->purchaseOrderService->getPurchaseOrder($purchaseOrder)
         );
     }
@@ -128,7 +128,7 @@ class PurchaseOrderController extends Controller
 
         $purchaseOrder = $this->purchaseOrderService->update($purchaseOrder, $validated);
 
-        return (new PurchaseOrderResource($purchaseOrder))
+        return PurchaseOrderResource::make($purchaseOrder)
             ->additional(['message' => 'Purchase order updated successfully']);
     }
 
@@ -166,7 +166,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'message' => 'Items added successfully',
-            'data' => new PurchaseOrderResource($purchaseOrder->fresh(['items.product'])),
+            'data' => PurchaseOrderResource::make($purchaseOrder->fresh(['items.product'])),
         ]);
     }
 
@@ -213,7 +213,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'message' => 'Purchase order submitted for approval',
-            'data' => new PurchaseOrderResource($purchaseOrder),
+            'data' => PurchaseOrderResource::make($purchaseOrder),
         ]);
     }
 
@@ -226,7 +226,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'message' => 'Purchase order approved',
-            'data' => new PurchaseOrderResource($purchaseOrder),
+            'data' => PurchaseOrderResource::make($purchaseOrder),
         ]);
     }
 
@@ -243,7 +243,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'message' => 'Purchase order rejected',
-            'data' => new PurchaseOrderResource($purchaseOrder),
+            'data' => PurchaseOrderResource::make($purchaseOrder),
         ]);
     }
 
@@ -256,7 +256,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'message' => 'Purchase order marked as sent',
-            'data' => new PurchaseOrderResource($purchaseOrder),
+            'data' => PurchaseOrderResource::make($purchaseOrder),
         ]);
     }
 
@@ -273,7 +273,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'message' => 'Purchase order cancelled',
-            'data' => new PurchaseOrderResource($purchaseOrder),
+            'data' => PurchaseOrderResource::make($purchaseOrder),
         ]);
     }
 
@@ -286,7 +286,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'message' => 'Purchase order closed',
-            'data' => new PurchaseOrderResource($purchaseOrder),
+            'data' => PurchaseOrderResource::make($purchaseOrder),
         ]);
     }
 

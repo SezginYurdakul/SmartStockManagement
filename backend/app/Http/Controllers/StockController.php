@@ -85,7 +85,7 @@ class StockController extends Controller
 
         return response()->json([
             'message' => 'Stock received successfully',
-            'data' => new StockResource($stock),
+            'data' => StockResource::make($stock),
         ], 201);
     }
 
@@ -111,7 +111,7 @@ class StockController extends Controller
 
         return response()->json([
             'message' => 'Stock issued successfully',
-            'data' => new StockResource($stock),
+            'data' => StockResource::make($stock),
         ]);
     }
 
@@ -136,8 +136,8 @@ class StockController extends Controller
         return response()->json([
             'message' => 'Stock transferred successfully',
             'data' => [
-                'source' => new StockResource($result['source']),
-                'destination' => new StockResource($result['destination']),
+                'source' => StockResource::make($result['source']),
+                'destination' => StockResource::make($result['destination']),
             ],
         ]);
     }
@@ -162,7 +162,7 @@ class StockController extends Controller
 
         return response()->json([
             'message' => 'Stock adjusted successfully',
-            'data' => new StockResource($stock),
+            'data' => StockResource::make($stock),
         ]);
     }
 
@@ -187,7 +187,7 @@ class StockController extends Controller
 
         return response()->json([
             'message' => 'Stock reserved successfully',
-            'data' => new StockResource($stock),
+            'data' => StockResource::make($stock),
         ]);
     }
 
@@ -212,7 +212,7 @@ class StockController extends Controller
 
         return response()->json([
             'message' => 'Stock reservation released successfully',
-            'data' => new StockResource($stock),
+            'data' => StockResource::make($stock),
         ]);
     }
 

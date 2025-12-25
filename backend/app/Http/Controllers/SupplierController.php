@@ -96,7 +96,7 @@ class SupplierController extends Controller
 
         return response()->json([
             'message' => 'Supplier created successfully',
-            'data' => new SupplierResource($supplier),
+            'data' => SupplierResource::make($supplier),
         ], 201);
     }
 
@@ -105,7 +105,7 @@ class SupplierController extends Controller
      */
     public function show(Supplier $supplier): JsonResource
     {
-        return new SupplierResource(
+        return SupplierResource::make(
             $this->supplierService->getSupplier($supplier)
         );
     }
@@ -158,7 +158,7 @@ class SupplierController extends Controller
 
         $supplier = $this->supplierService->update($supplier, $validated);
 
-        return (new SupplierResource($supplier))
+        return SupplierResource::make($supplier)
             ->additional(['message' => 'Supplier updated successfully']);
     }
 
@@ -183,7 +183,7 @@ class SupplierController extends Controller
 
         return response()->json([
             'message' => 'Supplier status updated successfully',
-            'data' => new SupplierResource($supplier),
+            'data' => SupplierResource::make($supplier),
         ]);
     }
 
@@ -220,7 +220,7 @@ class SupplierController extends Controller
 
         return response()->json([
             'message' => count($validated['products']) . ' products attached successfully',
-            'data' => new SupplierResource($supplier->fresh(['products'])),
+            'data' => SupplierResource::make($supplier->fresh(['products'])),
         ]);
     }
 

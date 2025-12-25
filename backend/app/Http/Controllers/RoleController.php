@@ -2,14 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\RoleResource;
 use App\Models\Role;
-use App\Models\Permission;
+use App\Services\RoleService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
 
 class RoleController extends Controller
 {
+    public function __construct(
+        private RoleService $roleService
+    ) {}
+
     /**
      * Display a listing of roles
      */
@@ -18,18 +23,17 @@ class RoleController extends Controller
         $perPage = $request->input('per_page', 15);
         $search = $request->input('search');
 
-        $query = Role::with('permissions');
+        $roles = $this->roleService->getRoles($search, $perPage);
 
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('display_name', 'like', "%{$search}%");
-            });
-        }
-
-        $roles = $query->latest()->paginate($perPage);
-
-        return response()->json($roles);
+        return response()->json([
+            'data' => RoleResource::collection($roles),
+            'meta' => [
+                'current_page' => $roles->currentPage(),
+                'last_page' => $roles->lastPage(),
+                'per_page' => $roles->perPage(),
+                'total' => $roles->total(),
+            ],
+        ]);
     }
 
     /**
@@ -45,20 +49,11 @@ class RoleController extends Controller
             'permission_ids.*' => 'exists:permissions,id',
         ]);
 
-        $role = Role::create([
-            'name' => $validated['name'],
-            'display_name' => $validated['display_name'],
-            'description' => $validated['description'] ?? null,
-            'is_system_role' => false,
-        ]);
-
-        if (isset($validated['permission_ids'])) {
-            $role->permissions()->attach($validated['permission_ids']);
-        }
+        $role = $this->roleService->create($validated);
 
         return response()->json([
             'message' => 'Role created successfully',
-            'role' => $role->load('permissions'),
+            'data' => RoleResource::make($role),
         ], 201);
     }
 
@@ -67,8 +62,10 @@ class RoleController extends Controller
      */
     public function show(Role $role): JsonResponse
     {
+        $role = $this->roleService->getRole($role);
+
         return response()->json([
-            'role' => $role->load('permissions', 'users'),
+            'data' => RoleResource::make($role),
         ]);
     }
 
@@ -77,13 +74,6 @@ class RoleController extends Controller
      */
     public function update(Request $request, Role $role): JsonResponse
     {
-        // Prevent updating system roles name
-        if ($role->is_system_role && $request->has('name')) {
-            return response()->json([
-                'message' => 'Cannot change system role name',
-            ], 403);
-        }
-
         $validated = $request->validate([
             'name' => [
                 'sometimes',
@@ -99,19 +89,11 @@ class RoleController extends Controller
             'permission_ids.*' => 'exists:permissions,id',
         ]);
 
-        $role->update([
-            'name' => $validated['name'] ?? $role->name,
-            'display_name' => $validated['display_name'] ?? $role->display_name,
-            'description' => $validated['description'] ?? $role->description,
-        ]);
-
-        if (isset($validated['permission_ids'])) {
-            $role->permissions()->sync($validated['permission_ids']);
-        }
+        $role = $this->roleService->update($role, $validated);
 
         return response()->json([
             'message' => 'Role updated successfully',
-            'role' => $role->fresh()->load('permissions'),
+            'data' => RoleResource::make($role),
         ]);
     }
 
@@ -120,22 +102,7 @@ class RoleController extends Controller
      */
     public function destroy(Role $role): JsonResponse
     {
-        // Prevent deleting system roles
-        if ($role->is_system_role) {
-            return response()->json([
-                'message' => 'Cannot delete system role',
-            ], 403);
-        }
-
-        // Check if role is assigned to any users
-        if ($role->users()->count() > 0) {
-            return response()->json([
-                'message' => 'Cannot delete role that is assigned to users',
-                'users_count' => $role->users()->count(),
-            ], 409);
-        }
-
-        $role->delete();
+        $this->roleService->delete($role);
 
         return response()->json([
             'message' => 'Role deleted successfully',
@@ -152,11 +119,11 @@ class RoleController extends Controller
             'permission_ids.*' => 'exists:permissions,id',
         ]);
 
-        $role->permissions()->syncWithoutDetaching($validated['permission_ids']);
+        $role = $this->roleService->assignPermissions($role, $validated['permission_ids']);
 
         return response()->json([
             'message' => 'Permissions assigned successfully',
-            'role' => $role->fresh()->load('permissions'),
+            'data' => RoleResource::make($role),
         ]);
     }
 
@@ -170,11 +137,11 @@ class RoleController extends Controller
             'permission_ids.*' => 'exists:permissions,id',
         ]);
 
-        $role->permissions()->detach($validated['permission_ids']);
+        $role = $this->roleService->revokePermissions($role, $validated['permission_ids']);
 
         return response()->json([
             'message' => 'Permissions revoked successfully',
-            'role' => $role->fresh()->load('permissions'),
+            'data' => RoleResource::make($role),
         ]);
     }
 }

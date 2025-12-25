@@ -49,7 +49,7 @@ class CategoryController extends Controller
 
         $category = $this->categoryService->create($validated);
 
-        return (new CategoryResource($category))
+        return CategoryResource::make($category)
             ->additional(['message' => 'Category created successfully'])
             ->response()
             ->setStatusCode(201);
@@ -63,7 +63,7 @@ class CategoryController extends Controller
         $category->load(['parent', 'children', 'attributes.values']);
         $category->loadCount('products');
 
-        return new CategoryResource($category);
+        return CategoryResource::make($category);
     }
 
     /**
@@ -80,7 +80,7 @@ class CategoryController extends Controller
 
         $category = $this->categoryService->update($category, $validated);
 
-        return (new CategoryResource($category))
+        return CategoryResource::make($category)
             ->additional(['message' => 'Category updated successfully']);
     }
 

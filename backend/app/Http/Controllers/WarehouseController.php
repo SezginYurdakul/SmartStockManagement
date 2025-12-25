@@ -73,7 +73,7 @@ class WarehouseController extends Controller
 
         return response()->json([
             'message' => 'Warehouse created successfully',
-            'data' => new WarehouseResource($warehouse),
+            'data' => WarehouseResource::make($warehouse),
         ], 201);
     }
 
@@ -82,7 +82,7 @@ class WarehouseController extends Controller
      */
     public function show(Warehouse $warehouse): JsonResource
     {
-        return new WarehouseResource(
+        return WarehouseResource::make(
             $this->warehouseService->getWarehouse($warehouse)
         );
     }
@@ -112,7 +112,7 @@ class WarehouseController extends Controller
 
         return response()->json([
             'message' => 'Warehouse updated successfully',
-            'data' => new WarehouseResource($warehouse),
+            'data' => WarehouseResource::make($warehouse),
         ]);
     }
 
@@ -137,7 +137,7 @@ class WarehouseController extends Controller
 
         return response()->json([
             'message' => 'Warehouse status updated successfully',
-            'data' => new WarehouseResource($warehouse),
+            'data' => WarehouseResource::make($warehouse),
         ]);
     }
 
@@ -150,7 +150,7 @@ class WarehouseController extends Controller
 
         return response()->json([
             'message' => 'Default warehouse updated successfully',
-            'data' => new WarehouseResource($warehouse),
+            'data' => WarehouseResource::make($warehouse),
         ]);
     }
 
