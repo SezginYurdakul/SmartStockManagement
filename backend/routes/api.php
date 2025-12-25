@@ -26,6 +26,13 @@ Route::get("/", function () {
     ]);
 });
 
+// Module status endpoint (public - for health checks)
+Route::get("/modules", function () {
+    return response()->json(
+        app(\App\Services\ModuleService::class)->getModuleStatus()
+    );
+});
+
 // Public Authentication Routes
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
@@ -217,7 +224,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ===================================================
     // PROCUREMENT MODULE (Phase 3)
+    // Requires: MODULE_PROCUREMENT_ENABLED=true
     // ===================================================
+    Route::middleware('module:procurement')->group(function () {
 
     // Supplier routes
     Route::prefix('suppliers')->group(function () {
@@ -277,4 +286,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{goodsReceivedNote}/complete', [GoodsReceivedNoteController::class, 'complete'])->middleware('permission:purchasing.receive');
         Route::post('/{goodsReceivedNote}/cancel', [GoodsReceivedNoteController::class, 'cancel'])->middleware('permission:purchasing.receive');
     });
+
+    }); // End of procurement module
 });

@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\BusinessException;
+use App\Exceptions\ModuleDisabledException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'permission' => \App\Http\Middleware\PermissionMiddleware::class,
+            'module' => \App\Http\Middleware\CheckModuleEnabled::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -75,6 +77,13 @@ return Application::configure(basePath: dirname(__DIR__))
                     'message' => $e->getMessage(),
                     'error' => 'business_error'
                 ], $e->getStatusCode());
+            }
+        });
+
+        // Module disabled errors (403)
+        $exceptions->render(function (ModuleDisabledException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json($e->getErrorDetails(), $e->getStatusCode());
             }
         });
     })

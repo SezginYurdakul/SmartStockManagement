@@ -1,26 +1,28 @@
-# Smart Stock Management System (MRP) - Final Design Document
+# Smart Stock Management System (MRP II) - Final Design Document
 
-**Version:** 5.0
-**Date:** 2025-12-08
+**Version:** 5.3
+**Date:** 2025-12-25
 **Status:** Production Ready Design
-**System Type:** Material Requirements Planning (MRP) with Multi-language UI & Multi-currency Support
+**System Type:** Material Requirements Planning II (MRP II) - Modular Architecture
 
 ---
 
 ## 📋 Table of Contents
 
 1. [System Overview](#1-system-overview)
-2. [Technology Stack](#2-technology-stack)
-3. [Key Features](#3-key-features)
-4. [Database Architecture](#4-database-architecture)
-5. [Core Business Models](#5-core-business-models)
-6. [Internationalization](#6-internationalization)
-7. [Support Systems](#7-support-systems)
-8. [Search & Performance](#8-search--performance)
-9. [API Structure](#9-api-structure)
-10. [Security & Authorization](#10-security--authorization)
-11. [Architecture Best Practices](#11-architecture-best-practices)
-12. [Implementation Phases](#12-implementation-phases)
+2. [Modular Architecture](#2-modular-architecture)
+3. [Technology Stack](#3-technology-stack)
+4. [Key Features](#4-key-features)
+5. [Database Architecture](#5-database-architecture)
+6. [Core Business Models](#6-core-business-models)
+7. [Internationalization](#7-internationalization)
+8. [Support Systems](#8-support-systems)
+9. [Search & Performance](#9-search--performance)
+10. [API Structure](#10-api-structure)
+11. [Security & Authorization](#11-security--authorization)
+12. [Architecture Best Practices](#12-architecture-best-practices)
+13. [Implementation Phases](#13-implementation-phases)
+14. [External Integrations](#14-external-integrations)
 
 ---
 
@@ -49,9 +51,135 @@ An enterprise-grade **Material Requirements Planning (MRP)** system with compreh
 
 ---
 
-## 2. Technology Stack
+## 2. Modular Architecture
 
-### 2.1 Backend Core
+### 2.1 Architecture Overview
+
+SmartStockManagement uses a **modular MRP II architecture** with feature flags for optional modules:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        SmartStockManagement                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌──────────────┐   ┌──────────────────┐   ┌──────────────────┐    │
+│  │  CORE        │   │  PROCUREMENT     │   │  MANUFACTURING   │    │
+│  │  (Mandatory) │   │  (Optional)      │   │  (Optional)      │    │
+│  ├──────────────┤   ├──────────────────┤   ├──────────────────┤    │
+│  │ - Stock      │   │ - Suppliers      │   │ - BOM            │    │
+│  │ - Products   │   │ - PurchaseOrders │   │ - WorkOrders     │    │
+│  │ - Categories │   │ - Receiving      │   │ - Production     │    │
+│  │ - Warehouses │   │ - Basic QC       │   │ - Basic QC       │    │
+│  │ - Attributes │   │   (pass/fail)    │   │   (pass/fail)    │    │
+│  │ - UoM        │   │                  │   │                  │    │
+│  └──────────────┘   └──────────────────┘   └──────────────────┘    │
+│                                                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                       INTEGRATION LAYER                              │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │  Webhook API for External Systems (Sales, Finance, etc.)     │   │
+│  │  - Stock reservation webhooks                                 │   │
+│  │  - Stock movement notifications                               │   │
+│  │  - Inventory level alerts                                     │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              │ Sync HTTP (Phase 1)
+                              │ Async Redis Queue (Future)
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Python Prediction Service                        │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │  - Demand Forecasting (time series analysis)                  │   │
+│  │  - Reorder Point Optimization                                 │   │
+│  │  - Production Planning Suggestions                            │   │
+│  │  - Safety Stock Calculations                                  │   │
+│  │  Stateless service - no own database, queries Laravel API     │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 Module Configuration
+
+Modules are controlled via `config/modules.php` and environment variables:
+
+```php
+// config/modules.php
+return [
+    'core' => [
+        'enabled' => true, // Always enabled
+        'features' => [
+            'stock_tracking' => true,
+            'multi_warehouse' => true,
+            'lot_tracking' => true,
+            'serial_tracking' => true,
+        ],
+    ],
+    'procurement' => [
+        'enabled' => env('MODULE_PROCUREMENT_ENABLED', true),
+        'features' => [
+            'suppliers' => true,
+            'purchase_orders' => true,
+            'receiving' => true,
+            'quality_control' => env('MODULE_PROCUREMENT_QC_ENABLED', true),
+        ],
+    ],
+    'manufacturing' => [
+        'enabled' => env('MODULE_MANUFACTURING_ENABLED', false),
+        'features' => [
+            'bom' => true,
+            'work_orders' => true,
+            'production' => true,
+            'quality_control' => env('MODULE_MANUFACTURING_QC_ENABLED', true),
+        ],
+    ],
+];
+```
+
+### 2.3 Module Middleware
+
+Routes are protected by module middleware:
+```php
+// Routes protected by module middleware
+Route::middleware('module:procurement')->group(function () {
+    // Supplier routes
+    // Purchase order routes
+    // GRN routes
+});
+```
+
+### 2.4 Key Design Decisions
+
+1. **Logical Modules, Not Physical**: Module separation via config and middleware, not folder restructuring
+2. **Sales/Finance External Only**: No built-in Customer/SalesOrder - external systems integrate via webhooks
+3. **Basic QC Only**: Simple pass/fail inspections - no NCR, CAPA, SPC
+4. **Stateless Python Service**: Prediction service has no database - queries Laravel API for data
+5. **Sync First, Async Later**: Start with HTTP for simplicity - add Redis Queue when needed
+6. **Graceful Degradation**: If Python service is down, Laravel continues to work
+
+### 2.5 Environment Variables
+
+```env
+# Module Configuration
+MODULE_PROCUREMENT_ENABLED=true
+MODULE_PROCUREMENT_QC_ENABLED=true
+MODULE_MANUFACTURING_ENABLED=false
+MODULE_MANUFACTURING_QC_ENABLED=true
+
+# Prediction Service
+PREDICTION_SERVICE_ENABLED=false
+PREDICTION_SERVICE_URL=http://localhost:8001
+PREDICTION_SERVICE_API_KEY=your-secret-key
+
+# Webhooks
+WEBHOOKS_ENABLED=false
+```
+
+---
+
+## 3. Technology Stack
+
+### 3.1 Backend Core
 ```yaml
 Framework: Laravel 12.x
 PHP Version: 8.4+
@@ -62,7 +190,7 @@ Queue: Redis Queue
 Session: Redis
 ```
 
-### 2.2 Key Packages
+### 3.2 Key Packages
 ```yaml
 Authentication: Laravel Sanctum
 Search: Laravel Scout + Elasticsearch Driver
@@ -75,7 +203,7 @@ Testing: Pest / PHPUnit
 Code Quality: Laravel Pint, PHPStan
 ```
 
-### 2.3 Infrastructure
+### 3.3 Infrastructure
 ```yaml
 Web Server: Nginx
 Container: Docker + Docker Compose
@@ -84,7 +212,7 @@ Monitoring: Laravel Telescope (dev), Sentry (production)
 Logging: Monolog + Database Logger
 ```
 
-### 2.4 Frontend (Separate Repo)
+### 3.4 Frontend (Separate Repo)
 ```yaml
 Framework: React 19+
 State Management: Redux Toolkit / Zustand
@@ -96,9 +224,9 @@ Build Tool: Vite
 
 ---
 
-## 3. Key Features
+## 4. Key Features
 
-### 3.1 Core Features
+### 4.1 Core Features
 - Multi-tenant architecture
 - User management with role-based access
 - Product catalog with dynamic attributes
@@ -110,7 +238,7 @@ Build Tool: Vite
 - Quality control & inspection
 - Comprehensive reporting
 
-### 3.2 Internationalization Strategy
+### 4.2 Internationalization Strategy
 
 **🎯 NEW APPROACH: UI i18n Only**
 
@@ -129,7 +257,7 @@ Build Tool: Vite
 - **Exchange Rates**: Automatic rate updates and manual overrides
 - **Localized Formats**: Date, number, currency formatting per locale
 
-### 3.3 Advanced Features
+### 4.3 Advanced Features
 - MRP (Material Requirements Planning)
 - Demand forecasting
 - Lot/batch/serial number tracking
@@ -141,16 +269,16 @@ Build Tool: Vite
 
 ---
 
-## 4. Database Architecture
+## 5. Database Architecture
 
-### 4.1 Design Principles
+### 5.1 Design Principles
 - **Normalized**: Proper 3NF normalization for data integrity
 - **Simplified**: No translation tables for user-entered data
 - **Flexible**: JSONB for dynamic fields, EAV for typed attributes
 - **Performant**: Proper indexing, materialized views for reports
 - **Scalable**: Partition-ready for large datasets
 
-### 4.2 Table Count Summary
+### 5.2 Table Count Summary
 ```
 Total Tables: ~35 tables (SIMPLIFIED from 50)
 
@@ -185,7 +313,7 @@ Note: Attributes are linked to CATEGORIES (not product types)
       for category-specific attribute requirements
 ```
 
-### 4.3 Database Design Philosophy
+### 5.3 Database Design Philosophy
 
 **What we AVOID:**
 - ❌ Magento-style over-engineering (300+ tables)
@@ -201,9 +329,9 @@ Note: Attributes are linked to CATEGORIES (not product types)
 
 ---
 
-## 5. Core Business Models
+## 6. Core Business Models
 
-### 5.1 Organization & Multi-tenancy
+### 6.1 Organization & Multi-tenancy
 
 #### Companies
 ```sql
@@ -258,7 +386,7 @@ users
 
 ---
 
-### 5.2 Product Catalog (Simplified - No Translations)
+### 6.2 Product Catalog (Simplified - No Translations)
 
 #### Product Types
 ```sql
@@ -516,7 +644,7 @@ UNIQUE idx_prod_attr ON product_attributes(product_id, attribute_id)
 
 ---
 
-### 5.3 Bill of Materials (BOM)
+### 6.3 Bill of Materials (BOM)
 
 #### BOM Header
 ```sql
@@ -557,7 +685,7 @@ bom_items
 
 ---
 
-### 5.4 Inventory Management
+### 6.4 Inventory Management
 
 #### Warehouses
 ```sql
@@ -626,7 +754,7 @@ INDEX idx_movements_warehouse ON stock_movements(warehouse_id, created_at DESC)
 
 ---
 
-### 5.5 Procurement
+### 6.5 Procurement
 
 #### Suppliers
 ```sql
@@ -696,7 +824,7 @@ purchase_order_items
 
 ---
 
-### 5.6 Sales Management
+### 6.6 Sales Management (External Integration)
 
 #### Customers
 ```sql
@@ -751,7 +879,7 @@ INDEX idx_so_status ON sales_orders(status)
 
 ---
 
-### 5.7 Manufacturing
+### 6.7 Manufacturing
 
 #### Work Centers
 ```sql
@@ -791,9 +919,9 @@ production_orders
 
 ---
 
-## 6. Internationalization
+## 7. Internationalization
 
-### 6.1 Strategy Overview
+### 7.1 Strategy Overview
 
 **🎯 Approach: Frontend i18n + Backend Multi-currency**
 
@@ -816,7 +944,7 @@ production_orders
 └─────────────────────────────────────────────────┘
 ```
 
-### 6.2 Currencies
+### 7.2 Currencies
 
 ```sql
 currencies
@@ -831,7 +959,7 @@ currencies
 └── created_at (timestamp)
 ```
 
-### 6.3 Exchange Rates
+### 7.3 Exchange Rates
 
 ```sql
 exchange_rates
@@ -848,7 +976,7 @@ UNIQUE idx_exchange_rate ON exchange_rates(from_currency, to_currency, effective
 INDEX idx_rate_date ON exchange_rates(effective_date DESC)
 ```
 
-### 6.4 Frontend i18n Setup
+### 7.4 Frontend i18n Setup
 
 **React i18next Structure:**
 ```
@@ -892,7 +1020,7 @@ frontend/
 }
 ```
 
-### 6.5 What Gets Translated vs. What Doesn't
+### 7.5 What Gets Translated vs. What Doesn't
 
 **✅ Frontend Translations (react-i18next):**
 - UI labels, button text
@@ -917,9 +1045,9 @@ frontend/
 
 ---
 
-## 7. Support Systems
+## 8. Support Systems
 
-### 7.1 Activity Logging
+### 8.1 Activity Logging
 
 ```sql
 activity_logs
@@ -941,7 +1069,7 @@ INDEX idx_activity_user ON activity_logs(user_id, created_at DESC)
 INDEX idx_activity_subject ON activity_logs(subject_type, subject_id)
 ```
 
-### 7.2 Error Logging
+### 8.2 Error Logging
 
 ```sql
 error_logs
@@ -963,7 +1091,7 @@ error_logs
 INDEX idx_errors_severity ON error_logs(severity, resolved, created_at DESC)
 ```
 
-### 7.3 Notifications
+### 8.3 Notifications
 
 ```sql
 notifications
@@ -982,7 +1110,7 @@ notifications
 INDEX idx_notifications_user ON notifications(user_id, read_at)
 ```
 
-### 7.4 System Settings
+### 8.4 System Settings
 
 ```sql
 system_settings
@@ -1002,9 +1130,9 @@ UNIQUE idx_settings_key ON system_settings(company_id, key)
 
 ---
 
-## 8. Search & Performance
+## 9. Search & Performance
 
-### 8.1 Elasticsearch Integration
+### 9.1 Elasticsearch Integration
 
 **Indexed Models:**
 - Products (name, sku, description - single language)
@@ -1051,7 +1179,7 @@ UNIQUE idx_settings_key ON system_settings(company_id, key)
 - Faceted filtering
 - Relevance scoring
 
-### 8.2 Redis Caching
+### 9.2 Redis Caching
 
 **Cache Strategy:**
 ```php
@@ -1073,7 +1201,7 @@ Cache::tags(['categories'])
     );
 ```
 
-### 8.3 Database Optimization
+### 9.3 Database Optimization
 
 **Indexes:**
 ```sql
@@ -1093,14 +1221,14 @@ CREATE INDEX idx_active_products ON products(id) WHERE status = 'active' AND del
 
 ---
 
-## 9. API Structure
+## 10. API Structure
 
-### 9.1 API Versioning
+### 10.1 API Versioning
 ```
 /api/v1/...
 ```
 
-### 9.2 Core Endpoints
+### 10.2 Core Endpoints
 
 **Authentication:**
 ```
@@ -1122,7 +1250,7 @@ GET    /api/v1/products/{id}/bom
 POST   /api/v1/products/search (Elasticsearch)
 ```
 
-### 9.3 Request Headers
+### 10.3 Request Headers
 
 ```
 Currency: TRY
@@ -1132,7 +1260,7 @@ Authorization: Bearer {token}
 **Note:** No Accept-Language header needed for data.
 UI language handled by frontend.
 
-### 9.4 Response Format
+### 10.4 Response Format
 
 ```json
 {
@@ -1156,9 +1284,9 @@ UI language handled by frontend.
 
 ---
 
-## 10. Security & Authorization
+## 11. Security & Authorization
 
-### 10.1 Role-Based Access Control
+### 11.1 Role-Based Access Control
 
 | Module | Admin | Manager | Purchaser | Warehouse | Sales | Viewer |
 |--------|-------|---------|-----------|-----------|-------|--------|
@@ -1174,7 +1302,7 @@ UI language handled by frontend.
 | Stock Adjust | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Reports | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
 
-### 10.2 Security Measures
+### 11.2 Security Measures
 
 1. **Authentication**: Laravel Sanctum (API tokens)
 2. **Password**: bcrypt hashing
@@ -1187,9 +1315,9 @@ UI language handled by frontend.
 
 ---
 
-## 11. Architecture Best Practices
+## 12. Architecture Best Practices
 
-### 11.1 Simplified Models (No Translations)
+### 12.1 Simplified Models (No Translations)
 
 **Product Model:**
 ```php
@@ -1243,7 +1371,7 @@ class Product extends Model
 }
 ```
 
-### 11.2 Service Layer Pattern
+### 12.2 Service Layer Pattern
 
 **ProductService:**
 ```php
@@ -1288,7 +1416,7 @@ class ProductService
 }
 ```
 
-### 11.3 API Resources (Simplified)
+### 12.3 API Resources (Simplified)
 
 ```php
 class ProductResource extends JsonResource
@@ -1319,9 +1447,9 @@ class ProductResource extends JsonResource
 
 ---
 
-## 12. Implementation Phases
+## 13. Implementation Phases
 
-### Phase 1: Foundation & Architecture (Weeks 1-3)
+### Phase 1: Foundation & Architecture
 
 **Week 1: Database & Core Setup**
 - ✅ PostgreSQL setup
@@ -1451,6 +1579,17 @@ function ProductForm() {
 
 ## Document History
 
+**Version 5.3** - 2025-12-25
+- ✅ **Modular Architecture**: Introduced modular MRP II architecture
+- ✅ Added Section 2: Modular Architecture with architecture diagram
+- ✅ Added module configuration system (`config/modules.php`)
+- ✅ Added module middleware for route protection
+- ✅ Core module (mandatory), Procurement (optional), Manufacturing (optional)
+- ✅ Sales/Finance as external integrations only (webhook API)
+- ✅ Python Prediction Service integration (sync HTTP, async future)
+- ✅ Renumbered all sections to accommodate new architecture section
+- ✅ Updated system type from MRP to MRP II
+
 **Version 5.2** - 2025-12-25
 - ✅ **Attribute System**: Changed from ProductType-based to Category-based
 - ✅ Replaced `product_type_attributes` with `attributes` + `category_attributes`
@@ -1486,5 +1625,5 @@ function ProductForm() {
 
 ---
 
-*Current Version: 5.2*
+*Current Version: 5.3*
 *Last Updated: 2025-12-25*
