@@ -152,11 +152,17 @@ Build Tool: Vite
 
 ### 4.2 Table Count Summary
 ```
-Total Tables: ~32 tables (SIMPLIFIED from 50)
+Total Tables: ~35 tables (SIMPLIFIED from 50)
 
-Core Business: 21 tables
+Core Business: 24 tables
 ├── Organization: 3 (companies, users, roles/permissions)
-├── Products: 8 (products, types, categories, category_product, attributes, pricing, media, details)
+├── Products: 11 tables:
+│   ├── products, product_types, categories
+│   ├── category_product (pivot: product-category M:M)
+│   ├── attributes, attribute_values
+│   ├── category_attributes (pivot: category-attribute M:M)
+│   ├── product_attributes (product attribute values)
+│   ├── product_prices, product_details, media
 ├── Inventory: 3 (warehouses, stock, movements)
 ├── Orders: 4 (purchase, sales, GRN, delivery)
 ├── Other: 3 (suppliers, customers, units_of_measure)
@@ -175,7 +181,8 @@ Support Systems: 5 tables
 ├── Settings: 1
 ├── Media: 1 (polymorphic)
 
-Note: category_product is a pivot table for many-to-many Product-Category relationship
+Note: Attributes are linked to CATEGORIES (not product types)
+      for category-specific attribute requirements
 ```
 
 ### 4.3 Database Design Philosophy
@@ -441,44 +448,70 @@ CREATE INDEX idx_details_barcodes ON product_details USING GIN(barcodes);
 CREATE INDEX idx_details_specs ON product_details USING GIN(specifications);
 ```
 
-#### Product Type Attributes (Dynamic typed attributes)
+#### Attributes (Master attribute definitions)
 ```sql
-product_type_attributes
+attributes
 ├── id (bigint, PK)
-├── product_type_id (bigint, FK)
-├── attribute_code (varchar(50)) -- 'voltage', 'fabric_type', 'cpu_speed'
-├── attribute_name (varchar(100)) -- Single language, user input
-├── attribute_type (enum: text, number, decimal, boolean, date, select, multiselect)
+├── company_id (bigint, FK)
+├── name (varchar(100)) -- 'color', 'size', 'storage' - unique per company
+├── display_name (varchar(100)) -- 'Renk', 'Beden', 'Depolama'
+├── type (enum: select, text, number, boolean)
+├── order (integer, default: 0) -- Display order
+├── is_variant_attribute (boolean, default: false) -- Can be used for variant generation
+├── is_filterable (boolean, default: true) -- Show in filters
+├── is_visible (boolean, default: true) -- Show on product page
 ├── is_required (boolean, default: false)
-├── is_searchable (boolean, default: false)
-├── is_filterable (boolean, default: false)
-├── validation_rules (jsonb, nullable) -- {"min": 0, "max": 100}
-├── options (jsonb, nullable) -- For select: ["Option1", "Option2"]
-├── default_value (text, nullable)
-├── sort_order (integer, default: 0)
-├── is_active (boolean, default: true)
-└── created_at (timestamp)
+├── description (text, nullable)
+├── created_at (timestamp)
+└── updated_at (timestamp)
 
-UNIQUE idx_type_attr ON product_type_attributes(product_type_id, attribute_code)
-
--- ❌ REMOVED: product_type_attribute_translations table
+UNIQUE idx_attr_name ON attributes(company_id, name)
+INDEX idx_attr_variant ON attributes(is_variant_attribute)
 ```
 
-#### Product Attribute Values
+#### Attribute Values (Predefined options for select-type attributes)
 ```sql
-product_attribute_values
+attribute_values
+├── id (bigint, PK)
+├── attribute_id (bigint, FK)
+├── value (varchar(255)) -- 'Siyah', 'S', '128GB'
+├── label (varchar(255), nullable) -- Optional display label
+├── order (integer, default: 0)
+├── is_active (boolean, default: true)
+├── created_at (timestamp)
+└── updated_at (timestamp)
+
+UNIQUE idx_attr_value ON attribute_values(attribute_id, value)
+```
+
+#### Category Attributes (Links attributes to categories)
+```sql
+category_attributes
+├── id (bigint, PK)
+├── category_id (bigint, FK)
+├── attribute_id (bigint, FK)
+├── is_required (boolean, default: false) -- Override for this category
+├── order (integer, default: 0) -- Display order in this category
+├── created_at (timestamp)
+└── updated_at (timestamp)
+
+UNIQUE idx_cat_attr ON category_attributes(category_id, attribute_id)
+
+-- Note: Attributes are linked to categories, NOT to product types
+-- This allows category-specific attribute requirements
+```
+
+#### Product Attributes (Actual attribute values for products)
+```sql
+product_attributes
 ├── id (bigint, PK)
 ├── product_id (bigint, FK)
 ├── attribute_id (bigint, FK)
-├── value_text (text, nullable)
-├── value_integer (bigint, nullable)
-├── value_decimal (decimal(15,4), nullable)
-├── value_boolean (boolean, nullable)
-├── value_date (date, nullable)
-├── value_json (jsonb, nullable) -- For multiselect
-└── created_at (timestamp)
+├── value (varchar(255)) -- The actual value
+├── created_at (timestamp)
+└── updated_at (timestamp)
 
-UNIQUE idx_product_attr_value ON product_attribute_values(product_id, attribute_id)
+UNIQUE idx_prod_attr ON product_attributes(product_id, attribute_id)
 ```
 
 ---
@@ -1132,6 +1165,10 @@ UI language handled by frontend.
 | Users | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Products: Manage | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Products: View | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Product Types: Manage | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Product Types: View | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Categories: Manage | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Categories: View | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Purchase Orders | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Sales Orders | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
 | Stock Adjust | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
@@ -1414,6 +1451,14 @@ function ProductForm() {
 
 ## Document History
 
+**Version 5.2** - 2025-12-25
+- ✅ **Attribute System**: Changed from ProductType-based to Category-based
+- ✅ Replaced `product_type_attributes` with `attributes` + `category_attributes`
+- ✅ Added `attribute_values` table for predefined select options
+- ✅ Added `product_attributes` table for actual product values
+- ✅ Updated table count summary (now ~35 tables)
+- ✅ Added ProductType permissions to RBAC section
+
 **Version 5.1** - 2025-12-18
 - ✅ **Product-Category**: Changed from belongsTo to belongsToMany (many-to-many)
 - ✅ Added `category_product` pivot table with `is_primary` flag
@@ -1441,5 +1486,5 @@ function ProductForm() {
 
 ---
 
-*Current Version: 5.1*
-*Last Updated: 2025-12-18*
+*Current Version: 5.2*
+*Last Updated: 2025-12-25*
