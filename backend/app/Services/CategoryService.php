@@ -6,6 +6,7 @@ use App\Exceptions\BusinessException;
 use App\Models\Category;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Exception;
 
 class CategoryService
 {
@@ -37,18 +38,28 @@ class CategoryService
     {
         Log::info('Creating new category', ['name' => $data['name']]);
 
-        if (empty($data['slug'])) {
-            $data['slug'] = $this->generateUniqueSlug($data['name']);
+        try {
+            if (empty($data['slug'])) {
+                $data['slug'] = $this->generateUniqueSlug($data['name']);
+            }
+
+            $category = Category::create($data);
+
+            Log::info('Category created successfully', [
+                'category_id' => $category->id,
+                'name' => $category->name,
+            ]);
+
+            return $category;
+
+        } catch (Exception $e) {
+            Log::error('Failed to create category', [
+                'name' => $data['name'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
         }
-
-        $category = Category::create($data);
-
-        Log::info('Category created successfully', [
-            'category_id' => $category->id,
-            'name' => $category->name,
-        ]);
-
-        return $category;
     }
 
     /**
@@ -71,11 +82,21 @@ class CategoryService
             throw new BusinessException('Cannot set parent: would create circular reference', 400);
         }
 
-        $category->update($data);
+        try {
+            $category->update($data);
 
-        Log::info('Category updated successfully', ['category_id' => $category->id]);
+            Log::info('Category updated successfully', ['category_id' => $category->id]);
 
-        return $category->fresh();
+            return $category->fresh();
+
+        } catch (Exception $e) {
+            Log::error('Failed to update category', [
+                'category_id' => $category->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
     }
 
     /**
@@ -98,11 +119,21 @@ class CategoryService
             throw new BusinessException('Cannot delete category with subcategories. Please delete subcategories first.', 409);
         }
 
-        $result = $category->delete();
+        try {
+            $result = $category->delete();
 
-        Log::info('Category deleted successfully', ['category_id' => $category->id]);
+            Log::info('Category deleted successfully', ['category_id' => $category->id]);
 
-        return $result;
+            return $result;
+
+        } catch (Exception $e) {
+            Log::error('Failed to delete category', [
+                'category_id' => $category->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
     }
 
     /**

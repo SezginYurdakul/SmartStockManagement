@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\BusinessException;
 use App\Models\Role;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -15,14 +16,16 @@ class RoleService
      */
     public function getRoles(?string $search = null, int $perPage = 15): LengthAwarePaginator
     {
-        $query = Role::with('permissions');
+        $query = Role::query();
 
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('display_name', 'like', "%{$search}%");
+                    ->orWhere('display_name', 'like', "%{$search}%");
             });
         }
+
+        $query->withCount('permissions');
 
         return $query->latest()->paginate($perPage);
     }
@@ -30,7 +33,7 @@ class RoleService
     /**
      * Create a new role
      */
-    public function createRole(array $data): Role
+    public function create(array $data): Role
     {
         Log::info('Creating new role', [
             'name' => $data['name'],
@@ -64,7 +67,6 @@ class RoleService
             ]);
 
             return $role->fresh(['permissions']);
-
         } catch (Exception $e) {
             DB::rollBack();
 
@@ -74,14 +76,14 @@ class RoleService
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            throw new Exception("Failed to create role: {$e->getMessage()}");
+            throw $e;
         }
     }
 
     /**
      * Update role
      */
-    public function updateRole(Role $role, array $data): Role
+    public function update(Role $role, array $data): Role
     {
         Log::info('Updating role', [
             'role_id' => $role->id,
@@ -95,7 +97,7 @@ class RoleService
                 'role_name' => $role->name,
             ]);
 
-            throw new Exception('Cannot change system role name');
+            throw new BusinessException('Cannot change system role name');
         }
 
         DB::beginTransaction();
@@ -125,7 +127,6 @@ class RoleService
             ]);
 
             return $role->fresh(['permissions']);
-
         } catch (Exception $e) {
             DB::rollBack();
 
@@ -134,14 +135,14 @@ class RoleService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to update role: {$e->getMessage()}");
+            throw $e;
         }
     }
 
     /**
      * Delete role
      */
-    public function deleteRole(Role $role): bool
+    public function delete(Role $role): bool
     {
         Log::info('Deleting role', [
             'role_id' => $role->id,
@@ -155,7 +156,7 @@ class RoleService
                 'role_name' => $role->name,
             ]);
 
-            throw new Exception('Cannot delete system role');
+            throw new BusinessException('Cannot delete system role');
         }
 
         // Check if role is assigned to any users
@@ -166,7 +167,7 @@ class RoleService
                 'users_count' => $usersCount,
             ]);
 
-            throw new Exception("Cannot delete role that is assigned to {$usersCount} user(s)");
+            throw new BusinessException("Cannot delete role that is assigned to {$usersCount} user(s)");
         }
 
         try {
@@ -177,21 +178,20 @@ class RoleService
             ]);
 
             return $result;
-
         } catch (Exception $e) {
             Log::error('Failed to delete role', [
                 'role_id' => $role->id,
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to delete role: {$e->getMessage()}");
+            throw $e;
         }
     }
 
     /**
      * Assign permissions to role (add without removing existing)
      */
-    public function assignPermissions(Role $role, array $permissionIds): void
+    public function assignPermissions(Role $role, array $permissionIds): Role
     {
         Log::info('Assigning permissions to role', [
             'role_id' => $role->id,
@@ -205,20 +205,21 @@ class RoleService
                 'role_id' => $role->id,
             ]);
 
+            return $role->fresh(['permissions']);
         } catch (Exception $e) {
             Log::error('Failed to assign permissions', [
                 'role_id' => $role->id,
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to assign permissions: {$e->getMessage()}");
+            throw $e;
         }
     }
 
     /**
      * Revoke permissions from role
      */
-    public function revokePermissions(Role $role, array $permissionIds): void
+    public function revokePermissions(Role $role, array $permissionIds): Role
     {
         Log::info('Revoking permissions from role', [
             'role_id' => $role->id,
@@ -232,13 +233,14 @@ class RoleService
                 'role_id' => $role->id,
             ]);
 
+            return $role->fresh(['permissions']);
         } catch (Exception $e) {
             Log::error('Failed to revoke permissions', [
                 'role_id' => $role->id,
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to revoke permissions: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -258,14 +260,13 @@ class RoleService
             Log::info('Permissions synced successfully', [
                 'role_id' => $role->id,
             ]);
-
         } catch (Exception $e) {
             Log::error('Failed to sync permissions', [
                 'role_id' => $role->id,
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to sync permissions: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -286,7 +287,7 @@ class RoleService
     /**
      * Get role with all relationships
      */
-    public function getRoleWithRelations(Role $role): Role
+    public function getRole(Role $role): Role
     {
         return $role->load(['permissions', 'users']);
     }

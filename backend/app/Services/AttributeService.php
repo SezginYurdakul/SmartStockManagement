@@ -71,7 +71,7 @@ class AttributeService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to create attribute: {$e->getMessage()}");
+            throw $e;
         }
     }
 

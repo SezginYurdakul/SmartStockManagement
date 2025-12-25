@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\BusinessException;
 use App\Models\Product;
 use App\Models\ProductImage;
 use Illuminate\Http\UploadedFile;
@@ -137,7 +138,7 @@ class ProductImageService
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            throw new Exception("Failed to upload image: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -179,7 +180,7 @@ class ProductImageService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to update image: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -210,7 +211,7 @@ class ProductImageService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to delete image: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -247,7 +248,7 @@ class ProductImageService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new Exception("Failed to reorder images: {$e->getMessage()}");
+            throw $e;
         }
     }
 

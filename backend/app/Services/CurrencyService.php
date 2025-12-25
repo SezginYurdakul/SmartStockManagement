@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
+use Illuminate\Support\Facades\Auth;
 
 class CurrencyService
 {
@@ -30,9 +31,17 @@ class CurrencyService
     /**
      * Get a single currency by code
      */
-    public function getCurrency(string $code): ?Currency
+    public function getCurrencyByCode(string $code): ?Currency
     {
         return Currency::where('code', $code)->first();
+    }
+
+        /**
+     * Get a single currency by id
+     */
+    public function getCurrencyById(int $id): ?Currency
+    {
+        return Currency::where('code', $id)->first();
     }
 
     /**
@@ -150,7 +159,7 @@ class CurrencyService
                 [
                     'rate' => $rate,
                     'source' => $source,
-                    'created_by' => auth()->id(),
+                    'created_by' => Auth::id(),
                 ]
             );
 
@@ -165,7 +174,7 @@ class CurrencyService
                     [
                         'rate' => 1 / $rate,
                         'source' => $source,
-                        'created_by' => auth()->id(),
+                        'created_by' => Auth::id(),
                     ]
                 );
             }
@@ -181,7 +190,7 @@ class CurrencyService
         } catch (Exception $e) {
             DB::rollBack();
             Log::error('Failed to set exchange rate', ['error' => $e->getMessage()]);
-            throw new BusinessException("Failed to set exchange rate: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -204,7 +213,7 @@ class CurrencyService
      */
     public function format(float $amount, string $currencyCode): string
     {
-        $currency = $this->getCurrency($currencyCode);
+        $currency = $this->getCurrencyByCode($currencyCode);
 
         if (!$currency) {
             return number_format($amount, 2) . ' ' . $currencyCode;

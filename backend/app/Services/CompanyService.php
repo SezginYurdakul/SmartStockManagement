@@ -78,7 +78,7 @@ class CompanyService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to create company: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -113,7 +113,7 @@ class CompanyService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to update company: {$e->getMessage()}");
+            throw $e;
         }
     }
 

@@ -101,7 +101,7 @@ class UnitOfMeasureService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to create unit of measure: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -146,7 +146,7 @@ class UnitOfMeasureService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to update unit of measure: {$e->getMessage()}");
+            throw $e;
         }
     }
 

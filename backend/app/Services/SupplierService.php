@@ -97,7 +97,7 @@ class SupplierService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to create supplier: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -126,7 +126,7 @@ class SupplierService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to update supplier: {$e->getMessage()}");
+            throw $e;
         }
     }
 

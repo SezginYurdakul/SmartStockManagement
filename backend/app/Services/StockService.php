@@ -173,7 +173,7 @@ class StockService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to receive stock: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -250,7 +250,7 @@ class StockService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to issue stock: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -367,7 +367,7 @@ class StockService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to transfer stock: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -439,7 +439,7 @@ class StockService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to adjust stock: {$e->getMessage()}");
+            throw $e;
         }
     }
 

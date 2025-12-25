@@ -118,7 +118,7 @@ class WarehouseService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to create warehouse: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -160,7 +160,7 @@ class WarehouseService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to update warehouse: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -254,7 +254,7 @@ class WarehouseService
 
         } catch (Exception $e) {
             DB::rollBack();
-            throw new BusinessException("Failed to set default warehouse: {$e->getMessage()}");
+            throw $e;
         }
     }
 

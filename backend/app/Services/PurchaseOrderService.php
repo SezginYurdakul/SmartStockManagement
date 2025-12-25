@@ -151,7 +151,7 @@ class PurchaseOrderService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to create purchase order: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -213,7 +213,7 @@ class PurchaseOrderService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to update purchase order: {$e->getMessage()}");
+            throw $e;
         }
     }
 

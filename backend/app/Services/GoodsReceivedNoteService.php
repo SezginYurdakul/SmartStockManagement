@@ -153,7 +153,7 @@ class GoodsReceivedNoteService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to create GRN: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -207,7 +207,7 @@ class GoodsReceivedNoteService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to update GRN: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -340,7 +340,7 @@ class GoodsReceivedNoteService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to record inspection results: {$e->getMessage()}");
+            throw $e;
         }
     }
 
@@ -440,7 +440,7 @@ class GoodsReceivedNoteService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to complete GRN: {$e->getMessage()}");
+            throw $e;
         }
     }
 

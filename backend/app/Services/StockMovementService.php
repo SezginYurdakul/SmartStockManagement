@@ -124,7 +124,7 @@ class StockMovementService
                 'error' => $e->getMessage(),
             ]);
 
-            throw new BusinessException("Failed to create stock movement: {$e->getMessage()}");
+            throw $e;
         }
     }
 
