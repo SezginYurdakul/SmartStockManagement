@@ -8,6 +8,7 @@ use App\Http\Controllers\GoodsReceivedNoteController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImageController;
+use App\Http\Controllers\ProductTypeController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\StockController;
@@ -129,6 +130,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{product}/variants/force-clear', [AttributeController::class, 'forceClearVariants'])->middleware('role:admin');
     });
 
+    // Product types routes (permission-based)
+    Route::prefix('producttypes')->group(function () {
+        Route::get('/', [ProductTypeController::class, 'index'])->middleware('permission:producttypes.view');
+        Route::get('/{productType}', [ProductTypeController::class, 'show'])->middleware('permission:producttypes.view');
+        Route::post('/', [ProductTypeController::class, 'store'])->middleware('permission:producttypes.create');
+        Route::put('/{productType}', [ProductTypeController::class, 'update'])->middleware('permission:producttypes.edit');
+        Route::delete('/{productType}', [ProductTypeController::class, 'destroy'])->middleware('permission:producttypes.delete');
+    });
     // Attribute routes (permission-based)
     Route::prefix('attributes')->group(function () {
         Route::get('/', [AttributeController::class, 'index'])->middleware('permission:products.view');

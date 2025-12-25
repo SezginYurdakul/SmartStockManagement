@@ -204,6 +204,50 @@ class RolePermissionSeeder extends Seeder
                 'module' => 'reports',
                 'description' => 'Can export reports',
             ],
+
+            // Purchasing/Procurement permissions
+            [
+                'name' => 'purchasing.view',
+                'display_name' => 'View Purchasing',
+                'module' => 'purchasing',
+                'description' => 'Can view suppliers, purchase orders, and GRNs',
+            ],
+            [
+                'name' => 'purchasing.create',
+                'display_name' => 'Create Purchasing',
+                'module' => 'purchasing',
+                'description' => 'Can create suppliers and purchase orders',
+            ],
+            [
+                'name' => 'purchasing.edit',
+                'display_name' => 'Edit Purchasing',
+                'module' => 'purchasing',
+                'description' => 'Can edit suppliers and purchase orders',
+            ],
+            [
+                'name' => 'purchasing.delete',
+                'display_name' => 'Delete Purchasing',
+                'module' => 'purchasing',
+                'description' => 'Can delete suppliers and purchase orders',
+            ],
+            [
+                'name' => 'purchasing.approve',
+                'display_name' => 'Approve Purchase Orders',
+                'module' => 'purchasing',
+                'description' => 'Can approve or reject purchase orders',
+            ],
+            [
+                'name' => 'purchasing.receive',
+                'display_name' => 'Receive Goods',
+                'module' => 'purchasing',
+                'description' => 'Can receive goods (create and complete GRNs)',
+            ],
+            [
+                'name' => 'purchasing.inspect',
+                'display_name' => 'Inspect Goods',
+                'module' => 'purchasing',
+                'description' => 'Can inspect received goods and record inspection results',
+            ],
         ];
 
         foreach ($permissions as $permissionData) {
@@ -243,8 +287,51 @@ class RolePermissionSeeder extends Seeder
             'products.view',
             'categories.view',
             'inventory.view',
+            'purchasing.view',
             'reports.view',
         ])->get();
         $staffRole->permissions()->sync($staffPermissions->pluck('id'));
+
+        // Create purchaser role
+        $purchaserRole = Role::firstOrCreate(
+            ['name' => 'purchaser'],
+            [
+                'display_name' => 'Purchaser',
+                'description' => 'Can manage suppliers, create and manage purchase orders',
+                'is_system_role' => true,
+            ]
+        );
+
+        $purchaserPermissions = Permission::whereIn('name', [
+            'products.view',
+            'categories.view',
+            'inventory.view',
+            'purchasing.view',
+            'purchasing.create',
+            'purchasing.edit',
+            'purchasing.receive',
+        ])->get();
+        $purchaserRole->permissions()->sync($purchaserPermissions->pluck('id'));
+
+        // Create warehouse role
+        $warehouseRole = Role::firstOrCreate(
+            ['name' => 'warehouse'],
+            [
+                'display_name' => 'Warehouse Staff',
+                'description' => 'Can manage inventory and receive goods',
+                'is_system_role' => true,
+            ]
+        );
+
+        $warehousePermissions = Permission::whereIn('name', [
+            'products.view',
+            'inventory.view',
+            'inventory.create',
+            'inventory.edit',
+            'purchasing.view',
+            'purchasing.receive',
+            'purchasing.inspect',
+        ])->get();
+        $warehouseRole->permissions()->sync($warehousePermissions->pluck('id'));
     }
 }
