@@ -274,6 +274,50 @@ class RolePermissionSeeder extends Seeder
                 'module' => 'purchasing',
                 'description' => 'Can inspect received goods and record inspection results',
             ],
+
+            // Quality Control (QC) permissions
+            [
+                'name' => 'qc.view',
+                'display_name' => 'View Quality Control',
+                'module' => 'qc',
+                'description' => 'Can view acceptance rules, inspections, and NCRs',
+            ],
+            [
+                'name' => 'qc.create',
+                'display_name' => 'Create QC Records',
+                'module' => 'qc',
+                'description' => 'Can create acceptance rules and NCRs',
+            ],
+            [
+                'name' => 'qc.edit',
+                'display_name' => 'Edit QC Records',
+                'module' => 'qc',
+                'description' => 'Can edit acceptance rules and NCRs',
+            ],
+            [
+                'name' => 'qc.delete',
+                'display_name' => 'Delete QC Records',
+                'module' => 'qc',
+                'description' => 'Can delete acceptance rules and NCRs',
+            ],
+            [
+                'name' => 'qc.inspect',
+                'display_name' => 'Perform Inspections',
+                'module' => 'qc',
+                'description' => 'Can perform receiving inspections and record results',
+            ],
+            [
+                'name' => 'qc.review',
+                'display_name' => 'Review NCRs',
+                'module' => 'qc',
+                'description' => 'Can review NCRs and conduct root cause analysis',
+            ],
+            [
+                'name' => 'qc.approve',
+                'display_name' => 'Approve QC Decisions',
+                'module' => 'qc',
+                'description' => 'Can approve inspections and set NCR dispositions',
+            ],
         ];
 
         foreach ($permissions as $permissionData) {
@@ -358,7 +402,55 @@ class RolePermissionSeeder extends Seeder
             'purchasing.view',
             'purchasing.receive',
             'purchasing.inspect',
+            'qc.view',
+            'qc.inspect',
         ])->get();
         $warehouseRole->permissions()->sync($warehousePermissions->pluck('id'));
+
+        // Create QC Inspector role
+        $qcInspectorRole = Role::firstOrCreate(
+            ['name' => 'qc_inspector'],
+            [
+                'display_name' => 'QC Inspector',
+                'description' => 'Can perform quality inspections and manage NCRs',
+                'is_system_role' => true,
+            ]
+        );
+
+        $qcInspectorPermissions = Permission::whereIn('name', [
+            'products.view',
+            'inventory.view',
+            'purchasing.view',
+            'qc.view',
+            'qc.create',
+            'qc.edit',
+            'qc.inspect',
+            'qc.review',
+        ])->get();
+        $qcInspectorRole->permissions()->sync($qcInspectorPermissions->pluck('id'));
+
+        // Create QC Manager role
+        $qcManagerRole = Role::firstOrCreate(
+            ['name' => 'qc_manager'],
+            [
+                'display_name' => 'QC Manager',
+                'description' => 'Full quality control access including approvals',
+                'is_system_role' => true,
+            ]
+        );
+
+        $qcManagerPermissions = Permission::whereIn('name', [
+            'products.view',
+            'inventory.view',
+            'purchasing.view',
+            'qc.view',
+            'qc.create',
+            'qc.edit',
+            'qc.delete',
+            'qc.inspect',
+            'qc.review',
+            'qc.approve',
+        ])->get();
+        $qcManagerRole->permissions()->sync($qcManagerPermissions->pluck('id'));
     }
 }
