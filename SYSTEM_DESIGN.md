@@ -1,7 +1,7 @@
 # Smart Stock Management System (MRP II) - Final Design Document
 
-**Version:** 5.3
-**Date:** 2025-12-25
+**Version:** 5.5
+**Date:** 2025-12-26
 **Status:** Production Ready Design
 **System Type:** Material Requirements Planning II (MRP II) - Modular Architecture
 
@@ -152,12 +152,102 @@ Route::middleware('module:procurement')->group(function () {
 
 1. **Logical Modules, Not Physical**: Module separation via config and middleware, not folder restructuring
 2. **Sales/Finance External Only**: No built-in Customer/SalesOrder - external systems integrate via webhooks
-3. **Basic QC Only**: Simple pass/fail inspections - no NCR, CAPA, SPC
+3. **Standard QC**: Acceptance rules, inspections, NCR - no CAPA, SPC (can be added later)
 4. **Stateless Python Service**: Prediction service has no database - queries Laravel API for data
 5. **Sync First, Async Later**: Start with HTTP for simplicity - add Redis Queue when needed
 6. **Graceful Degradation**: If Python service is down, Laravel continues to work
 
-### 2.5 Environment Variables
+### 2.5 Quality Control (Standard Level)
+
+The system includes a standard-level QC module within Procurement:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    QUALITY CONTROL (Standard)                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────────┐   ┌──────────────────┐   ┌─────────────┐ │
+│  │ ACCEPTANCE RULES │   │ INSPECTIONS      │   │ NCR         │ │
+│  ├──────────────────┤   ├──────────────────┤   ├─────────────┤ │
+│  │ - By Product     │   │ - Per GRN Item   │   │ - From      │ │
+│  │ - By Category    │   │ - Pass/Fail/     │   │   Inspection│ │
+│  │ - By Supplier    │   │   Partial        │   │ - Workflow  │ │
+│  │ - Sampling (AQL) │   │ - Disposition    │   │ - Severity  │ │
+│  │ - Criteria JSON  │   │ - Approval Flow  │   │ - Closure   │ │
+│  └──────────────────┘   └──────────────────┘   └─────────────┘ │
+│                                                                  │
+│  Tables: acceptance_rules, receiving_inspections,               │
+│          non_conformance_reports                                │
+│                                                                  │
+│  Future Expansion: CAPA, Supplier Ratings, SPC                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**QC Workflow:**
+1. GRN created → Inspections auto-created per item
+2. Inspector records results (pass/fail quantities)
+3. Failed items → NCR created
+4. NCR workflow: Open → Review → Disposition → Close
+5. Dispositions: Accept, Reject, Rework, Return to Supplier, Use As-Is
+6. Stock quality status updated automatically based on disposition
+
+**Stock Quality Status Tracking:**
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    STOCK QUALITY STATUS                           │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  Status                 │ Transfer │ Sale │ Production │ Bundle  │
+│  ─────────────────────────────────────────────────────────────── │
+│  available              │    ✓     │  ✓   │     ✓      │   ✓    │
+│  pending_inspection     │    ✓*    │  ✗   │     ✗      │   ✗    │
+│  on_hold                │    ✗     │  ✗   │     ✗      │   ✗    │
+│  conditional            │    ✓     │  ✗   │     ✓**    │   ✗    │
+│  rejected               │    ✓*    │  ✗   │     ✗      │   ✗    │
+│  quarantine             │    ✓*    │  ✗   │     ✗      │   ✗    │
+│                                                                   │
+│  * Only to QC zones (quarantine/rejection warehouses)            │
+│  ** With restrictions defined in quality_restrictions JSON       │
+│                                                                   │
+├──────────────────────────────────────────────────────────────────┤
+│  Fields on stock table:                                          │
+│  - quality_status (enum)                                         │
+│  - hold_reason (text) - Why the stock is on hold                │
+│  - hold_until (timestamp) - Temporary holds expire               │
+│  - quality_restrictions (JSON) - Conditional use restrictions    │
+│  - quality_hold_by (FK users) - Who placed the hold             │
+│  - quality_hold_at (timestamp) - When hold was placed           │
+│  - quality_reference_type/id - Link to Inspection/NCR           │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Warehouse QC Zones:**
+- `is_quarantine_zone` - Warehouse for items awaiting inspection/disposition
+- `is_rejection_zone` - Warehouse for rejected items
+- `linked_quarantine_warehouse_id` - Link main warehouse to its quarantine zone
+- `linked_rejection_warehouse_id` - Link main warehouse to its rejection zone
+- `requires_qc_release` - Stock requires QC approval before use
+
+**Disposition → Quality Status Mapping:**
+| Disposition | Stock Quality Status |
+|-------------|---------------------|
+| Accept | available |
+| Use As-Is | conditional |
+| Reject | rejected |
+| Return to Supplier | rejected |
+| Rework | on_hold |
+| Quarantine | quarantine |
+
+**QC Permissions:**
+- `qc.view` - View rules, inspections, NCRs
+- `qc.create` - Create rules and NCRs
+- `qc.edit` - Edit rules and NCRs
+- `qc.delete` - Delete rules and NCRs
+- `qc.inspect` - Perform inspections
+- `qc.review` - Review NCRs
+- `qc.approve` - Approve inspections/dispositions
+
+### 2.6 Environment Variables
 
 ```env
 # Module Configuration
@@ -1579,6 +1669,17 @@ function ProductForm() {
 
 ## Document History
 
+**Version 5.4** - 2025-12-26
+- ✅ **Standard Quality Control**: Implemented QC module within Procurement
+- ✅ Added `acceptance_rules` table for inspection criteria (product/category/supplier-specific)
+- ✅ Added `receiving_inspections` table for GRN item inspections
+- ✅ Added `non_conformance_reports` (NCR) table for quality issues
+- ✅ Added QC permissions (qc.view, qc.create, qc.edit, qc.delete, qc.inspect, qc.review, qc.approve)
+- ✅ Added QC Inspector and QC Manager roles
+- ✅ AQL sampling support with configurable sample sizes
+- ✅ NCR workflow: Open → Review → Disposition → Close
+- ✅ Updated Section 2.5 with QC architecture diagram
+
 **Version 5.3** - 2025-12-25
 - ✅ **Modular Architecture**: Introduced modular MRP II architecture
 - ✅ Added Section 2: Modular Architecture with architecture diagram
@@ -1625,5 +1726,5 @@ function ProductForm() {
 
 ---
 
-*Current Version: 5.3*
-*Last Updated: 2025-12-25*
+*Current Version: 5.4*
+*Last Updated: 2025-12-26*
