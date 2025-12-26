@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\BusinessException;
+use App\Exceptions\QualityHoldException;
 use App\Models\Stock;
 use App\Models\Product;
 use App\Models\Warehouse;
@@ -16,7 +17,8 @@ use Exception;
 class StockService
 {
     public function __construct(
-        protected StockMovementService $movementService
+        protected StockMovementService $movementService,
+        protected ?QualityHoldService $qualityHoldService = null
     ) {}
 
     /**
@@ -39,6 +41,21 @@ class StockService
         // Filter by status
         if (!empty($filters['status'])) {
             $query->where('status', $filters['status']);
+        }
+
+        // Filter by quality status
+        if (!empty($filters['quality_status'])) {
+            $query->where('quality_status', $filters['quality_status']);
+        }
+
+        // Filter quality available only
+        if (!empty($filters['quality_available']) && $filters['quality_available']) {
+            $query->qualityAvailable();
+        }
+
+        // Filter on quality hold
+        if (!empty($filters['on_quality_hold']) && $filters['on_quality_hold']) {
+            $query->onQualityHold();
         }
 
         // Filter by lot number
@@ -203,6 +220,12 @@ class StockService
                 throw new BusinessException("Stock not found for the specified product and warehouse.");
             }
 
+            // Check quality status for sale operation (unless skip_quality_check is set)
+            if (empty($data['skip_quality_check'])) {
+                $operation = $data['operation_type'] ?? Stock::OPERATION_SALE;
+                $this->validateQualityStatus($stock, $operation);
+            }
+
             // Check available quantity
             if ($stock->quantity_available < $data['quantity']) {
                 throw new BusinessException(
@@ -283,6 +306,11 @@ class StockService
 
             if (!$sourceStock) {
                 throw new BusinessException("Stock not found in source warehouse.");
+            }
+
+            // Check quality status for transfer operation (unless skip_quality_check is set)
+            if (empty($data['skip_quality_check'])) {
+                $this->validateQualityStatus($sourceStock, Stock::OPERATION_TRANSFER);
             }
 
             // Check available quantity
@@ -446,12 +474,23 @@ class StockService
     /**
      * Reserve stock
      */
-    public function reserveStock(int $productId, int $warehouseId, float $quantity, ?string $lotNumber = null): Stock
-    {
+    public function reserveStock(
+        int $productId,
+        int $warehouseId,
+        float $quantity,
+        ?string $lotNumber = null,
+        string $operation = Stock::OPERATION_SALE,
+        bool $skipQualityCheck = false
+    ): Stock {
         $stock = $this->findStock($productId, $warehouseId, $lotNumber);
 
         if (!$stock) {
             throw new BusinessException("Stock not found.");
+        }
+
+        // Check quality status for the operation
+        if (!$skipQualityCheck) {
+            $this->validateQualityStatus($stock, $operation);
         }
 
         if (!$stock->reserve($quantity)) {
@@ -553,6 +592,54 @@ class StockService
         return Stock::with(['product:id,name,sku', 'warehouse:id,name,code'])
             ->expiringSoon($days)
             ->orderBy('expiry_date')
+            ->paginate($perPage);
+    }
+
+    /**
+     * Validate quality status for an operation
+     *
+     * @throws QualityHoldException
+     */
+    protected function validateQualityStatus(Stock $stock, string $operation): void
+    {
+        if ($this->qualityHoldService) {
+            $this->qualityHoldService->validateOperation($stock, $operation);
+        } elseif (!$stock->isOperationAllowed($operation)) {
+            // Fallback if QualityHoldService is not injected
+            $qualityStatus = $stock->quality_status ?? Stock::QUALITY_AVAILABLE;
+            $statusLabel = Stock::QUALITY_STATUSES[$qualityStatus] ?? $qualityStatus;
+
+            throw new QualityHoldException(
+                "Operation '{$operation}' is not allowed for stock with quality status '{$statusLabel}'",
+                [
+                    'stock_id' => $stock->id,
+                    'quality_status' => $qualityStatus,
+                    'operation' => $operation,
+                    'blocked_operations' => $stock->getBlockedOperations(),
+                ]
+            );
+        }
+    }
+
+    /**
+     * Get stocks on quality hold
+     */
+    public function getStocksOnQualityHold(int $perPage = 15): LengthAwarePaginator
+    {
+        return Stock::with(['product:id,name,sku', 'warehouse:id,name,code', 'qualityHoldBy:id,first_name,last_name'])
+            ->onQualityHold()
+            ->orderBy('quality_hold_at', 'desc')
+            ->paginate($perPage);
+    }
+
+    /**
+     * Get stocks by quality status
+     */
+    public function getStocksByQualityStatus(string $qualityStatus, int $perPage = 15): LengthAwarePaginator
+    {
+        return Stock::with(['product:id,name,sku', 'warehouse:id,name,code'])
+            ->where('quality_status', $qualityStatus)
+            ->orderBy('updated_at', 'desc')
             ->paginate($perPage);
     }
 }
