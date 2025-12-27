@@ -1,15 +1,19 @@
 <?php
 
+use App\Http\Controllers\AcceptanceRuleController;
 use App\Http\Controllers\AttributeController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\GoodsReceivedNoteController;
+use App\Http\Controllers\NonConformanceReportController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\ProductTypeController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\ReceivingInspectionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockMovementController;
@@ -24,6 +28,13 @@ Route::get("/", function () {
         "version" => "1.0.0",
         "status" => "active"
     ]);
+});
+
+// Module status endpoint (public - for health checks)
+Route::get("/modules", function () {
+    return response()->json(
+        app(\App\Services\ModuleService::class)->getModuleStatus()
+    );
 });
 
 // Public Authentication Routes
@@ -156,6 +167,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/variants/bulk-generate', [AttributeController::class, 'bulkGenerateVariants'])
         ->middleware(['permission:products.edit', 'throttle:bulk-variant-generate']);
 
+    // Settings routes (lookup values, system config)
+    Route::prefix('settings')->group(function () {
+        Route::get('/', [SettingController::class, 'index'])->middleware('permission:settings.view');
+        Route::get('/groups', [SettingController::class, 'groups'])->middleware('permission:settings.view');
+        Route::get('/group/{group}', [SettingController::class, 'group'])->middleware('permission:settings.view');
+        Route::get('/{group}/{key}', [SettingController::class, 'show'])->middleware('permission:settings.view');
+        Route::post('/', [SettingController::class, 'store'])->middleware('permission:settings.edit');
+        Route::put('/{group}/{key}', [SettingController::class, 'update'])->middleware('permission:settings.edit');
+        Route::delete('/{group}/{key}', [SettingController::class, 'destroy'])->middleware('permission:settings.edit');
+    });
+
     // Currency routes
     Route::prefix('currencies')->group(function () {
         Route::get('/', [CurrencyController::class, 'index'])->middleware('permission:settings.view');
@@ -217,7 +239,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ===================================================
     // PROCUREMENT MODULE (Phase 3)
+    // Requires: MODULE_PROCUREMENT_ENABLED=true
     // ===================================================
+    Route::middleware('module:procurement')->group(function () {
 
     // Supplier routes
     Route::prefix('suppliers')->group(function () {
@@ -277,4 +301,62 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{goodsReceivedNote}/complete', [GoodsReceivedNoteController::class, 'complete'])->middleware('permission:purchasing.receive');
         Route::post('/{goodsReceivedNote}/cancel', [GoodsReceivedNoteController::class, 'cancel'])->middleware('permission:purchasing.receive');
     });
+
+    // ===================================================
+    // QUALITY CONTROL (QC) - Standard Level
+    // Part of Procurement Module
+    // ===================================================
+
+    // Acceptance Rules routes
+    Route::prefix('acceptance-rules')->group(function () {
+        Route::get('/', [AcceptanceRuleController::class, 'index'])->middleware('permission:qc.view');
+        Route::get('/list', [AcceptanceRuleController::class, 'list'])->middleware('permission:qc.view');
+        Route::post('/', [AcceptanceRuleController::class, 'store'])->middleware('permission:qc.create');
+        Route::get('/inspection-types', [AcceptanceRuleController::class, 'inspectionTypes'])->middleware('permission:qc.view');
+        Route::get('/sampling-methods', [AcceptanceRuleController::class, 'samplingMethods'])->middleware('permission:qc.view');
+        Route::post('/find-applicable', [AcceptanceRuleController::class, 'findApplicable'])->middleware('permission:qc.view');
+        Route::get('/{acceptanceRule}', [AcceptanceRuleController::class, 'show'])->middleware('permission:qc.view');
+        Route::put('/{acceptanceRule}', [AcceptanceRuleController::class, 'update'])->middleware('permission:qc.edit');
+        Route::delete('/{acceptanceRule}', [AcceptanceRuleController::class, 'destroy'])->middleware('permission:qc.delete');
+    });
+
+    // Receiving Inspections routes
+    Route::prefix('receiving-inspections')->group(function () {
+        Route::get('/', [ReceivingInspectionController::class, 'index'])->middleware('permission:qc.view');
+        Route::get('/statistics', [ReceivingInspectionController::class, 'statistics'])->middleware('permission:qc.view');
+        Route::get('/results', [ReceivingInspectionController::class, 'results'])->middleware('permission:qc.view');
+        Route::get('/dispositions', [ReceivingInspectionController::class, 'dispositions'])->middleware('permission:qc.view');
+        Route::get('/for-grn/{goodsReceivedNote}', [ReceivingInspectionController::class, 'forGrn'])->middleware('permission:qc.view');
+        Route::post('/create-for-grn/{goodsReceivedNote}', [ReceivingInspectionController::class, 'createForGrn'])->middleware('permission:qc.inspect');
+        Route::get('/{receivingInspection}', [ReceivingInspectionController::class, 'show'])->middleware('permission:qc.view');
+        Route::post('/{receivingInspection}/record-result', [ReceivingInspectionController::class, 'recordResult'])->middleware('permission:qc.inspect');
+        Route::post('/{receivingInspection}/approve', [ReceivingInspectionController::class, 'approve'])->middleware('permission:qc.approve');
+        Route::put('/{receivingInspection}/disposition', [ReceivingInspectionController::class, 'updateDisposition'])->middleware('permission:qc.edit');
+    });
+
+    // Non-Conformance Reports (NCR) routes
+    Route::prefix('ncrs')->group(function () {
+        Route::get('/', [NonConformanceReportController::class, 'index'])->middleware('permission:qc.view');
+        Route::post('/', [NonConformanceReportController::class, 'store'])->middleware('permission:qc.create');
+        Route::get('/statistics', [NonConformanceReportController::class, 'statistics'])->middleware('permission:qc.view');
+        Route::get('/statuses', [NonConformanceReportController::class, 'statuses'])->middleware('permission:qc.view');
+        Route::get('/severities', [NonConformanceReportController::class, 'severities'])->middleware('permission:qc.view');
+        Route::get('/defect-types', [NonConformanceReportController::class, 'defectTypes'])->middleware('permission:qc.view');
+        Route::get('/dispositions', [NonConformanceReportController::class, 'dispositions'])->middleware('permission:qc.view');
+        Route::get('/supplier/{supplierId}/summary', [NonConformanceReportController::class, 'supplierSummary'])->middleware('permission:qc.view');
+        Route::post('/from-inspection/{receivingInspection}', [NonConformanceReportController::class, 'createFromInspection'])->middleware('permission:qc.create');
+        Route::get('/{nonConformanceReport}', [NonConformanceReportController::class, 'show'])->middleware('permission:qc.view');
+        Route::put('/{nonConformanceReport}', [NonConformanceReportController::class, 'update'])->middleware('permission:qc.edit');
+        Route::delete('/{nonConformanceReport}', [NonConformanceReportController::class, 'destroy'])->middleware('permission:qc.delete');
+
+        // NCR Workflow actions
+        Route::post('/{nonConformanceReport}/submit-review', [NonConformanceReportController::class, 'submitForReview'])->middleware('permission:qc.edit');
+        Route::post('/{nonConformanceReport}/complete-review', [NonConformanceReportController::class, 'completeReview'])->middleware('permission:qc.review');
+        Route::post('/{nonConformanceReport}/set-disposition', [NonConformanceReportController::class, 'setDisposition'])->middleware('permission:qc.approve');
+        Route::post('/{nonConformanceReport}/start-progress', [NonConformanceReportController::class, 'startProgress'])->middleware('permission:qc.edit');
+        Route::post('/{nonConformanceReport}/close', [NonConformanceReportController::class, 'close'])->middleware('permission:qc.approve');
+        Route::post('/{nonConformanceReport}/cancel', [NonConformanceReportController::class, 'cancel'])->middleware('permission:qc.edit');
+    });
+
+    }); // End of procurement module
 });
