@@ -341,7 +341,7 @@ class AcceptanceRuleService
      */
     public function getInspectionTypes(): array
     {
-        return AcceptanceRule::INSPECTION_TYPES;
+        return AcceptanceRule::getInspectionTypes();
     }
 
     /**
@@ -349,6 +349,6 @@ class AcceptanceRuleService
      */
     public function getSamplingMethods(): array
     {
-        return AcceptanceRule::SAMPLING_METHODS;
+        return AcceptanceRule::getSamplingMethods();
     }
 }

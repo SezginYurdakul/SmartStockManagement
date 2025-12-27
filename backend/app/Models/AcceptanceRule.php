@@ -43,25 +43,31 @@ class AcceptanceRule extends Model
     ];
 
     /**
-     * Inspection types
+     * Get inspection types from settings
      */
-    public const INSPECTION_TYPES = [
-        'visual' => 'Visual Inspection',
-        'dimensional' => 'Dimensional Inspection',
-        'functional' => 'Functional Test',
-        'documentation' => 'Documentation Check',
-        'sampling' => 'Sample Testing',
-    ];
+    public static function getInspectionTypes(): array
+    {
+        return Setting::get('qc.inspection_types', [
+            'visual' => 'Visual Inspection',
+            'dimensional' => 'Dimensional Inspection',
+            'functional' => 'Functional Test',
+            'documentation' => 'Documentation Check',
+            'sampling' => 'Sample Testing',
+        ]);
+    }
 
     /**
-     * Sampling methods
+     * Get sampling methods from settings
      */
-    public const SAMPLING_METHODS = [
-        '100_percent' => '100% Inspection',
-        'aql' => 'AQL Sampling',
-        'random' => 'Random Sampling',
-        'skip_lot' => 'Skip Lot',
-    ];
+    public static function getSamplingMethods(): array
+    {
+        return Setting::get('qc.sampling_methods', [
+            '100_percent' => '100% Inspection',
+            'aql' => 'AQL Sampling',
+            'random' => 'Random Sampling',
+            'skip_lot' => 'Skip Lot',
+        ]);
+    }
 
     /**
      * Company relationship
@@ -164,7 +170,8 @@ class AcceptanceRule extends Model
      */
     public function getInspectionTypeLabelAttribute(): string
     {
-        return self::INSPECTION_TYPES[$this->inspection_type] ?? $this->inspection_type;
+        $types = self::getInspectionTypes();
+        return $types[$this->inspection_type] ?? $this->inspection_type;
     }
 
     /**
@@ -172,7 +179,8 @@ class AcceptanceRule extends Model
      */
     public function getSamplingMethodLabelAttribute(): string
     {
-        return self::SAMPLING_METHODS[$this->sampling_method] ?? $this->sampling_method;
+        $methods = self::getSamplingMethods();
+        return $methods[$this->sampling_method] ?? $this->sampling_method;
     }
 
     /**

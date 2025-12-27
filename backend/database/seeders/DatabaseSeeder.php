@@ -19,6 +19,9 @@ class DatabaseSeeder extends Seeder
         // Seed company first (required for multi-tenant data)
         $this->call(CompanySeeder::class);
 
+        // Seed system settings (lookup values)
+        $this->call(SettingsSeeder::class);
+
         // Seed roles and permissions
         $this->call(RolePermissionSeeder::class);
 

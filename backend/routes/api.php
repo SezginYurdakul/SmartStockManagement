@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AcceptanceRuleController;
 use App\Http\Controllers\AttributeController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CurrencyController;
@@ -165,6 +166,17 @@ Route::middleware('auth:sanctum')->group(function () {
     // Bulk variant generation (rate limited: 5 requests per minute - heavy operation)
     Route::post('/variants/bulk-generate', [AttributeController::class, 'bulkGenerateVariants'])
         ->middleware(['permission:products.edit', 'throttle:bulk-variant-generate']);
+
+    // Settings routes (lookup values, system config)
+    Route::prefix('settings')->group(function () {
+        Route::get('/', [SettingController::class, 'index'])->middleware('permission:settings.view');
+        Route::get('/groups', [SettingController::class, 'groups'])->middleware('permission:settings.view');
+        Route::get('/group/{group}', [SettingController::class, 'group'])->middleware('permission:settings.view');
+        Route::get('/{group}/{key}', [SettingController::class, 'show'])->middleware('permission:settings.view');
+        Route::post('/', [SettingController::class, 'store'])->middleware('permission:settings.edit');
+        Route::put('/{group}/{key}', [SettingController::class, 'update'])->middleware('permission:settings.edit');
+        Route::delete('/{group}/{key}', [SettingController::class, 'destroy'])->middleware('permission:settings.edit');
+    });
 
     // Currency routes
     Route::prefix('currencies')->group(function () {
