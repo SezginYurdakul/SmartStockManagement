@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\InspectionDisposition;
+use App\Enums\InspectionResult;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -64,7 +66,7 @@ class ReceivingInspection extends Model
     ];
 
     /**
-     * Result labels
+     * Result labels for UI
      */
     public const RESULTS = [
         self::RESULT_PENDING => 'Pending',
@@ -75,7 +77,7 @@ class ReceivingInspection extends Model
     ];
 
     /**
-     * Disposition labels
+     * Disposition labels for UI
      */
     public const DISPOSITIONS = [
         self::DISPOSITION_ACCEPT => 'Accept',
@@ -85,6 +87,22 @@ class ReceivingInspection extends Model
         self::DISPOSITION_USE_AS_IS => 'Use As Is',
         self::DISPOSITION_PENDING => 'Pending Decision',
     ];
+
+    /**
+     * Get result as Enum
+     */
+    public function getResultEnumAttribute(): ?InspectionResult
+    {
+        return $this->result ? InspectionResult::tryFrom($this->result) : null;
+    }
+
+    /**
+     * Get disposition as Enum
+     */
+    public function getDispositionEnumAttribute(): ?InspectionDisposition
+    {
+        return $this->disposition ? InspectionDisposition::tryFrom($this->disposition) : null;
+    }
 
     /**
      * Company relationship
@@ -167,7 +185,7 @@ class ReceivingInspection extends Model
      */
     public function getResultLabelAttribute(): string
     {
-        return self::RESULTS[$this->result] ?? $this->result;
+        return self::RESULTS[$this->result] ?? ucfirst($this->result ?? 'Unknown');
     }
 
     /**
@@ -175,23 +193,44 @@ class ReceivingInspection extends Model
      */
     public function getDispositionLabelAttribute(): string
     {
-        return self::DISPOSITIONS[$this->disposition] ?? $this->disposition;
+        return self::DISPOSITIONS[$this->disposition] ?? ucfirst($this->disposition ?? 'Unknown');
     }
 
     /**
-     * Check if inspection is complete
+     * Check if inspection is complete (using Enum for type-safe logic)
      */
     public function isComplete(): bool
     {
-        return $this->result !== self::RESULT_PENDING;
+        $result = $this->result_enum;
+        return $result ? $result->isComplete() : false;
     }
 
     /**
-     * Check if requires NCR
+     * Check if requires NCR (using Enum for type-safe logic)
      */
     public function requiresNcr(): bool
     {
-        return $this->quantity_failed > 0 || $this->result === self::RESULT_FAILED;
+        if ($this->quantity_failed > 0) {
+            return true;
+        }
+
+        $result = $this->result_enum;
+        return $result ? $result->requiresNcr() : false;
+    }
+
+    /**
+     * Check if stock can be released (using Enum)
+     */
+    public function canReleaseStock(): bool
+    {
+        $result = $this->result_enum;
+        $disposition = $this->disposition_enum;
+
+        if (!$result || !$disposition) {
+            return false;
+        }
+
+        return $result->canReleaseStock() || $disposition->allowsStockEntry();
     }
 
     /**

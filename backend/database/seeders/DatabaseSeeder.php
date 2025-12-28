@@ -19,7 +19,7 @@ class DatabaseSeeder extends Seeder
         // Seed company first (required for multi-tenant data)
         $this->call(CompanySeeder::class);
 
-        // Seed system settings (lookup values)
+        // Seed system settings
         $this->call(SettingsSeeder::class);
 
         // Seed roles and permissions
@@ -63,5 +63,8 @@ class DatabaseSeeder extends Seeder
 
         // Seed suppliers (Phase 3 - Procurement)
         $this->call(SupplierSeeder::class);
+
+        // Seed QC test scenarios (acceptance rules, inspections, NCRs)
+        $this->call(QualityControlSeeder::class);
     }
 }
