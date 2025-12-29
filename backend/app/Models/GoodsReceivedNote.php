@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\GrnStatus;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -116,14 +117,35 @@ class GoodsReceivedNote extends Model
     }
 
     /**
+     * Get status as Enum
+     */
+    public function getStatusEnumAttribute(): ?GrnStatus
+    {
+        return $this->status ? GrnStatus::tryFrom($this->status) : null;
+    }
+
+    /**
      * Check if can be edited
      */
     public function canBeEdited(): bool
     {
-        return in_array($this->status, [
-            self::STATUS_DRAFT,
-            self::STATUS_PENDING_INSPECTION,
-        ]);
+        return $this->status_enum?->canEdit() ?? false;
+    }
+
+    /**
+     * Check if can be cancelled
+     */
+    public function canBeCancelled(): bool
+    {
+        return $this->status_enum?->canCancel() ?? false;
+    }
+
+    /**
+     * Check if can be deleted
+     */
+    public function canBeDeleted(): bool
+    {
+        return $this->status_enum?->canDelete() ?? false;
     }
 
     /**

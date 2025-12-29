@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\GrnStatus;
+use App\Enums\PoStatus;
 use App\Exceptions\BusinessException;
 use App\Models\GoodsReceivedNote;
 use App\Models\GoodsReceivedNoteItem;
@@ -11,8 +13,8 @@ use App\Models\Stock;
 use App\Models\StockMovement;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
@@ -123,7 +125,7 @@ class GoodsReceivedNoteService
                 'delivery_note_date' => $data['delivery_note_date'] ?? null,
                 'invoice_number' => $data['invoice_number'] ?? null,
                 'invoice_date' => $data['invoice_date'] ?? null,
-                'status' => GoodsReceivedNote::STATUS_DRAFT,
+                'status' => GrnStatus::DRAFT->value,
                 'requires_inspection' => $data['requires_inspection'] ?? false,
                 'notes' => $data['notes'] ?? null,
                 'meta_data' => $data['meta_data'] ?? null,
@@ -266,7 +268,10 @@ class GoodsReceivedNoteService
      */
     public function submitForInspection(GoodsReceivedNote $grn): GoodsReceivedNote
     {
-        if ($grn->status !== GoodsReceivedNote::STATUS_DRAFT) {
+        $currentStatus = $grn->status_enum;
+        $targetStatus = GrnStatus::PENDING_INSPECTION;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
             throw new BusinessException('Only draft GRNs can be submitted for inspection.');
         }
 
@@ -280,7 +285,7 @@ class GoodsReceivedNoteService
         ]);
 
         $grn->update([
-            'status' => GoodsReceivedNote::STATUS_PENDING_INSPECTION,
+            'status' => $targetStatus->value,
         ]);
 
         return $grn->fresh();
@@ -291,7 +296,10 @@ class GoodsReceivedNoteService
      */
     public function recordInspection(GoodsReceivedNote $grn, array $inspectionData): GoodsReceivedNote
     {
-        if ($grn->status !== GoodsReceivedNote::STATUS_PENDING_INSPECTION) {
+        $currentStatus = $grn->status_enum;
+        $targetStatus = GrnStatus::INSPECTED;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
             throw new BusinessException('GRN is not pending inspection.');
         }
 
@@ -318,7 +326,7 @@ class GoodsReceivedNoteService
 
             // Update GRN status
             $grn->update([
-                'status' => GoodsReceivedNote::STATUS_INSPECTED,
+                'status' => $targetStatus->value,
                 'inspected_by' => Auth::id(),
                 'inspected_at' => now(),
                 'inspection_notes' => $inspectionData['inspection_notes'] ?? null,
@@ -417,7 +425,7 @@ class GoodsReceivedNoteService
 
             // Update GRN status
             $grn->update([
-                'status' => GoodsReceivedNote::STATUS_COMPLETED,
+                'status' => GrnStatus::COMPLETED->value,
             ]);
 
             // Update PO status
@@ -463,12 +471,12 @@ class GoodsReceivedNoteService
 
         if ($totalReceived >= $effectiveOrdered) {
             $purchaseOrder->update([
-                'status' => PurchaseOrder::STATUS_RECEIVED,
+                'status' => PoStatus::RECEIVED->value,
                 'actual_delivery_date' => now(),
             ]);
         } else {
             $purchaseOrder->update([
-                'status' => PurchaseOrder::STATUS_PARTIALLY_RECEIVED,
+                'status' => PoStatus::PARTIALLY_RECEIVED->value,
             ]);
         }
     }
@@ -478,8 +486,11 @@ class GoodsReceivedNoteService
      */
     public function cancel(GoodsReceivedNote $grn, ?string $reason = null): GoodsReceivedNote
     {
-        if ($grn->status === GoodsReceivedNote::STATUS_COMPLETED) {
-            throw new BusinessException('Completed GRNs cannot be cancelled.');
+        $currentStatus = $grn->status_enum;
+        $targetStatus = GrnStatus::CANCELLED;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
+            throw new BusinessException('GRN cannot be cancelled in current status.');
         }
 
         Log::info('Cancelling GRN', [
@@ -489,7 +500,7 @@ class GoodsReceivedNoteService
         ]);
 
         $grn->update([
-            'status' => GoodsReceivedNote::STATUS_CANCELLED,
+            'status' => $targetStatus->value,
             'notes' => $reason ? "Cancelled: {$reason}\n" . $grn->notes : $grn->notes,
         ]);
 
@@ -501,7 +512,7 @@ class GoodsReceivedNoteService
      */
     public function delete(GoodsReceivedNote $grn): bool
     {
-        if (!in_array($grn->status, [GoodsReceivedNote::STATUS_DRAFT, GoodsReceivedNote::STATUS_CANCELLED])) {
+        if (!$grn->status_enum?->canDelete()) {
             throw new BusinessException('Only draft or cancelled GRNs can be deleted.');
         }
 
