@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\NcrDisposition;
+use App\Enums\NcrSeverity;
+use App\Enums\NcrStatus;
 use App\Exceptions\BusinessException;
 use App\Models\NonConformanceReport;
 use App\Models\ReceivingInspection;
@@ -147,12 +150,12 @@ class NonConformanceReportService
                 'batch_number' => $data['batch_number'] ?? null,
                 'quantity_affected' => $data['quantity_affected'] ?? null,
                 'unit_of_measure' => $data['unit_of_measure'] ?? null,
-                'severity' => $data['severity'] ?? NonConformanceReport::SEVERITY_MINOR,
+                'severity' => $data['severity'] ?? NcrSeverity::MINOR->value,
                 'priority' => $data['priority'] ?? 'medium',
                 'defect_type' => $data['defect_type'] ?? 'other',
                 'root_cause' => $data['root_cause'] ?? null,
-                'disposition' => NonConformanceReport::DISPOSITION_PENDING,
-                'status' => NonConformanceReport::STATUS_OPEN,
+                'disposition' => NcrDisposition::PENDING->value,
+                'status' => NcrStatus::OPEN->value,
                 'attachments' => $data['attachments'] ?? null,
                 'reported_by' => Auth::id(),
                 'reported_at' => now(),
@@ -216,7 +219,10 @@ class NonConformanceReportService
      */
     public function submitForReview(NonConformanceReport $ncr): NonConformanceReport
     {
-        if ($ncr->status !== NonConformanceReport::STATUS_OPEN) {
+        $currentStatus = $ncr->status_enum;
+        $targetStatus = NcrStatus::UNDER_REVIEW;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
             throw new BusinessException('Only open NCRs can be submitted for review.');
         }
 
@@ -226,7 +232,7 @@ class NonConformanceReportService
         ]);
 
         $ncr->update([
-            'status' => NonConformanceReport::STATUS_UNDER_REVIEW,
+            'status' => $targetStatus->value,
         ]);
 
         return $ncr->fresh();
@@ -237,7 +243,10 @@ class NonConformanceReportService
      */
     public function completeReview(NonConformanceReport $ncr, array $data): NonConformanceReport
     {
-        if ($ncr->status !== NonConformanceReport::STATUS_UNDER_REVIEW) {
+        $currentStatus = $ncr->status_enum;
+        $targetStatus = NcrStatus::PENDING_DISPOSITION;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
             throw new BusinessException('NCR is not under review.');
         }
 
@@ -247,7 +256,7 @@ class NonConformanceReportService
         ]);
 
         $ncr->update([
-            'status' => NonConformanceReport::STATUS_PENDING_DISPOSITION,
+            'status' => $targetStatus->value,
             'root_cause' => $data['root_cause'] ?? $ncr->root_cause,
             'reviewed_by' => Auth::id(),
             'reviewed_at' => now(),
@@ -261,10 +270,10 @@ class NonConformanceReportService
      */
     public function setDisposition(NonConformanceReport $ncr, array $data): NonConformanceReport
     {
-        if (!in_array($ncr->status, [
-            NonConformanceReport::STATUS_PENDING_DISPOSITION,
-            NonConformanceReport::STATUS_UNDER_REVIEW,
-        ])) {
+        $currentStatus = $ncr->status_enum;
+        $targetStatus = NcrStatus::DISPOSITION_APPROVED;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
             throw new BusinessException('NCR is not ready for disposition.');
         }
 
@@ -274,7 +283,7 @@ class NonConformanceReportService
         ]);
 
         $ncr->update([
-            'status' => NonConformanceReport::STATUS_DISPOSITION_APPROVED,
+            'status' => $targetStatus->value,
             'disposition' => $data['disposition'],
             'disposition_reason' => $data['disposition_reason'] ?? null,
             'cost_impact' => $data['cost_impact'] ?? null,
@@ -291,12 +300,15 @@ class NonConformanceReportService
      */
     public function startProgress(NonConformanceReport $ncr): NonConformanceReport
     {
-        if ($ncr->status !== NonConformanceReport::STATUS_DISPOSITION_APPROVED) {
+        $currentStatus = $ncr->status_enum;
+        $targetStatus = NcrStatus::IN_PROGRESS;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
             throw new BusinessException('NCR disposition must be approved first.');
         }
 
         $ncr->update([
-            'status' => NonConformanceReport::STATUS_IN_PROGRESS,
+            'status' => $targetStatus->value,
         ]);
 
         return $ncr->fresh();
@@ -307,8 +319,11 @@ class NonConformanceReportService
      */
     public function close(NonConformanceReport $ncr, array $data): NonConformanceReport
     {
-        if (!$ncr->isOpen()) {
-            throw new BusinessException('NCR is already closed.');
+        $currentStatus = $ncr->status_enum;
+        $targetStatus = NcrStatus::CLOSED;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
+            throw new BusinessException('NCR cannot be closed from current status.');
         }
 
         Log::info('Closing NCR', [
@@ -317,7 +332,7 @@ class NonConformanceReportService
         ]);
 
         $ncr->update([
-            'status' => NonConformanceReport::STATUS_CLOSED,
+            'status' => $targetStatus->value,
             'closure_notes' => $data['closure_notes'] ?? null,
             'closed_by' => Auth::id(),
             'closed_at' => now(),
@@ -331,8 +346,11 @@ class NonConformanceReportService
      */
     public function cancel(NonConformanceReport $ncr, ?string $reason = null): NonConformanceReport
     {
-        if (!$ncr->isOpen()) {
-            throw new BusinessException('NCR is already closed.');
+        $currentStatus = $ncr->status_enum;
+        $targetStatus = NcrStatus::CANCELLED;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
+            throw new BusinessException('NCR cannot be cancelled from current status.');
         }
 
         Log::info('Cancelling NCR', [
@@ -342,7 +360,7 @@ class NonConformanceReportService
         ]);
 
         $ncr->update([
-            'status' => NonConformanceReport::STATUS_CANCELLED,
+            'status' => $targetStatus->value,
             'closure_notes' => $reason ? "Cancelled: {$reason}" : null,
             'closed_by' => Auth::id(),
             'closed_at' => now(),
@@ -356,10 +374,9 @@ class NonConformanceReportService
      */
     public function delete(NonConformanceReport $ncr): bool
     {
-        if (!in_array($ncr->status, [
-            NonConformanceReport::STATUS_OPEN,
-            NonConformanceReport::STATUS_CANCELLED,
-        ])) {
+        $currentStatus = $ncr->status_enum;
+
+        if (!$currentStatus || !in_array($currentStatus, [NcrStatus::OPEN, NcrStatus::CANCELLED])) {
             throw new BusinessException('Only open or cancelled NCRs can be deleted.');
         }
 
@@ -416,9 +433,9 @@ class NonConformanceReportService
             'total_ncrs' => $query->clone()->count(),
             'open_ncrs' => $openNcrs->clone()->count(),
             'closed_ncrs' => $query->clone()->closed()->count(),
-            'critical_open' => $openNcrs->clone()->bySeverity(NonConformanceReport::SEVERITY_CRITICAL)->count(),
-            'major_open' => $openNcrs->clone()->bySeverity(NonConformanceReport::SEVERITY_MAJOR)->count(),
-            'minor_open' => $openNcrs->clone()->bySeverity(NonConformanceReport::SEVERITY_MINOR)->count(),
+            'critical_open' => $openNcrs->clone()->bySeverity(NcrSeverity::CRITICAL->value)->count(),
+            'major_open' => $openNcrs->clone()->bySeverity(NcrSeverity::MAJOR->value)->count(),
+            'minor_open' => $openNcrs->clone()->bySeverity(NcrSeverity::MINOR->value)->count(),
             'avg_days_open' => $query->clone()->open()->avg(DB::raw('EXTRACT(DAY FROM NOW() - reported_at)')),
             'total_cost_impact' => $query->clone()->whereNotNull('cost_impact')->sum('cost_impact'),
             'by_source' => [
@@ -445,9 +462,9 @@ class NonConformanceReportService
             'total_ncrs' => $query->clone()->count(),
             'open_ncrs' => $query->clone()->open()->count(),
             'by_severity' => [
-                'critical' => $query->clone()->bySeverity(NonConformanceReport::SEVERITY_CRITICAL)->count(),
-                'major' => $query->clone()->bySeverity(NonConformanceReport::SEVERITY_MAJOR)->count(),
-                'minor' => $query->clone()->bySeverity(NonConformanceReport::SEVERITY_MINOR)->count(),
+                'critical' => $query->clone()->bySeverity(NcrSeverity::CRITICAL->value)->count(),
+                'major' => $query->clone()->bySeverity(NcrSeverity::MAJOR->value)->count(),
+                'minor' => $query->clone()->bySeverity(NcrSeverity::MINOR->value)->count(),
             ],
             'total_cost_impact' => $query->clone()->whereNotNull('cost_impact')->sum('cost_impact'),
         ];

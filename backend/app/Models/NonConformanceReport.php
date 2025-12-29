@@ -37,6 +37,12 @@ class NonConformanceReport extends Model
     public const SOURCE_INTERNAL = 'internal';
     public const SOURCE_CUSTOMER = 'customer';
 
+    // Priority constants
+    public const PRIORITY_LOW = 'low';
+    public const PRIORITY_MEDIUM = 'medium';
+    public const PRIORITY_HIGH = 'high';
+    public const PRIORITY_URGENT = 'urgent';
+
     // @deprecated Use NcrDisposition enum instead
     public const DISPOSITION_PENDING = 'pending';
     public const DISPOSITION_USE_AS_IS = 'use_as_is';
@@ -140,6 +146,26 @@ class NonConformanceReport extends Model
         self::DISPOSITION_RETURN => 'Return to Supplier',
         self::DISPOSITION_SORT => 'Sort and Use',
         self::DISPOSITION_REJECT => 'Reject',
+    ];
+
+    /**
+     * Source type labels for UI
+     */
+    public const SOURCES = [
+        self::SOURCE_RECEIVING => 'Receiving',
+        self::SOURCE_PRODUCTION => 'Production',
+        self::SOURCE_INTERNAL => 'Internal',
+        self::SOURCE_CUSTOMER => 'Customer',
+    ];
+
+    /**
+     * Priority labels for UI
+     */
+    public const PRIORITIES = [
+        self::PRIORITY_LOW => 'Low',
+        self::PRIORITY_MEDIUM => 'Medium',
+        self::PRIORITY_HIGH => 'High',
+        self::PRIORITY_URGENT => 'Urgent',
     ];
 
     /**
