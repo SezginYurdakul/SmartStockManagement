@@ -165,4 +165,49 @@ class WarehouseController extends Controller
             'data' => $summary,
         ]);
     }
+
+    /**
+     * Get all quarantine zone warehouses
+     */
+    public function quarantineZones(): JsonResponse
+    {
+        $warehouses = Warehouse::quarantineZones()
+            ->where('is_active', true)
+            ->get(['id', 'code', 'name']);
+
+        return response()->json([
+            'data' => $warehouses,
+        ]);
+    }
+
+    /**
+     * Get all rejection zone warehouses
+     */
+    public function rejectionZones(): JsonResponse
+    {
+        $warehouses = Warehouse::rejectionZones()
+            ->where('is_active', true)
+            ->get(['id', 'code', 'name']);
+
+        return response()->json([
+            'data' => $warehouses,
+        ]);
+    }
+
+    /**
+     * Get all QC zones (quarantine + rejection)
+     */
+    public function qcZones(): JsonResponse
+    {
+        $warehouses = Warehouse::where('is_active', true)
+            ->where(function ($query) {
+                $query->where('is_quarantine_zone', true)
+                      ->orWhere('is_rejection_zone', true);
+            })
+            ->get(['id', 'code', 'name', 'is_quarantine_zone', 'is_rejection_zone']);
+
+        return response()->json([
+            'data' => $warehouses,
+        ]);
+    }
 }

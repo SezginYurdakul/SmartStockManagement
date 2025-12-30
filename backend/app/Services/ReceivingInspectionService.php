@@ -13,6 +13,7 @@ use App\Models\Stock;
 use App\Models\Warehouse;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -109,7 +110,7 @@ class ReceivingInspectionService
     /**
      * Create inspections for all items in a GRN
      */
-    public function createInspectionsForGrn(GoodsReceivedNote $grn): Collection
+    public function createInspectionsForGrn(GoodsReceivedNote $grn): SupportCollection
     {
         Log::info('Creating inspections for GRN', [
             'grn_id' => $grn->id,

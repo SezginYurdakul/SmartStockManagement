@@ -199,6 +199,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('warehouses')->group(function () {
         Route::get('/', [WarehouseController::class, 'index'])->middleware('permission:inventory.view');
         Route::get('/list', [WarehouseController::class, 'list'])->middleware('permission:inventory.view');
+        Route::get('/quarantine-zones', [WarehouseController::class, 'quarantineZones'])->middleware('permission:inventory.view');
+        Route::get('/rejection-zones', [WarehouseController::class, 'rejectionZones'])->middleware('permission:inventory.view');
+        Route::get('/qc-zones', [WarehouseController::class, 'qcZones'])->middleware('permission:inventory.view');
         Route::post('/', [WarehouseController::class, 'store'])->middleware('permission:inventory.create');
         Route::get('/{warehouse}', [WarehouseController::class, 'show'])->middleware('permission:inventory.view');
         Route::put('/{warehouse}', [WarehouseController::class, 'update'])->middleware('permission:inventory.edit');
@@ -249,11 +252,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/list', [SupplierController::class, 'list'])->middleware('permission:purchasing.view');
         Route::post('/', [SupplierController::class, 'store'])->middleware('permission:purchasing.create');
         Route::get('/for-product/{productId}', [SupplierController::class, 'forProduct'])->middleware('permission:purchasing.view');
+        Route::get('/quality-ranking', [SupplierController::class, 'qualityRanking'])->middleware('permission:qc.view');
         Route::get('/{supplier}', [SupplierController::class, 'show'])->middleware('permission:purchasing.view');
         Route::put('/{supplier}', [SupplierController::class, 'update'])->middleware('permission:purchasing.edit');
         Route::delete('/{supplier}', [SupplierController::class, 'destroy'])->middleware('permission:purchasing.delete');
         Route::post('/{supplier}/toggle-active', [SupplierController::class, 'toggleActive'])->middleware('permission:purchasing.edit');
         Route::get('/{supplier}/statistics', [SupplierController::class, 'statistics'])->middleware('permission:purchasing.view');
+        Route::get('/{supplier}/quality-score', [SupplierController::class, 'qualityScore'])->middleware('permission:qc.view');
+        Route::get('/{supplier}/quality-statistics', [SupplierController::class, 'qualityStatistics'])->middleware('permission:qc.view');
 
         // Supplier product management
         Route::post('/{supplier}/products', [SupplierController::class, 'attachProducts'])->middleware('permission:purchasing.edit');
@@ -332,6 +338,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{receivingInspection}/record-result', [ReceivingInspectionController::class, 'recordResult'])->middleware('permission:qc.inspect');
         Route::post('/{receivingInspection}/approve', [ReceivingInspectionController::class, 'approve'])->middleware('permission:qc.approve');
         Route::put('/{receivingInspection}/disposition', [ReceivingInspectionController::class, 'updateDisposition'])->middleware('permission:qc.edit');
+        Route::post('/{receivingInspection}/transfer-to-qc', [ReceivingInspectionController::class, 'transferToQcZone'])->middleware('permission:qc.edit');
     });
 
     // Non-Conformance Reports (NCR) routes

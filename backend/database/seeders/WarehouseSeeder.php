@@ -113,6 +113,43 @@ class WarehouseSeeder extends Seeder
                 'is_default' => false,
                 'settings' => ['capacity' => 4000],
             ],
+            // QC Zones
+            [
+                'company_id' => $companyId,
+                'name' => 'Quarantine Zone',
+                'code' => 'QZ-01',
+                'warehouse_type' => 'raw_materials',
+                'address' => '888 Quality Control Road',
+                'city' => 'New York',
+                'country' => 'USA',
+                'postal_code' => '10002',
+                'contact_phone' => '+1-555-0107',
+                'contact_email' => 'quarantine@demo-company.com',
+                'contact_person' => 'Quality Team',
+                'is_active' => true,
+                'is_default' => false,
+                'is_quarantine_zone' => true,
+                'is_rejection_zone' => false,
+                'settings' => ['capacity' => 1000, 'purpose' => 'Hold items pending inspection'],
+            ],
+            [
+                'company_id' => $companyId,
+                'name' => 'Rejection Zone',
+                'code' => 'RZ-01',
+                'warehouse_type' => 'returns',
+                'address' => '999 Quality Control Road',
+                'city' => 'New York',
+                'country' => 'USA',
+                'postal_code' => '10003',
+                'contact_phone' => '+1-555-0108',
+                'contact_email' => 'rejection@demo-company.com',
+                'contact_person' => 'Quality Team',
+                'is_active' => true,
+                'is_default' => false,
+                'is_quarantine_zone' => false,
+                'is_rejection_zone' => true,
+                'settings' => ['capacity' => 500, 'purpose' => 'Hold rejected items for disposal or return'],
+            ],
         ];
 
         foreach ($warehouses as $warehouseData) {
@@ -122,6 +159,18 @@ class WarehouseSeeder extends Seeder
             );
         }
 
-        $this->command->info('Warehouses seeded: ' . count($warehouses) . ' warehouses');
+        // Link QC zones to main warehouse
+        $mainWarehouse = Warehouse::where('code', 'WH-MAIN')->first();
+        $quarantineZone = Warehouse::where('code', 'QZ-01')->first();
+        $rejectionZone = Warehouse::where('code', 'RZ-01')->first();
+
+        if ($mainWarehouse && $quarantineZone && $rejectionZone) {
+            $mainWarehouse->update([
+                'linked_quarantine_warehouse_id' => $quarantineZone->id,
+                'linked_rejection_warehouse_id' => $rejectionZone->id,
+            ]);
+        }
+
+        $this->command->info('Warehouses seeded: ' . count($warehouses) . ' warehouses (including QC zones)');
     }
 }
