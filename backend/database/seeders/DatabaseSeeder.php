@@ -66,5 +66,8 @@ class DatabaseSeeder extends Seeder
 
         // Seed QC test scenarios (acceptance rules, inspections, NCRs)
         $this->call(QualityControlSeeder::class);
+
+        // Seed manufacturing data (work centers, BOMs, routings)
+        $this->call(ManufacturingSeeder::class);
     }
 }

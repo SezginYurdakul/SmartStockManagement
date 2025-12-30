@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AcceptanceRuleController;
 use App\Http\Controllers\AttributeController;
+use App\Http\Controllers\BomController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
@@ -15,11 +16,14 @@ use App\Http\Controllers\ProductTypeController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\ReceivingInspectionController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\RoutingController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\WorkCenterController;
+use App\Http\Controllers\WorkOrderController;
 use Illuminate\Support\Facades\Route;
 
 Route::get("/", function () {
@@ -366,4 +370,104 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     }); // End of procurement module
+
+    // ===================================================
+    // MANUFACTURING MODULE (Phase 5)
+    // Requires: MODULE_MANUFACTURING_ENABLED=true
+    // ===================================================
+    Route::middleware('module:manufacturing')->group(function () {
+
+    // Work Center routes
+    Route::prefix('work-centers')->group(function () {
+        Route::get('/', [WorkCenterController::class, 'index'])->middleware('permission:manufacturing.view');
+        Route::get('/list', [WorkCenterController::class, 'list'])->middleware('permission:manufacturing.view');
+        Route::get('/types', [WorkCenterController::class, 'types'])->middleware('permission:manufacturing.view');
+        Route::post('/', [WorkCenterController::class, 'store'])->middleware('permission:manufacturing.create');
+        Route::get('/{workCenter}', [WorkCenterController::class, 'show'])->middleware('permission:manufacturing.view');
+        Route::put('/{workCenter}', [WorkCenterController::class, 'update'])->middleware('permission:manufacturing.edit');
+        Route::delete('/{workCenter}', [WorkCenterController::class, 'destroy'])->middleware('permission:manufacturing.delete');
+        Route::post('/{workCenter}/toggle-active', [WorkCenterController::class, 'toggleActive'])->middleware('permission:manufacturing.edit');
+        Route::get('/{workCenter}/availability', [WorkCenterController::class, 'availability'])->middleware('permission:manufacturing.view');
+    });
+
+    // BOM (Bill of Materials) routes
+    Route::prefix('boms')->group(function () {
+        Route::get('/', [BomController::class, 'index'])->middleware('permission:manufacturing.view');
+        Route::get('/list', [BomController::class, 'list'])->middleware('permission:manufacturing.view');
+        Route::get('/types', [BomController::class, 'types'])->middleware('permission:manufacturing.view');
+        Route::get('/statuses', [BomController::class, 'statuses'])->middleware('permission:manufacturing.view');
+        Route::get('/for-product/{productId}', [BomController::class, 'forProduct'])->middleware('permission:manufacturing.view');
+        Route::post('/', [BomController::class, 'store'])->middleware('permission:manufacturing.create');
+        Route::get('/{bom}', [BomController::class, 'show'])->middleware('permission:manufacturing.view');
+        Route::put('/{bom}', [BomController::class, 'update'])->middleware('permission:manufacturing.edit');
+        Route::delete('/{bom}', [BomController::class, 'destroy'])->middleware('permission:manufacturing.delete');
+
+        // BOM Item management
+        Route::post('/{bom}/items', [BomController::class, 'addItem'])->middleware('permission:manufacturing.edit');
+        Route::put('/{bom}/items/{itemId}', [BomController::class, 'updateItem'])->middleware('permission:manufacturing.edit');
+        Route::delete('/{bom}/items/{itemId}', [BomController::class, 'removeItem'])->middleware('permission:manufacturing.edit');
+
+        // BOM Workflow actions
+        Route::post('/{bom}/activate', [BomController::class, 'activate'])->middleware('permission:manufacturing.edit');
+        Route::post('/{bom}/obsolete', [BomController::class, 'obsolete'])->middleware('permission:manufacturing.edit');
+        Route::post('/{bom}/set-default', [BomController::class, 'setDefault'])->middleware('permission:manufacturing.edit');
+        Route::post('/{bom}/copy', [BomController::class, 'copy'])->middleware('permission:manufacturing.create');
+        Route::get('/{bom}/explode', [BomController::class, 'explode'])->middleware('permission:manufacturing.view');
+    });
+
+    // Routing routes
+    Route::prefix('routings')->group(function () {
+        Route::get('/', [RoutingController::class, 'index'])->middleware('permission:manufacturing.view');
+        Route::get('/list', [RoutingController::class, 'list'])->middleware('permission:manufacturing.view');
+        Route::get('/statuses', [RoutingController::class, 'statuses'])->middleware('permission:manufacturing.view');
+        Route::get('/for-product/{productId}', [RoutingController::class, 'forProduct'])->middleware('permission:manufacturing.view');
+        Route::post('/', [RoutingController::class, 'store'])->middleware('permission:manufacturing.create');
+        Route::get('/{routing}', [RoutingController::class, 'show'])->middleware('permission:manufacturing.view');
+        Route::put('/{routing}', [RoutingController::class, 'update'])->middleware('permission:manufacturing.edit');
+        Route::delete('/{routing}', [RoutingController::class, 'destroy'])->middleware('permission:manufacturing.delete');
+
+        // Routing Operation management
+        Route::post('/{routing}/operations', [RoutingController::class, 'addOperation'])->middleware('permission:manufacturing.edit');
+        Route::put('/{routing}/operations/{operationId}', [RoutingController::class, 'updateOperation'])->middleware('permission:manufacturing.edit');
+        Route::delete('/{routing}/operations/{operationId}', [RoutingController::class, 'removeOperation'])->middleware('permission:manufacturing.edit');
+        Route::post('/{routing}/operations/reorder', [RoutingController::class, 'reorderOperations'])->middleware('permission:manufacturing.edit');
+
+        // Routing Workflow actions
+        Route::post('/{routing}/activate', [RoutingController::class, 'activate'])->middleware('permission:manufacturing.edit');
+        Route::post('/{routing}/obsolete', [RoutingController::class, 'obsolete'])->middleware('permission:manufacturing.edit');
+        Route::post('/{routing}/set-default', [RoutingController::class, 'setDefault'])->middleware('permission:manufacturing.edit');
+        Route::post('/{routing}/copy', [RoutingController::class, 'copy'])->middleware('permission:manufacturing.create');
+        Route::post('/{routing}/calculate-lead-time', [RoutingController::class, 'calculateLeadTime'])->middleware('permission:manufacturing.view');
+    });
+
+    // Work Order routes
+    Route::prefix('work-orders')->group(function () {
+        Route::get('/', [WorkOrderController::class, 'index'])->middleware('permission:manufacturing.view');
+        Route::get('/statistics', [WorkOrderController::class, 'statistics'])->middleware('permission:manufacturing.view');
+        Route::get('/statuses', [WorkOrderController::class, 'statuses'])->middleware('permission:manufacturing.view');
+        Route::get('/priorities', [WorkOrderController::class, 'priorities'])->middleware('permission:manufacturing.view');
+        Route::post('/', [WorkOrderController::class, 'store'])->middleware('permission:manufacturing.create');
+        Route::get('/{workOrder}', [WorkOrderController::class, 'show'])->middleware('permission:manufacturing.view');
+        Route::put('/{workOrder}', [WorkOrderController::class, 'update'])->middleware('permission:manufacturing.edit');
+        Route::delete('/{workOrder}', [WorkOrderController::class, 'destroy'])->middleware('permission:manufacturing.delete');
+
+        // Work Order Workflow actions
+        Route::post('/{workOrder}/release', [WorkOrderController::class, 'release'])->middleware('permission:manufacturing.release');
+        Route::post('/{workOrder}/start', [WorkOrderController::class, 'start'])->middleware('permission:manufacturing.edit');
+        Route::post('/{workOrder}/complete', [WorkOrderController::class, 'complete'])->middleware('permission:manufacturing.complete');
+        Route::post('/{workOrder}/cancel', [WorkOrderController::class, 'cancel'])->middleware('permission:manufacturing.edit');
+        Route::post('/{workOrder}/hold', [WorkOrderController::class, 'hold'])->middleware('permission:manufacturing.edit');
+        Route::post('/{workOrder}/resume', [WorkOrderController::class, 'resume'])->middleware('permission:manufacturing.edit');
+
+        // Work Order Operation management
+        Route::post('/{workOrder}/operations/{operationId}/start', [WorkOrderController::class, 'startOperation'])->middleware('permission:manufacturing.edit');
+        Route::post('/{workOrder}/operations/{operationId}/complete', [WorkOrderController::class, 'completeOperation'])->middleware('permission:manufacturing.complete');
+
+        // Material and Finished Goods
+        Route::get('/{workOrder}/material-requirements', [WorkOrderController::class, 'materialRequirements'])->middleware('permission:manufacturing.view');
+        Route::post('/{workOrder}/issue-materials', [WorkOrderController::class, 'issueMaterials'])->middleware('permission:manufacturing.edit');
+        Route::post('/{workOrder}/receive-finished-goods', [WorkOrderController::class, 'receiveFinishedGoods'])->middleware('permission:manufacturing.complete');
+    });
+
+    }); // End of manufacturing module
 });

@@ -318,6 +318,44 @@ class RolePermissionSeeder extends Seeder
                 'module' => 'qc',
                 'description' => 'Can approve inspections and set NCR dispositions',
             ],
+
+            // Manufacturing permissions
+            [
+                'name' => 'manufacturing.view',
+                'display_name' => 'View Manufacturing',
+                'module' => 'manufacturing',
+                'description' => 'Can view work centers, BOMs, routings, and work orders',
+            ],
+            [
+                'name' => 'manufacturing.create',
+                'display_name' => 'Create Manufacturing Records',
+                'module' => 'manufacturing',
+                'description' => 'Can create work centers, BOMs, routings, and work orders',
+            ],
+            [
+                'name' => 'manufacturing.edit',
+                'display_name' => 'Edit Manufacturing Records',
+                'module' => 'manufacturing',
+                'description' => 'Can edit work centers, BOMs, routings, and work orders',
+            ],
+            [
+                'name' => 'manufacturing.delete',
+                'display_name' => 'Delete Manufacturing Records',
+                'module' => 'manufacturing',
+                'description' => 'Can delete work centers, BOMs, routings, and work orders',
+            ],
+            [
+                'name' => 'manufacturing.release',
+                'display_name' => 'Release Work Orders',
+                'module' => 'manufacturing',
+                'description' => 'Can release work orders for production',
+            ],
+            [
+                'name' => 'manufacturing.complete',
+                'display_name' => 'Complete Operations',
+                'module' => 'manufacturing',
+                'description' => 'Can complete work order operations and receive finished goods',
+            ],
         ];
 
         foreach ($permissions as $permissionData) {
@@ -359,6 +397,8 @@ class RolePermissionSeeder extends Seeder
             'producttypes.view',
             'inventory.view',
             'purchasing.view',
+            'qc.view',
+            'manufacturing.view',
             'reports.view',
         ])->get();
         $staffRole->permissions()->sync($staffPermissions->pluck('id'));
@@ -452,5 +492,44 @@ class RolePermissionSeeder extends Seeder
             'qc.approve',
         ])->get();
         $qcManagerRole->permissions()->sync($qcManagerPermissions->pluck('id'));
+
+        // Create Production Planner role
+        $productionPlannerRole = Role::firstOrCreate(
+            ['name' => 'production_planner'],
+            [
+                'display_name' => 'Production Planner',
+                'description' => 'Can manage BOMs, routings, and plan work orders',
+                'is_system_role' => true,
+            ]
+        );
+
+        $productionPlannerPermissions = Permission::whereIn('name', [
+            'products.view',
+            'inventory.view',
+            'manufacturing.view',
+            'manufacturing.create',
+            'manufacturing.edit',
+            'manufacturing.release',
+        ])->get();
+        $productionPlannerRole->permissions()->sync($productionPlannerPermissions->pluck('id'));
+
+        // Create Shop Floor Operator role
+        $shopFloorOperatorRole = Role::firstOrCreate(
+            ['name' => 'shop_floor_operator'],
+            [
+                'display_name' => 'Shop Floor Operator',
+                'description' => 'Can start and complete work order operations',
+                'is_system_role' => true,
+            ]
+        );
+
+        $shopFloorOperatorPermissions = Permission::whereIn('name', [
+            'products.view',
+            'inventory.view',
+            'manufacturing.view',
+            'manufacturing.edit',
+            'manufacturing.complete',
+        ])->get();
+        $shopFloorOperatorRole->permissions()->sync($shopFloorOperatorPermissions->pluck('id'));
     }
 }
