@@ -236,6 +236,14 @@ class RoutingService
         Log::info('Reordering routing operations', ['routing_id' => $routing->id]);
 
         DB::transaction(function () use ($routing, $operationIds) {
+            // First, set all to negative temporary values to avoid unique constraint conflicts
+            foreach ($operationIds as $index => $operationId) {
+                $routing->operations()
+                    ->where('id', $operationId)
+                    ->update(['operation_number' => -($index + 1)]);
+            }
+
+            // Then, set to final positive values
             foreach ($operationIds as $index => $operationId) {
                 $routing->operations()
                     ->where('id', $operationId)
