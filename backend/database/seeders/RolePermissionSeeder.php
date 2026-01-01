@@ -356,6 +356,44 @@ class RolePermissionSeeder extends Seeder
                 'module' => 'manufacturing',
                 'description' => 'Can complete work order operations and receive finished goods',
             ],
+
+            // Sales permissions
+            [
+                'name' => 'sales.view',
+                'display_name' => 'View Sales',
+                'module' => 'sales',
+                'description' => 'Can view customers, sales orders, and delivery notes',
+            ],
+            [
+                'name' => 'sales.create',
+                'display_name' => 'Create Sales Records',
+                'module' => 'sales',
+                'description' => 'Can create customers and sales orders',
+            ],
+            [
+                'name' => 'sales.edit',
+                'display_name' => 'Edit Sales Records',
+                'module' => 'sales',
+                'description' => 'Can edit customers and sales orders',
+            ],
+            [
+                'name' => 'sales.delete',
+                'display_name' => 'Delete Sales Records',
+                'module' => 'sales',
+                'description' => 'Can delete customers and sales orders',
+            ],
+            [
+                'name' => 'sales.approve',
+                'display_name' => 'Approve Sales Orders',
+                'module' => 'sales',
+                'description' => 'Can approve or reject sales orders',
+            ],
+            [
+                'name' => 'sales.ship',
+                'display_name' => 'Ship Orders',
+                'module' => 'sales',
+                'description' => 'Can create delivery notes and ship orders',
+            ],
         ];
 
         foreach ($permissions as $permissionData) {
@@ -399,6 +437,7 @@ class RolePermissionSeeder extends Seeder
             'purchasing.view',
             'qc.view',
             'manufacturing.view',
+            'sales.view',
             'reports.view',
         ])->get();
         $staffRole->permissions()->sync($staffPermissions->pluck('id'));
@@ -531,5 +570,47 @@ class RolePermissionSeeder extends Seeder
             'manufacturing.complete',
         ])->get();
         $shopFloorOperatorRole->permissions()->sync($shopFloorOperatorPermissions->pluck('id'));
+
+        // Create Sales Person role
+        $salesPersonRole = Role::firstOrCreate(
+            ['name' => 'sales_person'],
+            [
+                'display_name' => 'Sales Person',
+                'description' => 'Can manage customers and create sales orders',
+                'is_system_role' => true,
+            ]
+        );
+
+        $salesPersonPermissions = Permission::whereIn('name', [
+            'products.view',
+            'inventory.view',
+            'sales.view',
+            'sales.create',
+            'sales.edit',
+        ])->get();
+        $salesPersonRole->permissions()->sync($salesPersonPermissions->pluck('id'));
+
+        // Create Sales Manager role
+        $salesManagerRole = Role::firstOrCreate(
+            ['name' => 'sales_manager'],
+            [
+                'display_name' => 'Sales Manager',
+                'description' => 'Full sales access including approvals and shipping',
+                'is_system_role' => true,
+            ]
+        );
+
+        $salesManagerPermissions = Permission::whereIn('name', [
+            'products.view',
+            'inventory.view',
+            'sales.view',
+            'sales.create',
+            'sales.edit',
+            'sales.delete',
+            'sales.approve',
+            'sales.ship',
+            'reports.view',
+        ])->get();
+        $salesManagerRole->permissions()->sync($salesManagerPermissions->pluck('id'));
     }
 }
