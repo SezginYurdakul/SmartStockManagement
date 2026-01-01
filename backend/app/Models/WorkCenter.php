@@ -130,7 +130,7 @@ class WorkCenter extends Model
                 $q->whereBetween('planned_start', [$startDate, $endDate])
                   ->orWhereBetween('planned_end', [$startDate, $endDate]);
             })
-            ->sum(\DB::raw('(actual_setup_time + actual_run_time) / 60'));
+            ->sum(\DB::raw('(COALESCE(actual_setup_time, planned_setup_time, 0) + COALESCE(actual_run_time, planned_run_time, 0)) / 60'));
 
         return ($availableHours - $scheduledHours) >= $requiredHours;
     }

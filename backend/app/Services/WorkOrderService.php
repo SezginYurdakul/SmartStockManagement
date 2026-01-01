@@ -637,10 +637,11 @@ class WorkOrderService
         $materialCost = 0;
         $laborCost = 0;
 
-        // Material cost
+        // Material cost - use cost_price, fallback to average stock cost
         foreach ($workOrder->materials as $material) {
             $product = $material->product;
-            $materialCost += $material->quantity_required * ($product->standard_cost ?? 0);
+            $unitCost = $product->cost_price ?? $product->stocks()->avg('unit_cost') ?? 0;
+            $materialCost += $material->quantity_required * $unitCost;
         }
 
         // Labor cost from routing

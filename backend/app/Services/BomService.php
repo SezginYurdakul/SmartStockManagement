@@ -356,16 +356,21 @@ class BomService
     /**
      * Explode BOM (multi-level)
      * Returns flat list of all required materials
+     *
+     * @param Bom $bom The BOM to explode
+     * @param float $quantity The quantity to produce
+     * @param int $maxLevel Maximum recursion depth
+     * @param bool $includeOptional Whether to include optional items
      */
-    public function explodeBom(Bom $bom, float $quantity = 1, int $maxLevel = 10): array
+    public function explodeBom(Bom $bom, float $quantity = 1, int $maxLevel = 10, bool $includeOptional = false): array
     {
-        return $this->explodeBomRecursive($bom, $quantity, 0, $maxLevel, []);
+        return $this->explodeBomRecursive($bom, $quantity, 0, $maxLevel, [], $includeOptional);
     }
 
     /**
      * Recursive BOM explosion
      */
-    protected function explodeBomRecursive(Bom $bom, float $quantity, int $level, int $maxLevel, array $visited): array
+    protected function explodeBomRecursive(Bom $bom, float $quantity, int $level, int $maxLevel, array $visited, bool $includeOptional = false): array
     {
         if ($level > $maxLevel) {
             throw new BusinessException("BOM explosion exceeded maximum level ({$maxLevel}). Possible circular reference.");
@@ -379,7 +384,12 @@ class BomService
         $visited[] = $bom->id;
         $materials = [];
 
-        foreach ($bom->items()->with('component.boms')->required()->get() as $item) {
+        $itemsQuery = $bom->items()->with('component.boms');
+        if (!$includeOptional) {
+            $itemsQuery->required();
+        }
+
+        foreach ($itemsQuery->get() as $item) {
             $requiredQty = $item->getRequiredQuantity($quantity / $bom->quantity);
 
             if ($item->is_phantom) {
@@ -396,7 +406,8 @@ class BomService
                         $requiredQty,
                         $level + 1,
                         $maxLevel,
-                        $visited
+                        $visited,
+                        $includeOptional
                     );
                     $materials = array_merge($materials, $childMaterials);
                 } else {
@@ -426,6 +437,7 @@ class BomService
             'level' => $level,
             'bom_item_id' => $item->id,
             'is_phantom' => $item->is_phantom,
+            'is_optional' => $item->is_optional,
             'scrap_percentage' => $item->scrap_percentage,
         ];
     }

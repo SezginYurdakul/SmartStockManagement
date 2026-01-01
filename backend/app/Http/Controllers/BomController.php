@@ -269,15 +269,18 @@ class BomController extends Controller
     {
         $validated = $request->validate([
             'quantity' => 'nullable|numeric|min:0.0001',
+            'include_optional' => 'nullable|boolean',
         ]);
 
         $quantity = $validated['quantity'] ?? 1;
-        $materials = $this->bomService->explodeBom($bom, $quantity);
+        $includeOptional = filter_var($validated['include_optional'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $materials = $this->bomService->explodeBom($bom, $quantity, 10, $includeOptional);
 
         return response()->json([
             'data' => [
                 'bom' => BomListResource::make($bom),
                 'quantity' => $quantity,
+                'include_optional' => $includeOptional,
                 'materials' => $materials,
                 'total_materials' => count($materials),
             ],
