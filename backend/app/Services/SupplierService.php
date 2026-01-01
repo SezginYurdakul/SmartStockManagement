@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\BusinessException;
 use App\Models\Supplier;
 use App\Models\SupplierProduct;
+use App\Models\ReceivingInspection;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -288,5 +289,127 @@ class SupplierService
         }
 
         return 'SUP-' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Get supplier quality score based on inspection results
+     * Score is calculated as: (passed quantity / total inspected quantity) * 100
+     */
+    public function getQualityScore(Supplier $supplier): array
+    {
+        $stats = $this->getQualityStatistics($supplier);
+
+        // Calculate quality score (0-100)
+        $score = $stats['total_inspected'] > 0
+            ? round(($stats['total_passed'] / $stats['total_inspected']) * 100, 2)
+            : null;
+
+        // Determine grade based on score
+        $grade = $this->calculateGrade($score);
+
+        return [
+            'supplier_id' => $supplier->id,
+            'supplier_name' => $supplier->name,
+            'quality_score' => $score,
+            'grade' => $grade,
+            'total_inspections' => $stats['total_inspections'],
+            'total_inspected' => $stats['total_inspected'],
+            'total_passed' => $stats['total_passed'],
+            'total_failed' => $stats['total_failed'],
+            'pass_rate' => $stats['pass_rate'],
+            'fail_rate' => $stats['fail_rate'],
+            'last_inspection_date' => $stats['last_inspection_date'],
+        ];
+    }
+
+    /**
+     * Get detailed quality statistics for a supplier
+     */
+    public function getQualityStatistics(Supplier $supplier, ?array $dateRange = null): array
+    {
+        $query = ReceivingInspection::query()
+            ->whereHas('goodsReceivedNote', function ($q) use ($supplier) {
+                $q->where('supplier_id', $supplier->id);
+            })
+            ->whereNotNull('inspected_at'); // Only completed inspections
+
+        if ($dateRange && !empty($dateRange['from']) && !empty($dateRange['to'])) {
+            $query->whereBetween('inspected_at', [$dateRange['from'], $dateRange['to']]);
+        }
+
+        $inspections = $query->get();
+
+        $totalInspections = $inspections->count();
+        $totalInspected = $inspections->sum('quantity_inspected');
+        $totalPassed = $inspections->sum('quantity_passed');
+        $totalFailed = $inspections->sum('quantity_failed');
+        $totalOnHold = $inspections->sum('quantity_on_hold');
+
+        // Count by result
+        $resultCounts = $inspections->groupBy('result')->map->count();
+
+        // Get last inspection date
+        $lastInspection = $inspections->sortByDesc('inspected_at')->first();
+
+        return [
+            'total_inspections' => $totalInspections,
+            'total_inspected' => $totalInspected,
+            'total_passed' => $totalPassed,
+            'total_failed' => $totalFailed,
+            'total_on_hold' => $totalOnHold,
+            'pass_rate' => $totalInspected > 0 ? round(($totalPassed / $totalInspected) * 100, 2) : 0,
+            'fail_rate' => $totalInspected > 0 ? round(($totalFailed / $totalInspected) * 100, 2) : 0,
+            'by_result' => [
+                'passed' => $resultCounts->get('passed', 0),
+                'failed' => $resultCounts->get('failed', 0),
+                'partial' => $resultCounts->get('partial', 0),
+                'on_hold' => $resultCounts->get('on_hold', 0),
+                'pending' => $resultCounts->get('pending', 0),
+            ],
+            'last_inspection_date' => $lastInspection?->inspected_at?->toDateTimeString(),
+        ];
+    }
+
+    /**
+     * Get quality scores for all suppliers (for ranking/comparison)
+     */
+    public function getQualityScoreRanking(int $limit = 10): array
+    {
+        $companyId = Auth::user()->company_id;
+
+        $suppliers = Supplier::where('company_id', $companyId)
+            ->where('is_active', true)
+            ->get();
+
+        $scores = [];
+        foreach ($suppliers as $supplier) {
+            $score = $this->getQualityScore($supplier);
+            if ($score['total_inspections'] > 0) {
+                $scores[] = $score;
+            }
+        }
+
+        // Sort by quality score descending
+        usort($scores, fn($a, $b) => ($b['quality_score'] ?? 0) <=> ($a['quality_score'] ?? 0));
+
+        return array_slice($scores, 0, $limit);
+    }
+
+    /**
+     * Calculate grade based on quality score
+     */
+    protected function calculateGrade(?float $score): ?string
+    {
+        if ($score === null) {
+            return null;
+        }
+
+        return match (true) {
+            $score >= 95 => 'A',
+            $score >= 85 => 'B',
+            $score >= 70 => 'C',
+            $score >= 50 => 'D',
+            default => 'F',
+        };
     }
 }

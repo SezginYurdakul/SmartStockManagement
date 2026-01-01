@@ -241,4 +241,130 @@ class Product extends Model
     {
         return $this->stock <= 0;
     }
+
+    // =========================================
+    // Manufacturing Module Relationships
+    // =========================================
+
+    /**
+     * Get all BOMs for this product
+     */
+    public function boms()
+    {
+        return $this->hasMany(Bom::class);
+    }
+
+    /**
+     * Get the default BOM for this product
+     */
+    public function defaultBom()
+    {
+        return $this->hasOne(Bom::class)->where('is_default', true)->where('status', 'active');
+    }
+
+    /**
+     * Get all routings for this product
+     */
+    public function routings()
+    {
+        return $this->hasMany(Routing::class);
+    }
+
+    /**
+     * Get the default routing for this product
+     */
+    public function defaultRouting()
+    {
+        return $this->hasOne(Routing::class)->where('is_default', true)->where('status', 'active');
+    }
+
+    /**
+     * Get all work orders for this product
+     */
+    public function workOrders()
+    {
+        return $this->hasMany(WorkOrder::class);
+    }
+
+    /**
+     * Check if product has an active BOM
+     */
+    public function hasActiveBom(): bool
+    {
+        return $this->boms()->where('status', 'active')->exists();
+    }
+
+    /**
+     * Check if product has an active routing
+     */
+    public function hasActiveRouting(): bool
+    {
+        return $this->routings()->where('status', 'active')->exists();
+    }
+
+    /**
+     * Check if product can be manufactured (has both BOM and routing)
+     */
+    public function canBeManufactured(): bool
+    {
+        return $this->hasActiveBom() && $this->hasActiveRouting();
+    }
+
+    /**
+     * Check if product type allows manufacturing (BOM/Routing)
+     */
+    public function isManufacturable(): bool
+    {
+        return $this->productType?->can_be_manufactured ?? false;
+    }
+
+    /**
+     * Check if product can have a BOM attached
+     */
+    public function canHaveBom(): bool
+    {
+        return $this->isManufacturable();
+    }
+
+    /**
+     * Check if product can be used as a component in BOMs
+     * (All products can be components, but optionally restrict)
+     */
+    public function canBeComponent(): bool
+    {
+        // All inventory-tracked products can be components
+        return $this->productType?->track_inventory ?? true;
+    }
+
+    /**
+     * Get BOMs where this product is used as a component
+     * (Where Used / Reverse BOM lookup)
+     */
+    public function usedInBoms()
+    {
+        return $this->hasManyThrough(
+            Bom::class,
+            BomItem::class,
+            'component_id', // Foreign key on bom_items
+            'id',           // Foreign key on boms
+            'id',           // Local key on products
+            'bom_id'        // Local key on bom_items
+        );
+    }
+
+    /**
+     * Get BOM items where this product is used as a component
+     */
+    public function bomItemsAsComponent()
+    {
+        return $this->hasMany(BomItem::class, 'component_id');
+    }
+
+    /**
+     * Check if product is used as component in any BOM
+     */
+    public function isUsedAsComponent(): bool
+    {
+        return $this->bomItemsAsComponent()->exists();
+    }
 }

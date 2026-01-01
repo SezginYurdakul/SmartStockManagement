@@ -2,14 +2,15 @@
 
 namespace App\Services;
 
+use App\Enums\PoStatus;
 use App\Exceptions\BusinessException;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
@@ -113,7 +114,7 @@ class PurchaseOrderService
                 'warehouse_id' => $data['warehouse_id'],
                 'order_date' => $data['order_date'] ?? now(),
                 'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
-                'status' => $data['status'] ?? PurchaseOrder::STATUS_DRAFT,
+                'status' => $data['status'] ?? PoStatus::DRAFT->value,
                 'currency' => $data['currency'] ?? 'USD',
                 'exchange_rate' => $data['exchange_rate'] ?? 1.0,
                 'discount_amount' => $data['discount_amount'] ?? 0,
@@ -286,7 +287,10 @@ class PurchaseOrderService
      */
     public function submitForApproval(PurchaseOrder $purchaseOrder): PurchaseOrder
     {
-        if ($purchaseOrder->status !== PurchaseOrder::STATUS_DRAFT) {
+        $currentStatus = $purchaseOrder->status_enum;
+        $targetStatus = PoStatus::PENDING_APPROVAL;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
             throw new BusinessException('Only draft orders can be submitted for approval.');
         }
 
@@ -300,7 +304,7 @@ class PurchaseOrderService
         ]);
 
         $purchaseOrder->update([
-            'status' => PurchaseOrder::STATUS_PENDING_APPROVAL,
+            'status' => $targetStatus->value,
             'updated_by' => Auth::id(),
         ]);
 
@@ -312,7 +316,10 @@ class PurchaseOrderService
      */
     public function approve(PurchaseOrder $purchaseOrder): PurchaseOrder
     {
-        if (!$purchaseOrder->canBeApproved()) {
+        $currentStatus = $purchaseOrder->status_enum;
+        $targetStatus = PoStatus::APPROVED;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
             throw new BusinessException('Purchase order cannot be approved in current status.');
         }
 
@@ -323,7 +330,7 @@ class PurchaseOrderService
         ]);
 
         $purchaseOrder->update([
-            'status' => PurchaseOrder::STATUS_APPROVED,
+            'status' => $targetStatus->value,
             'approved_by' => Auth::id(),
             'approved_at' => now(),
             'updated_by' => Auth::id(),
@@ -337,7 +344,10 @@ class PurchaseOrderService
      */
     public function reject(PurchaseOrder $purchaseOrder, ?string $reason = null): PurchaseOrder
     {
-        if ($purchaseOrder->status !== PurchaseOrder::STATUS_PENDING_APPROVAL) {
+        $currentStatus = $purchaseOrder->status_enum;
+        $targetStatus = PoStatus::DRAFT;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
             throw new BusinessException('Only pending orders can be rejected.');
         }
 
@@ -348,7 +358,7 @@ class PurchaseOrderService
         ]);
 
         $purchaseOrder->update([
-            'status' => PurchaseOrder::STATUS_DRAFT,
+            'status' => $targetStatus->value,
             'internal_notes' => $reason ? "Rejected: {$reason}\n" . $purchaseOrder->internal_notes : $purchaseOrder->internal_notes,
             'updated_by' => Auth::id(),
         ]);
@@ -361,7 +371,10 @@ class PurchaseOrderService
      */
     public function markAsSent(PurchaseOrder $purchaseOrder): PurchaseOrder
     {
-        if (!$purchaseOrder->canBeSent()) {
+        $currentStatus = $purchaseOrder->status_enum;
+        $targetStatus = PoStatus::SENT;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
             throw new BusinessException('Purchase order cannot be sent in current status.');
         }
 
@@ -371,7 +384,7 @@ class PurchaseOrderService
         ]);
 
         $purchaseOrder->update([
-            'status' => PurchaseOrder::STATUS_SENT,
+            'status' => $targetStatus->value,
             'updated_by' => Auth::id(),
         ]);
 
@@ -383,7 +396,10 @@ class PurchaseOrderService
      */
     public function cancel(PurchaseOrder $purchaseOrder, ?string $reason = null): PurchaseOrder
     {
-        if (!$purchaseOrder->canBeCancelled()) {
+        $currentStatus = $purchaseOrder->status_enum;
+        $targetStatus = PoStatus::CANCELLED;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
             throw new BusinessException('Purchase order cannot be cancelled in current status.');
         }
 
@@ -394,7 +410,7 @@ class PurchaseOrderService
         ]);
 
         $purchaseOrder->update([
-            'status' => PurchaseOrder::STATUS_CANCELLED,
+            'status' => $targetStatus->value,
             'internal_notes' => $reason ? "Cancelled: {$reason}\n" . $purchaseOrder->internal_notes : $purchaseOrder->internal_notes,
             'updated_by' => Auth::id(),
         ]);
@@ -407,13 +423,20 @@ class PurchaseOrderService
      */
     public function close(PurchaseOrder $purchaseOrder): PurchaseOrder
     {
+        $currentStatus = $purchaseOrder->status_enum;
+        $targetStatus = PoStatus::CLOSED;
+
+        if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
+            throw new BusinessException('Purchase order cannot be closed in current status.');
+        }
+
         Log::info('Closing purchase order', [
             'purchase_order_id' => $purchaseOrder->id,
             'order_number' => $purchaseOrder->order_number,
         ]);
 
         $purchaseOrder->update([
-            'status' => PurchaseOrder::STATUS_CLOSED,
+            'status' => $targetStatus->value,
             'updated_by' => Auth::id(),
         ]);
 
@@ -425,7 +448,9 @@ class PurchaseOrderService
      */
     public function delete(PurchaseOrder $purchaseOrder): bool
     {
-        if (!in_array($purchaseOrder->status, [PurchaseOrder::STATUS_DRAFT, PurchaseOrder::STATUS_CANCELLED])) {
+        $currentStatus = $purchaseOrder->status_enum;
+
+        if (!$currentStatus || !in_array($currentStatus, [PoStatus::DRAFT, PoStatus::CANCELLED])) {
             throw new BusinessException('Only draft or cancelled orders can be deleted.');
         }
 
@@ -496,16 +521,16 @@ class PurchaseOrderService
 
         return [
             'total_orders' => $query->clone()->count(),
-            'draft_orders' => $query->clone()->status(PurchaseOrder::STATUS_DRAFT)->count(),
-            'pending_approval' => $query->clone()->status(PurchaseOrder::STATUS_PENDING_APPROVAL)->count(),
-            'sent_orders' => $query->clone()->status(PurchaseOrder::STATUS_SENT)->count(),
+            'draft_orders' => $query->clone()->status(PoStatus::DRAFT->value)->count(),
+            'pending_approval' => $query->clone()->status(PoStatus::PENDING_APPROVAL->value)->count(),
+            'sent_orders' => $query->clone()->status(PoStatus::SENT->value)->count(),
             'received_orders' => $query->clone()->whereIn('status', [
-                PurchaseOrder::STATUS_RECEIVED,
-                PurchaseOrder::STATUS_PARTIALLY_RECEIVED,
+                PoStatus::RECEIVED->value,
+                PoStatus::PARTIALLY_RECEIVED->value,
             ])->count(),
             'total_amount' => $query->clone()->whereNotIn('status', [
-                PurchaseOrder::STATUS_DRAFT,
-                PurchaseOrder::STATUS_CANCELLED,
+                PoStatus::DRAFT->value,
+                PoStatus::CANCELLED->value,
             ])->sum('total_amount'),
             'overdue_orders' => PurchaseOrder::overdue()->count(),
         ];

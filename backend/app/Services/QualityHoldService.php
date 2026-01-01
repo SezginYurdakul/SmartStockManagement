@@ -7,6 +7,7 @@ use App\Models\Warehouse;
 use App\Models\StockMovement;
 use App\Exceptions\QualityHoldException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class QualityHoldService
@@ -87,7 +88,7 @@ class QualityHoldService
                 $reason,
                 $holdUntil,
                 $restrictions,
-                auth()->id(),
+                Auth::id(),
                 $referenceType,
                 $referenceId
             );
@@ -133,7 +134,7 @@ class QualityHoldService
                 'quality_status' => Stock::QUALITY_CONDITIONAL,
                 'hold_reason' => $reason,
                 'quality_restrictions' => $restrictions,
-                'quality_hold_by' => auth()->id(),
+                'quality_hold_by' => Auth::id(),
                 'quality_hold_at' => now(),
                 'quality_reference_type' => $referenceType,
                 'quality_reference_id' => $referenceId,
@@ -195,7 +196,7 @@ class QualityHoldService
                 'warehouse_id' => $quarantineWarehouse->id,
                 'quality_status' => Stock::QUALITY_QUARANTINE,
                 'hold_reason' => $reason,
-                'quality_hold_by' => auth()->id(),
+                'quality_hold_by' => Auth::id(),
                 'quality_hold_at' => now(),
                 'quality_reference_type' => $referenceType,
                 'quality_reference_id' => $referenceId,
@@ -217,7 +218,7 @@ class QualityHoldService
                 'quality_status_from' => $previousStatus,
                 'quality_status_to' => Stock::QUALITY_QUARANTINE,
                 'notes' => "Transferred to quarantine: {$reason}",
-                'created_by' => auth()->id(),
+                'created_by' => Auth::id(),
             ]);
 
             return $stock->fresh();
@@ -250,7 +251,7 @@ class QualityHoldService
                 'warehouse_id' => $rejectionWarehouse->id,
                 'quality_status' => Stock::QUALITY_REJECTED,
                 'hold_reason' => $reason,
-                'quality_hold_by' => auth()->id(),
+                'quality_hold_by' => Auth::id(),
                 'quality_hold_at' => now(),
                 'quality_reference_type' => $referenceType,
                 'quality_reference_id' => $referenceId,
@@ -272,7 +273,7 @@ class QualityHoldService
                 'quality_status_from' => $previousStatus,
                 'quality_status_to' => Stock::QUALITY_REJECTED,
                 'notes' => "Transferred to rejection: {$reason}",
-                'created_by' => auth()->id(),
+                'created_by' => Auth::id(),
             ]);
 
             return $stock->fresh();
@@ -333,7 +334,7 @@ class QualityHoldService
                 'quality_status_from' => $previousStatus,
                 'quality_status_to' => $newQualityStatus,
                 'notes' => "Released from QC zone",
-                'created_by' => auth()->id(),
+                'created_by' => Auth::id(),
             ]);
 
             return $stock->fresh();
@@ -422,7 +423,7 @@ class QualityHoldService
             'quality_status_from' => $fromStatus,
             'quality_status_to' => $toStatus,
             'notes' => "Quality status changed from {$fromStatus} to {$toStatus}",
-            'created_by' => auth()->id(),
+            'created_by' => Auth::id(),
         ]);
     }
 

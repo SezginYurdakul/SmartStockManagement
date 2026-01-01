@@ -164,4 +164,22 @@ class ReceivingInspectionController extends Controller
             'data' => $this->inspectionService->getDispositions(),
         ]);
     }
+
+    /**
+     * Transfer inspection items to QC zone (quarantine or rejection warehouse)
+     */
+    public function transferToQcZone(Request $request, ReceivingInspection $receivingInspection): JsonResource
+    {
+        $validated = $request->validate([
+            'target_warehouse_id' => 'required|exists:warehouses,id',
+        ]);
+
+        $inspection = $this->inspectionService->transferToQcZone(
+            $receivingInspection,
+            $validated['target_warehouse_id']
+        );
+
+        return ReceivingInspectionResource::make($inspection)
+            ->additional(['message' => 'Items transferred to QC zone successfully']);
+    }
 }

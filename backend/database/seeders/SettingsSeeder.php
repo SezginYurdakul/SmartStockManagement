@@ -9,115 +9,58 @@ class SettingsSeeder extends Seeder
 {
     /**
      * Run the database seeds.
+     *
+     * NOTE: Enum-like values (inspection_types, sampling_methods, results, statuses, etc.)
+     * are defined as constants in their respective models (ReceivingInspection, NonConformanceReport, etc.)
+     * This ensures consistency with database enum constraints and provides type-safety.
+     *
+     * Settings table should only contain truly dynamic/configurable values.
      */
     public function run(): void
     {
         $settings = [
-            // QC - Inspection Types
+            // ===================
+            // QC Default Settings
+            // ===================
             [
                 'group' => 'qc',
-                'key' => 'inspection_types',
-                'value' => [
-                    'visual' => 'Visual Inspection',
-                    'dimensional' => 'Dimensional Inspection',
-                    'functional' => 'Functional Test',
-                    'documentation' => 'Documentation Check',
-                    'sampling' => 'Sample Testing',
-                ],
-                'description' => 'Available inspection types for acceptance rules',
+                'key' => 'default_aql_level',
+                'value' => 'II',
+                'description' => 'Default AQL inspection level for new acceptance rules',
                 'is_system' => true,
             ],
-            // QC - Sampling Methods
             [
                 'group' => 'qc',
-                'key' => 'sampling_methods',
-                'value' => [
-                    '100_percent' => '100% Inspection',
-                    'aql' => 'AQL Sampling',
-                    'random' => 'Random Sampling',
-                    'skip_lot' => 'Skip Lot',
-                ],
-                'description' => 'Available sampling methods for inspections',
+                'key' => 'default_sampling_method',
+                'value' => 'aql',
+                'description' => 'Default sampling method for new acceptance rules',
                 'is_system' => true,
             ],
-            // QC - Inspection Results
             [
                 'group' => 'qc',
-                'key' => 'inspection_results',
-                'value' => [
-                    'pending' => 'Pending',
-                    'pass' => 'Pass',
-                    'fail' => 'Fail',
-                    'conditional_pass' => 'Conditional Pass',
-                ],
-                'description' => 'Possible inspection result statuses',
+                'key' => 'auto_create_ncr_on_failure',
+                'value' => true,
+                'description' => 'Automatically create NCR when inspection fails',
                 'is_system' => true,
             ],
-            // QC - Dispositions
             [
                 'group' => 'qc',
-                'key' => 'dispositions',
-                'value' => [
-                    'accept' => 'Accept',
-                    'reject' => 'Reject',
-                    'hold' => 'Hold for Review',
-                    'rework' => 'Rework Required',
-                    'return_to_supplier' => 'Return to Supplier',
-                    'use_as_is' => 'Use As-Is',
-                ],
-                'description' => 'Disposition options for inspected items',
+                'key' => 'require_approval_for_use_as_is',
+                'value' => true,
+                'description' => 'Require manager approval for use-as-is disposition',
                 'is_system' => true,
             ],
-            // QC - Defect Types
             [
                 'group' => 'qc',
-                'key' => 'defect_types',
-                'value' => [
-                    'physical_damage' => 'Physical Damage',
-                    'dimensional_error' => 'Dimensional Error',
-                    'cosmetic_defect' => 'Cosmetic Defect',
-                    'functional_failure' => 'Functional Failure',
-                    'material_defect' => 'Material Defect',
-                    'contamination' => 'Contamination',
-                    'packaging_damage' => 'Packaging Damage',
-                    'documentation_error' => 'Documentation Error',
-                    'labeling_error' => 'Labeling Error',
-                    'quantity_discrepancy' => 'Quantity Discrepancy',
-                    'quality_deviation' => 'Quality Deviation',
-                    'other' => 'Other',
-                ],
-                'description' => 'Types of defects for NCR classification',
+                'key' => 'quarantine_critical_ncr',
+                'value' => true,
+                'description' => 'Automatically quarantine stock for critical NCRs',
                 'is_system' => true,
             ],
-            // QC - NCR Severities
-            [
-                'group' => 'qc',
-                'key' => 'ncr_severities',
-                'value' => [
-                    'critical' => 'Critical',
-                    'major' => 'Major',
-                    'minor' => 'Minor',
-                ],
-                'description' => 'Severity levels for non-conformance reports',
-                'is_system' => true,
-            ],
-            // QC - NCR Statuses
-            [
-                'group' => 'qc',
-                'key' => 'ncr_statuses',
-                'value' => [
-                    'draft' => 'Draft',
-                    'open' => 'Open',
-                    'under_review' => 'Under Review',
-                    'pending_disposition' => 'Pending Disposition',
-                    'in_progress' => 'In Progress',
-                    'closed' => 'Closed',
-                    'cancelled' => 'Cancelled',
-                ],
-                'description' => 'Status workflow for NCR',
-                'is_system' => true,
-            ],
-            // QC - AQL Levels
+
+            // ===================
+            // AQL Reference Tables
+            // ===================
             [
                 'group' => 'qc',
                 'key' => 'aql_levels',
@@ -127,10 +70,72 @@ class SettingsSeeder extends Seeder
                     'S-3' => 'Special Level S-3',
                     'S-4' => 'Special Level S-4',
                     'I' => 'General Level I',
-                    'II' => 'General Level II',
+                    'II' => 'General Level II (Standard)',
                     'III' => 'General Level III',
                 ],
                 'description' => 'AQL inspection levels (ANSI/ASQ Z1.4)',
+                'is_system' => true,
+            ],
+            [
+                'group' => 'qc',
+                'key' => 'aql_values',
+                'value' => [
+                    '0.065' => '0.065%',
+                    '0.10' => '0.10%',
+                    '0.15' => '0.15%',
+                    '0.25' => '0.25%',
+                    '0.40' => '0.40%',
+                    '0.65' => '0.65%',
+                    '1.0' => '1.0%',
+                    '1.5' => '1.5%',
+                    '2.5' => '2.5%',
+                    '4.0' => '4.0%',
+                    '6.5' => '6.5%',
+                ],
+                'description' => 'Acceptable Quality Level percentages',
+                'is_system' => true,
+            ],
+
+            // ===================
+            // Notification Settings
+            // ===================
+            [
+                'group' => 'qc',
+                'key' => 'notify_on_critical_ncr',
+                'value' => true,
+                'description' => 'Send email notification for critical NCRs',
+                'is_system' => true,
+            ],
+            [
+                'group' => 'qc',
+                'key' => 'critical_ncr_notify_emails',
+                'value' => [],
+                'description' => 'Email addresses to notify for critical NCRs',
+                'is_system' => false,
+            ],
+
+            // ===================
+            // General App Settings
+            // ===================
+            [
+                'group' => 'app',
+                'key' => 'items_per_page',
+                'value' => 15,
+                'description' => 'Default number of items per page in listings',
+                'is_system' => true,
+            ],
+            [
+                'group' => 'app',
+                'key' => 'date_format',
+                'value' => 'Y-m-d',
+                'description' => 'Default date format for display',
+                'is_system' => true,
+            ],
+            [
+                'group' => 'app',
+                'key' => 'datetime_format',
+                'value' => 'Y-m-d H:i:s',
+                'description' => 'Default datetime format for display',
                 'is_system' => true,
             ],
         ];

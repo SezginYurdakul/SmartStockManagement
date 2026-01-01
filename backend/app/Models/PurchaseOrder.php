@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PoStatus;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -134,14 +135,19 @@ class PurchaseOrder extends Model
     }
 
     /**
+     * Get status as Enum
+     */
+    public function getStatusEnumAttribute(): ?PoStatus
+    {
+        return $this->status ? PoStatus::tryFrom($this->status) : null;
+    }
+
+    /**
      * Check if order can be edited
      */
     public function canBeEdited(): bool
     {
-        return in_array($this->status, [
-            self::STATUS_DRAFT,
-            self::STATUS_PENDING_APPROVAL,
-        ]);
+        return $this->status_enum?->canEdit() ?? false;
     }
 
     /**
@@ -149,7 +155,7 @@ class PurchaseOrder extends Model
      */
     public function canBeApproved(): bool
     {
-        return $this->status === self::STATUS_PENDING_APPROVAL;
+        return $this->status_enum?->requiresApproval() ?? false;
     }
 
     /**
@@ -165,10 +171,7 @@ class PurchaseOrder extends Model
      */
     public function canReceiveGoods(): bool
     {
-        return in_array($this->status, [
-            self::STATUS_SENT,
-            self::STATUS_PARTIALLY_RECEIVED,
-        ]);
+        return $this->status_enum?->canReceive() ?? false;
     }
 
     /**
@@ -176,11 +179,7 @@ class PurchaseOrder extends Model
      */
     public function canBeCancelled(): bool
     {
-        return in_array($this->status, [
-            self::STATUS_DRAFT,
-            self::STATUS_PENDING_APPROVAL,
-            self::STATUS_APPROVED,
-        ]);
+        return $this->status_enum?->canCancel() ?? false;
     }
 
     /**

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\InspectionDisposition;
+use App\Enums\InspectionResult;
 use App\Exceptions\BusinessException;
 use App\Models\GoodsReceivedNote;
 use App\Models\GoodsReceivedNoteItem;
@@ -11,6 +13,7 @@ use App\Models\Stock;
 use App\Models\Warehouse;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -107,7 +110,7 @@ class ReceivingInspectionService
     /**
      * Create inspections for all items in a GRN
      */
-    public function createInspectionsForGrn(GoodsReceivedNote $grn): Collection
+    public function createInspectionsForGrn(GoodsReceivedNote $grn): SupportCollection
     {
         Log::info('Creating inspections for GRN', [
             'grn_id' => $grn->id,
@@ -144,8 +147,8 @@ class ReceivingInspectionService
                     'batch_number' => $item->batch_number,
                     'quantity_received' => $item->quantity_received,
                     'quantity_inspected' => $sampleSize,
-                    'result' => ReceivingInspection::RESULT_PENDING,
-                    'disposition' => ReceivingInspection::DISPOSITION_PENDING,
+                    'result' => InspectionResult::PENDING->value,
+                    'disposition' => InspectionDisposition::PENDING->value,
                 ]);
 
                 $inspections->push($inspection);
@@ -207,7 +210,7 @@ class ReceivingInspectionService
                 'quantity_failed' => $quantityFailed,
                 'quantity_on_hold' => $quantityOnHold,
                 'result' => $result,
-                'disposition' => $data['disposition'] ?? ReceivingInspection::DISPOSITION_PENDING,
+                'disposition' => $data['disposition'] ?? InspectionDisposition::PENDING->value,
                 'inspection_data' => $data['inspection_data'] ?? null,
                 'failure_reason' => $data['failure_reason'] ?? null,
                 'notes' => $data['notes'] ?? null,
@@ -298,22 +301,22 @@ class ReceivingInspectionService
     protected function determineResult(float $passed, float $failed, float $onHold, float $total): string
     {
         if ($onHold > 0) {
-            return ReceivingInspection::RESULT_ON_HOLD;
+            return InspectionResult::ON_HOLD->value;
         }
 
         if ($failed === 0 && $passed > 0) {
-            return ReceivingInspection::RESULT_PASSED;
+            return InspectionResult::PASSED->value;
         }
 
         if ($passed === 0 && $failed > 0) {
-            return ReceivingInspection::RESULT_FAILED;
+            return InspectionResult::FAILED->value;
         }
 
         if ($passed > 0 && $failed > 0) {
-            return ReceivingInspection::RESULT_PARTIAL;
+            return InspectionResult::PARTIAL->value;
         }
 
-        return ReceivingInspection::RESULT_PENDING;
+        return InspectionResult::PENDING->value;
     }
 
     /**
@@ -327,35 +330,33 @@ class ReceivingInspectionService
             return;
         }
 
-        // Calculate accepted/rejected based on disposition
-        switch ($inspection->disposition) {
-            case ReceivingInspection::DISPOSITION_ACCEPT:
-            case ReceivingInspection::DISPOSITION_USE_AS_IS:
-                $grnItem->update([
-                    'quantity_accepted' => $inspection->quantity_passed + $inspection->quantity_on_hold,
-                    'quantity_rejected' => $inspection->quantity_failed,
-                ]);
-                break;
+        $disposition = $inspection->disposition_enum;
 
-            case ReceivingInspection::DISPOSITION_REJECT:
-            case ReceivingInspection::DISPOSITION_RETURN:
-                $grnItem->update([
-                    'quantity_accepted' => 0,
-                    'quantity_rejected' => $inspection->quantity_received,
-                ]);
-                break;
+        if (!$disposition || !$disposition->isFinal()) {
+            // Pending - no changes
+            $this->updateStockQualityStatus($inspection);
+            return;
+        }
 
-            case ReceivingInspection::DISPOSITION_REWORK:
-                // Rework items are on hold until rework is complete
-                $grnItem->update([
-                    'quantity_accepted' => $inspection->quantity_passed,
-                    'quantity_rejected' => $inspection->quantity_failed,
-                ]);
-                break;
-
-            default:
-                // Pending - no changes
-                break;
+        // Calculate accepted/rejected based on disposition using Enum methods
+        if ($disposition->allowsStockEntry()) {
+            // Accept or Use As Is
+            $grnItem->update([
+                'quantity_accepted' => $inspection->quantity_passed + $inspection->quantity_on_hold,
+                'quantity_rejected' => $inspection->quantity_failed,
+            ]);
+        } elseif ($disposition->notifySupplier()) {
+            // Reject or Return to Supplier
+            $grnItem->update([
+                'quantity_accepted' => 0,
+                'quantity_rejected' => $inspection->quantity_received,
+            ]);
+        } elseif ($disposition === InspectionDisposition::REWORK) {
+            // Rework items are on hold until rework is complete
+            $grnItem->update([
+                'quantity_accepted' => $inspection->quantity_passed,
+                'quantity_rejected' => $inspection->quantity_failed,
+            ]);
         }
 
         // Update stock quality status based on disposition
@@ -431,14 +432,19 @@ class ReceivingInspectionService
      */
     protected function getQualityStatusFromDisposition(ReceivingInspection $inspection): ?string
     {
-        return match ($inspection->disposition) {
-            ReceivingInspection::DISPOSITION_ACCEPT => Stock::QUALITY_AVAILABLE,
-            ReceivingInspection::DISPOSITION_USE_AS_IS => Stock::QUALITY_CONDITIONAL,
-            ReceivingInspection::DISPOSITION_REJECT,
-            ReceivingInspection::DISPOSITION_RETURN => Stock::QUALITY_REJECTED,
-            ReceivingInspection::DISPOSITION_REWORK => Stock::QUALITY_ON_HOLD,
-            ReceivingInspection::DISPOSITION_QUARANTINE => Stock::QUALITY_QUARANTINE,
-            default => null, // Pending - no change
+        $disposition = $inspection->disposition_enum;
+
+        if (!$disposition || !$disposition->isFinal()) {
+            return null; // Pending - no change
+        }
+
+        return match ($disposition) {
+            InspectionDisposition::ACCEPT => Stock::QUALITY_AVAILABLE,
+            InspectionDisposition::USE_AS_IS => Stock::QUALITY_CONDITIONAL,
+            InspectionDisposition::REJECT,
+            InspectionDisposition::RETURN_TO_SUPPLIER => Stock::QUALITY_REJECTED,
+            InspectionDisposition::REWORK => Stock::QUALITY_ON_HOLD,
+            default => null,
         };
     }
 
@@ -469,7 +475,9 @@ class ReceivingInspectionService
      */
     protected function getRestrictionsFromInspection(ReceivingInspection $inspection): ?array
     {
-        if ($inspection->disposition !== ReceivingInspection::DISPOSITION_USE_AS_IS) {
+        $disposition = $inspection->disposition_enum;
+
+        if ($disposition !== InspectionDisposition::USE_AS_IS) {
             return null;
         }
 
@@ -588,9 +596,9 @@ class ReceivingInspectionService
         return [
             'total_inspections' => $query->clone()->count(),
             'pending_inspections' => $query->clone()->pending()->count(),
-            'passed_inspections' => $query->clone()->where('result', ReceivingInspection::RESULT_PASSED)->count(),
-            'failed_inspections' => $query->clone()->where('result', ReceivingInspection::RESULT_FAILED)->count(),
-            'partial_inspections' => $query->clone()->where('result', ReceivingInspection::RESULT_PARTIAL)->count(),
+            'passed_inspections' => $query->clone()->where('result', InspectionResult::PASSED->value)->count(),
+            'failed_inspections' => $query->clone()->where('result', InspectionResult::FAILED->value)->count(),
+            'partial_inspections' => $query->clone()->where('result', InspectionResult::PARTIAL->value)->count(),
             'total_quantity_inspected' => $totalInspected,
             'total_quantity_passed' => $totalPassed,
             'total_quantity_failed' => $totalFailed,

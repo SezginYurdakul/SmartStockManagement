@@ -207,7 +207,7 @@ class Warehouse extends Model
             self::TYPE_RAW_MATERIALS => 'Raw Materials',
             self::TYPE_WIP => 'Work in Progress',
             self::TYPE_RETURNS => 'Returns',
-            default => $this->warehouse_type,
+            default => $this->warehouse_type ?? 'General',
         };
     }
 }

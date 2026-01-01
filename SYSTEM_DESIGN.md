@@ -1,7 +1,7 @@
 # Smart Stock Management System (MRP II) - Final Design Document
 
-**Version:** 5.5
-**Date:** 2025-12-26
+**Version:** 5.6
+**Date:** 2025-12-30
 **Status:** Production Ready Design
 **System Type:** Material Requirements Planning II (MRP II) - Modular Architecture
 
@@ -969,42 +969,406 @@ INDEX idx_so_status ON sales_orders(status)
 
 ---
 
-### 6.7 Manufacturing
+### 6.7 Manufacturing (Phase 5)
+
+Manufacturing modülü MRP II sisteminin çekirdeğidir. BOM, Work Centers, Routings ve Work Orders içerir.
 
 #### Work Centers
 ```sql
 work_centers
 ├── id (bigint, PK)
 ├── company_id (bigint, FK)
-├── code (varchar(50))
-├── name (varchar(255)) -- Single language
-├── work_center_type (enum: machine, manual, assembly, quality)
+├── code (varchar(50), unique per company)
+├── name (varchar(255))
+├── description (text, nullable)
+├── work_center_type (enum: machine, labor, subcontract, tool)
 ├── cost_per_hour (decimal(15,4), default: 0)
+├── cost_currency (varchar(3), default: 'USD')
+├── capacity_per_day (decimal(15,3), default: 8) -- Hours per day
+├── efficiency_percentage (decimal(5,2), default: 100.00)
 ├── is_active (boolean, default: true)
-├── created_at (timestamp)
-└── updated_at (timestamp)
-```
-
-#### Production Orders
-```sql
-production_orders
-├── id (bigint, PK)
-├── company_id (bigint, FK)
-├── order_number (varchar(50), unique)
-├── product_id (bigint, FK)
-├── bom_id (bigint, FK)
-├── warehouse_id (bigint, FK)
-├── quantity_to_produce (decimal(15,3))
-├── quantity_produced (decimal(15,3), default: 0)
-├── status (enum: draft, released, in_progress, completed, cancelled)
-├── scheduled_start_date (date)
-├── scheduled_end_date (date)
-├── actual_start_date (date, nullable)
-├── actual_end_date (date, nullable)
+├── settings (jsonb, nullable)
 ├── created_by (bigint, FK)
 ├── created_at (timestamp)
 ├── updated_at (timestamp)
 └── deleted_at (timestamp, nullable)
+
+INDEX idx_work_centers_active ON work_centers(company_id, is_active)
+INDEX idx_work_centers_type ON work_centers(company_id, work_center_type)
+```
+
+#### BOMs (Bill of Materials Header)
+```sql
+boms
+├── id (bigint, PK)
+├── company_id (bigint, FK)
+├── product_id (bigint, FK)
+├── bom_number (varchar(50), unique per company)
+├── version (integer, default: 1)
+├── name (varchar(255))
+├── description (text, nullable)
+├── bom_type (enum: manufacturing, engineering, phantom)
+├── status (enum: draft, active, obsolete)
+├── quantity (decimal(15,4), default: 1) -- Base quantity
+├── uom_id (bigint, FK)
+├── is_default (boolean, default: false)
+├── effective_date (date, nullable)
+├── expiry_date (date, nullable)
+├── notes (text, nullable)
+├── meta_data (jsonb, nullable)
+├── created_by (bigint, FK)
+├── created_at (timestamp)
+├── updated_at (timestamp)
+└── deleted_at (timestamp, nullable)
+
+INDEX idx_boms_product ON boms(company_id, product_id)
+INDEX idx_boms_status ON boms(company_id, status)
+INDEX idx_boms_default ON boms(product_id, is_default)
+```
+
+#### BOM Items (Components)
+```sql
+bom_items
+├── id (bigint, PK)
+├── bom_id (bigint, FK)
+├── component_id (bigint, FK to products)
+├── line_number (integer, default: 1)
+├── quantity (decimal(15,4))
+├── uom_id (bigint, FK)
+├── scrap_percentage (decimal(5,2), default: 0)
+├── is_optional (boolean, default: false)
+├── is_phantom (boolean, default: false) -- Pass-through item
+├── notes (text, nullable)
+├── created_at (timestamp)
+└── updated_at (timestamp)
+
+UNIQUE idx_bom_component ON bom_items(bom_id, component_id)
+INDEX idx_bom_items_line ON bom_items(bom_id, line_number)
+```
+
+#### Routings (Header)
+```sql
+routings
+├── id (bigint, PK)
+├── company_id (bigint, FK)
+├── product_id (bigint, FK)
+├── routing_number (varchar(50), unique per company)
+├── version (integer, default: 1)
+├── name (varchar(255))
+├── description (text, nullable)
+├── status (enum: draft, active, obsolete)
+├── is_default (boolean, default: false)
+├── effective_date (date, nullable)
+├── expiry_date (date, nullable)
+├── notes (text, nullable)
+├── meta_data (jsonb, nullable)
+├── created_by (bigint, FK)
+├── created_at (timestamp)
+├── updated_at (timestamp)
+└── deleted_at (timestamp, nullable)
+
+INDEX idx_routings_product ON routings(company_id, product_id)
+INDEX idx_routings_status ON routings(company_id, status)
+```
+
+#### Routing Operations
+```sql
+routing_operations
+├── id (bigint, PK)
+├── routing_id (bigint, FK)
+├── work_center_id (bigint, FK)
+├── operation_number (integer)
+├── name (varchar(255))
+├── description (text, nullable)
+├── setup_time (decimal(10,2), default: 0) -- Minutes
+├── run_time_per_unit (decimal(10,4), default: 0) -- Minutes
+├── queue_time (decimal(10,2), default: 0) -- Wait before operation
+├── move_time (decimal(10,2), default: 0) -- Move to next operation
+├── is_subcontracted (boolean, default: false)
+├── subcontractor_id (bigint, FK to suppliers, nullable)
+├── subcontract_cost (decimal(15,4), nullable)
+├── instructions (text, nullable)
+├── settings (jsonb, nullable)
+├── created_at (timestamp)
+└── updated_at (timestamp)
+
+UNIQUE idx_routing_op ON routing_operations(routing_id, operation_number)
+INDEX idx_routing_ops_wc ON routing_operations(work_center_id)
+```
+
+#### Work Orders (Production Orders)
+```sql
+work_orders
+├── id (bigint, PK)
+├── company_id (bigint, FK)
+├── work_order_number (varchar(50), unique per company)
+├── product_id (bigint, FK)
+├── bom_id (bigint, FK, nullable)
+├── routing_id (bigint, FK, nullable)
+├── quantity_ordered (decimal(15,3))
+├── quantity_completed (decimal(15,3), default: 0)
+├── quantity_scrapped (decimal(15,3), default: 0)
+├── uom_id (bigint, FK)
+├── warehouse_id (bigint, FK) -- Finished goods destination
+├── status (enum: draft, released, in_progress, completed, cancelled, on_hold)
+├── priority (enum: low, normal, high, urgent)
+├── planned_start_date (datetime, nullable)
+├── planned_end_date (datetime, nullable)
+├── actual_start_date (datetime, nullable)
+├── actual_end_date (datetime, nullable)
+├── estimated_cost (decimal(15,4), default: 0)
+├── actual_cost (decimal(15,4), default: 0)
+├── notes (text, nullable)
+├── internal_notes (text, nullable)
+├── meta_data (jsonb, nullable)
+├── created_by (bigint, FK)
+├── approved_by (bigint, FK, nullable)
+├── approved_at (timestamp, nullable)
+├── released_by (bigint, FK, nullable)
+├── released_at (timestamp, nullable)
+├── completed_by (bigint, FK, nullable)
+├── completed_at (timestamp, nullable)
+├── created_at (timestamp)
+├── updated_at (timestamp)
+└── deleted_at (timestamp, nullable)
+
+INDEX idx_wo_status ON work_orders(company_id, status)
+INDEX idx_wo_product ON work_orders(company_id, product_id)
+INDEX idx_wo_priority ON work_orders(company_id, priority, status)
+INDEX idx_wo_dates ON work_orders(planned_start_date, planned_end_date)
+```
+
+#### Work Order Operations
+```sql
+work_order_operations
+├── id (bigint, PK)
+├── work_order_id (bigint, FK)
+├── routing_operation_id (bigint, FK, nullable)
+├── work_center_id (bigint, FK)
+├── operation_number (integer)
+├── name (varchar(255))
+├── description (text, nullable)
+├── status (enum: pending, in_progress, completed, skipped)
+├── quantity_completed (decimal(15,3), default: 0)
+├── quantity_scrapped (decimal(15,3), default: 0)
+├── planned_start (datetime, nullable)
+├── planned_end (datetime, nullable)
+├── actual_start (datetime, nullable)
+├── actual_end (datetime, nullable)
+├── actual_setup_time (decimal(10,2), default: 0) -- Minutes
+├── actual_run_time (decimal(10,2), default: 0) -- Minutes
+├── actual_cost (decimal(15,4), default: 0)
+├── notes (text, nullable)
+├── started_by (bigint, FK, nullable)
+├── completed_by (bigint, FK, nullable)
+├── created_at (timestamp)
+└── updated_at (timestamp)
+
+UNIQUE idx_wo_op ON work_order_operations(work_order_id, operation_number)
+INDEX idx_wo_ops_status ON work_order_operations(work_order_id, status)
+INDEX idx_wo_ops_wc ON work_order_operations(work_center_id)
+```
+
+#### Work Order Materials (Material Consumption)
+```sql
+work_order_materials
+├── id (bigint, PK)
+├── work_order_id (bigint, FK)
+├── product_id (bigint, FK)
+├── bom_item_id (bigint, FK, nullable)
+├── quantity_required (decimal(15,4))
+├── quantity_issued (decimal(15,4), default: 0)
+├── quantity_returned (decimal(15,4), default: 0)
+├── uom_id (bigint, FK)
+├── warehouse_id (bigint, FK)
+├── unit_cost (decimal(15,4), default: 0)
+├── total_cost (decimal(15,4), default: 0)
+├── notes (text, nullable)
+├── created_at (timestamp)
+└── updated_at (timestamp)
+
+INDEX idx_wo_materials ON work_order_materials(work_order_id, product_id)
+```
+
+### 6.8 Manufacturing Enums
+
+#### WorkCenterType
+```
+machine     - Machine-based (CNC, lathe, etc.)
+labor       - Labor-intensive (assembly, inspection)
+subcontract - Outsourced operations
+tool        - Tool or equipment based
+```
+
+#### BomStatus / RoutingStatus
+```
+draft    - Can be edited
+active   - Can be used for production
+obsolete - No longer in use
+```
+
+#### WorkOrderStatus
+```
+draft       → released → in_progress → completed
+                      ↘ on_hold ↗
+         → cancelled
+```
+
+#### WorkOrderPriority
+```
+low, normal, high, urgent
+```
+
+#### OperationStatus
+```
+pending → in_progress → completed
+                    → skipped
+```
+
+### 6.9 Manufacturing Services
+
+#### WorkCenterService
+- CRUD operations
+- Capacity calculation
+- Availability check
+
+#### BomService
+- CRUD for BOM and items
+- Version management
+- Copy/clone BOM
+- **explodeBom()** - Multi-level BOM explosion
+- **calculateMaterialRequirements()** - Material calculation
+- **validateBomItems()** - Circular reference check
+
+```php
+// BOM Explosion Algorithm
+public function explodeBom(Bom $bom, float $quantity = 1, int $level = 0): array
+{
+    $materials = [];
+    foreach ($bom->items as $item) {
+        $requiredQty = $item->quantity * $quantity * (1 + $item->scrap_percentage/100);
+
+        if ($item->is_phantom && $item->component->defaultBom) {
+            // Recursive explosion for phantom items
+            $childBom = $item->component->defaultBom;
+            $childMaterials = $this->explodeBom($childBom, $requiredQty, $level + 1);
+            $materials = array_merge($materials, $childMaterials);
+        } else {
+            $materials[] = [
+                'product_id' => $item->component_id,
+                'quantity' => $requiredQty,
+                'level' => $level,
+            ];
+        }
+    }
+    return $materials;
+}
+```
+
+#### RoutingService
+- CRUD for Routing and operations
+- Calculate total lead time
+- Clone routing
+
+#### WorkOrderService
+- **createFromBom()** - Create from BOM + Routing
+- **release()** - Release for production
+- **start() / complete()** - Status transitions
+- **issueMaterials()** - Material consumption (stock issue)
+- **receiveFinishedGoods()** - Finished goods receipt (stock receive)
+- **calculateCosts()** - Cost calculation
+- **getProgress()** - Progress tracking
+
+```php
+// Material Issuance Flow
+public function issueMaterials(WorkOrder $workOrder): void
+{
+    // 1. Get required materials from work_order_materials
+    // 2. Check stock availability (quality_status = 'available')
+    // 3. Issue stock (create stock movement: issue)
+    // 4. Update work_order_materials.quantity_issued
+}
+
+// Finished Goods Receipt Flow
+public function receiveFinishedGoods(WorkOrder $workOrder, float $quantity): void
+{
+    // 1. Validate quantity <= quantity_ordered - quantity_completed
+    // 2. Receive stock (create stock movement: production_output)
+    // 3. Update work_order.quantity_completed
+    // 4. If complete, update status to 'completed'
+}
+```
+
+### 6.10 Manufacturing API Routes
+
+```
+# Work Centers
+GET    /api/v1/work-centers
+GET    /api/v1/work-centers/list
+POST   /api/v1/work-centers
+GET    /api/v1/work-centers/{id}
+PUT    /api/v1/work-centers/{id}
+DELETE /api/v1/work-centers/{id}
+POST   /api/v1/work-centers/{id}/toggle-active
+
+# BOMs
+GET    /api/v1/boms
+GET    /api/v1/boms/list
+POST   /api/v1/boms
+GET    /api/v1/boms/{id}
+PUT    /api/v1/boms/{id}
+DELETE /api/v1/boms/{id}
+POST   /api/v1/boms/{id}/items
+PUT    /api/v1/boms/{id}/items/{itemId}
+DELETE /api/v1/boms/{id}/items/{itemId}
+POST   /api/v1/boms/{id}/activate
+POST   /api/v1/boms/{id}/obsolete
+POST   /api/v1/boms/{id}/copy
+GET    /api/v1/boms/{id}/explode
+GET    /api/v1/boms/for-product/{productId}
+
+# Routings
+GET    /api/v1/routings
+GET    /api/v1/routings/list
+POST   /api/v1/routings
+GET    /api/v1/routings/{id}
+PUT    /api/v1/routings/{id}
+DELETE /api/v1/routings/{id}
+POST   /api/v1/routings/{id}/operations
+PUT    /api/v1/routings/{id}/operations/{opId}
+DELETE /api/v1/routings/{id}/operations/{opId}
+POST   /api/v1/routings/{id}/activate
+GET    /api/v1/routings/for-product/{productId}
+
+# Work Orders
+GET    /api/v1/work-orders
+GET    /api/v1/work-orders/statistics
+POST   /api/v1/work-orders
+GET    /api/v1/work-orders/{id}
+PUT    /api/v1/work-orders/{id}
+DELETE /api/v1/work-orders/{id}
+POST   /api/v1/work-orders/{id}/release
+POST   /api/v1/work-orders/{id}/start
+POST   /api/v1/work-orders/{id}/complete
+POST   /api/v1/work-orders/{id}/cancel
+POST   /api/v1/work-orders/{id}/hold
+POST   /api/v1/work-orders/{id}/resume
+POST   /api/v1/work-orders/{id}/operations/{opId}/start
+POST   /api/v1/work-orders/{id}/operations/{opId}/complete
+GET    /api/v1/work-orders/{id}/material-requirements
+POST   /api/v1/work-orders/{id}/issue-materials
+POST   /api/v1/work-orders/{id}/receive-finished-goods
+```
+
+### 6.11 Manufacturing Permissions
+
+```
+manufacturing.view      - View work centers, BOMs, routings, work orders
+manufacturing.create    - Create new records
+manufacturing.edit      - Edit existing records
+manufacturing.delete    - Delete records
+manufacturing.release   - Release work orders for production
+manufacturing.complete  - Complete operations and work orders
 ```
 
 ---
@@ -1669,6 +2033,25 @@ function ProductForm() {
 
 ## Document History
 
+**Version 5.6** - 2025-12-30
+- ✅ **Manufacturing Module (Phase 5)**: Complete Manufacturing documentation
+- ✅ Added Section 6.7-6.11: Comprehensive Manufacturing module
+- ✅ Work Centers with types (machine, labor, subcontract, tool)
+- ✅ BOMs with multi-level explosion support (phantom items)
+- ✅ Routings with operations and time estimates
+- ✅ Work Orders with full lifecycle (draft → released → in_progress → completed)
+- ✅ Work Order Operations tracking
+- ✅ Work Order Materials for material consumption
+- ✅ Manufacturing Enums (WorkCenterType, BomStatus, RoutingStatus, WorkOrderStatus, WorkOrderPriority, OperationStatus)
+- ✅ Manufacturing Services documentation (BOM explosion algorithm)
+- ✅ Manufacturing API Routes (40+ endpoints)
+- ✅ Manufacturing Permissions
+
+**Version 5.5** - 2025-12-28
+- ✅ **QC Zones**: Added quarantine and rejection warehouse zones
+- ✅ **Supplier Quality Scoring**: Quality score and grade calculation from inspection data
+- ✅ **Stock Quality Status**: Comprehensive status tracking with operation restrictions
+
 **Version 5.4** - 2025-12-26
 - ✅ **Standard Quality Control**: Implemented QC module within Procurement
 - ✅ Added `acceptance_rules` table for inspection criteria (product/category/supplier-specific)
@@ -1726,5 +2109,5 @@ function ProductForm() {
 
 ---
 
-*Current Version: 5.4*
-*Last Updated: 2025-12-26*
+*Current Version: 5.6*
+*Last Updated: 2025-12-30*

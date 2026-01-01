@@ -269,4 +269,50 @@ class SupplierController extends Controller
             'data' => SupplierListResource::collection($suppliers),
         ]);
     }
+
+    /**
+     * Get supplier quality score
+     */
+    public function qualityScore(Supplier $supplier): JsonResponse
+    {
+        $score = $this->supplierService->getQualityScore($supplier);
+
+        return response()->json([
+            'data' => $score,
+        ]);
+    }
+
+    /**
+     * Get supplier quality statistics
+     */
+    public function qualityStatistics(Request $request, Supplier $supplier): JsonResponse
+    {
+        $dateRange = null;
+        if ($request->filled('from_date') && $request->filled('to_date')) {
+            $dateRange = [
+                'from' => $request->get('from_date'),
+                'to' => $request->get('to_date'),
+            ];
+        }
+
+        $stats = $this->supplierService->getQualityStatistics($supplier, $dateRange);
+
+        return response()->json([
+            'data' => $stats,
+        ]);
+    }
+
+    /**
+     * Get quality score ranking for all suppliers
+     */
+    public function qualityRanking(Request $request): JsonResponse
+    {
+        $limit = $request->get('limit', 10);
+
+        $ranking = $this->supplierService->getQualityScoreRanking($limit);
+
+        return response()->json([
+            'data' => $ranking,
+        ]);
+    }
 }

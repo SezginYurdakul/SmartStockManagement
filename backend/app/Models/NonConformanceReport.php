@@ -2,6 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\DefectType;
+use App\Enums\NcrDisposition;
+use App\Enums\NcrSeverity;
+use App\Enums\NcrStatus;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +16,8 @@ class NonConformanceReport extends Model
 {
     use HasFactory, SoftDeletes, BelongsToCompany;
 
-    // Status constants
+    // Legacy constants - kept for backward compatibility, prefer using Enums
+    // @deprecated Use NcrStatus enum instead
     public const STATUS_OPEN = 'open';
     public const STATUS_UNDER_REVIEW = 'under_review';
     public const STATUS_PENDING_DISPOSITION = 'pending_disposition';
@@ -21,18 +26,24 @@ class NonConformanceReport extends Model
     public const STATUS_CLOSED = 'closed';
     public const STATUS_CANCELLED = 'cancelled';
 
-    // Severity constants
+    // @deprecated Use NcrSeverity enum instead
     public const SEVERITY_MINOR = 'minor';
     public const SEVERITY_MAJOR = 'major';
     public const SEVERITY_CRITICAL = 'critical';
 
-    // Source type constants
+    // Source type constants (no enum needed - simple category)
     public const SOURCE_RECEIVING = 'receiving';
     public const SOURCE_PRODUCTION = 'production';
     public const SOURCE_INTERNAL = 'internal';
     public const SOURCE_CUSTOMER = 'customer';
 
-    // Disposition constants
+    // Priority constants
+    public const PRIORITY_LOW = 'low';
+    public const PRIORITY_MEDIUM = 'medium';
+    public const PRIORITY_HIGH = 'high';
+    public const PRIORITY_URGENT = 'urgent';
+
+    // @deprecated Use NcrDisposition enum instead
     public const DISPOSITION_PENDING = 'pending';
     public const DISPOSITION_USE_AS_IS = 'use_as_is';
     public const DISPOSITION_REWORK = 'rework';
@@ -86,7 +97,7 @@ class NonConformanceReport extends Model
     ];
 
     /**
-     * Status labels
+     * Status labels for UI
      */
     public const STATUSES = [
         self::STATUS_OPEN => 'Open',
@@ -99,7 +110,7 @@ class NonConformanceReport extends Model
     ];
 
     /**
-     * Severity labels
+     * Severity labels for UI
      */
     public const SEVERITIES = [
         self::SEVERITY_MINOR => 'Minor',
@@ -108,7 +119,7 @@ class NonConformanceReport extends Model
     ];
 
     /**
-     * Defect type labels
+     * Defect type labels for UI
      */
     public const DEFECT_TYPES = [
         'dimensional' => 'Dimensional',
@@ -125,7 +136,7 @@ class NonConformanceReport extends Model
     ];
 
     /**
-     * Disposition labels
+     * Disposition labels for UI
      */
     public const DISPOSITIONS = [
         self::DISPOSITION_PENDING => 'Pending Decision',
@@ -136,6 +147,58 @@ class NonConformanceReport extends Model
         self::DISPOSITION_SORT => 'Sort and Use',
         self::DISPOSITION_REJECT => 'Reject',
     ];
+
+    /**
+     * Source type labels for UI
+     */
+    public const SOURCES = [
+        self::SOURCE_RECEIVING => 'Receiving',
+        self::SOURCE_PRODUCTION => 'Production',
+        self::SOURCE_INTERNAL => 'Internal',
+        self::SOURCE_CUSTOMER => 'Customer',
+    ];
+
+    /**
+     * Priority labels for UI
+     */
+    public const PRIORITIES = [
+        self::PRIORITY_LOW => 'Low',
+        self::PRIORITY_MEDIUM => 'Medium',
+        self::PRIORITY_HIGH => 'High',
+        self::PRIORITY_URGENT => 'Urgent',
+    ];
+
+    /**
+     * Get status as Enum
+     */
+    public function getStatusEnumAttribute(): ?NcrStatus
+    {
+        return $this->status ? NcrStatus::tryFrom($this->status) : null;
+    }
+
+    /**
+     * Get severity as Enum
+     */
+    public function getSeverityEnumAttribute(): ?NcrSeverity
+    {
+        return $this->severity ? NcrSeverity::tryFrom($this->severity) : null;
+    }
+
+    /**
+     * Get disposition as Enum
+     */
+    public function getDispositionEnumAttribute(): ?NcrDisposition
+    {
+        return $this->disposition ? NcrDisposition::tryFrom($this->disposition) : null;
+    }
+
+    /**
+     * Get defect type as Enum
+     */
+    public function getDefectTypeEnumAttribute(): ?DefectType
+    {
+        return $this->defect_type ? DefectType::tryFrom($this->defect_type) : null;
+    }
 
     /**
      * Company relationship
@@ -206,7 +269,7 @@ class NonConformanceReport extends Model
      */
     public function getStatusLabelAttribute(): string
     {
-        return self::STATUSES[$this->status] ?? $this->status;
+        return self::STATUSES[$this->status] ?? ucfirst($this->status ?? 'Unknown');
     }
 
     /**
@@ -214,7 +277,7 @@ class NonConformanceReport extends Model
      */
     public function getSeverityLabelAttribute(): string
     {
-        return self::SEVERITIES[$this->severity] ?? $this->severity;
+        return self::SEVERITIES[$this->severity] ?? ucfirst($this->severity ?? 'Unknown');
     }
 
     /**
@@ -222,7 +285,7 @@ class NonConformanceReport extends Model
      */
     public function getDefectTypeLabelAttribute(): string
     {
-        return self::DEFECT_TYPES[$this->defect_type] ?? $this->defect_type;
+        return self::DEFECT_TYPES[$this->defect_type] ?? ucfirst($this->defect_type ?? 'Unknown');
     }
 
     /**
@@ -230,27 +293,52 @@ class NonConformanceReport extends Model
      */
     public function getDispositionLabelAttribute(): string
     {
-        return self::DISPOSITIONS[$this->disposition] ?? $this->disposition;
+        return self::DISPOSITIONS[$this->disposition] ?? ucfirst($this->disposition ?? 'Unknown');
     }
 
     /**
-     * Check if NCR is open
+     * Check if NCR is open (using Enum for type-safe logic)
      */
     public function isOpen(): bool
     {
-        return !in_array($this->status, [self::STATUS_CLOSED, self::STATUS_CANCELLED]);
+        $status = $this->status_enum;
+        return $status ? $status->isActive() : true;
     }
 
     /**
-     * Check if can be edited
+     * Check if can be edited (using Enum)
      */
     public function canBeEdited(): bool
     {
-        return in_array($this->status, [
-            self::STATUS_OPEN,
-            self::STATUS_UNDER_REVIEW,
-            self::STATUS_PENDING_DISPOSITION,
-        ]);
+        $status = $this->status_enum;
+        return $status ? $status->canEdit() : false;
+    }
+
+    /**
+     * Check if requires quarantine based on severity (using Enum)
+     */
+    public function requiresQuarantine(): bool
+    {
+        $severity = $this->severity_enum;
+        return $severity ? $severity->requiresQuarantine() : false;
+    }
+
+    /**
+     * Get response time in hours based on severity (using Enum)
+     */
+    public function getResponseTimeHours(): int
+    {
+        $severity = $this->severity_enum;
+        return $severity ? $severity->responseTimeHours() : 72;
+    }
+
+    /**
+     * Check if should notify supplier (using Enum)
+     */
+    public function shouldNotifySupplier(): bool
+    {
+        $disposition = $this->disposition_enum;
+        return $disposition ? $disposition->notifySupplier() : false;
     }
 
     /**

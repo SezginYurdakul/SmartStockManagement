@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Auth;
 
 class Stock extends Model
 {
@@ -464,7 +465,7 @@ class Stock extends Model
             'hold_reason' => $reason,
             'hold_until' => $holdUntil,
             'quality_restrictions' => $restrictions,
-            'quality_hold_by' => $holdBy ?? auth()->id(),
+            'quality_hold_by' => $holdBy ?? Auth::id(),
             'quality_hold_at' => now(),
             'quality_reference_type' => $referenceType,
             'quality_reference_id' => $referenceId,
@@ -501,7 +502,7 @@ class Stock extends Model
             'quality_status' => self::QUALITY_CONDITIONAL,
             'hold_reason' => $reason,
             'quality_restrictions' => $restrictions,
-            'quality_hold_by' => auth()->id(),
+            'quality_hold_by' => Auth::id(),
             'quality_hold_at' => now(),
         ]);
 
