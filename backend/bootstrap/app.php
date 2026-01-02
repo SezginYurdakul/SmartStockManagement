@@ -70,6 +70,13 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
 
+        // Module disabled errors (403) - must be before BusinessException since it extends it
+        $exceptions->render(function (ModuleDisabledException $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json($e->getErrorDetails(), $e->getStatusCode());
+            }
+        });
+
         // Business logic errors (custom status code, default 422)
         $exceptions->render(function (BusinessException $e, Request $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
@@ -77,13 +84,6 @@ return Application::configure(basePath: dirname(__DIR__))
                     'message' => $e->getMessage(),
                     'error' => 'business_error'
                 ], $e->getStatusCode());
-            }
-        });
-
-        // Module disabled errors (403)
-        $exceptions->render(function (ModuleDisabledException $e, Request $request) {
-            if ($request->is('api/*') || $request->expectsJson()) {
-                return response()->json($e->getErrorDetails(), $e->getStatusCode());
             }
         });
     })

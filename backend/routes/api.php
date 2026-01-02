@@ -3,6 +3,9 @@
 use App\Http\Controllers\AcceptanceRuleController;
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\BomController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\CustomerGroupController;
+use App\Http\Controllers\DeliveryNoteController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
@@ -17,6 +20,7 @@ use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\ReceivingInspectionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\RoutingController;
+use App\Http\Controllers\SalesOrderController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\SupplierController;
@@ -245,7 +249,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // ===================================================
-    // PROCUREMENT MODULE (Phase 3)
+    // PROCUREMENT MODULE
     // Requires: MODULE_PROCUREMENT_ENABLED=true
     // ===================================================
     Route::middleware('module:procurement')->group(function () {
@@ -256,14 +260,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/list', [SupplierController::class, 'list'])->middleware('permission:purchasing.view');
         Route::post('/', [SupplierController::class, 'store'])->middleware('permission:purchasing.create');
         Route::get('/for-product/{productId}', [SupplierController::class, 'forProduct'])->middleware('permission:purchasing.view');
-        Route::get('/quality-ranking', [SupplierController::class, 'qualityRanking'])->middleware('permission:qc.view');
+
+        // Supplier Quality routes (requires QC module) - must be before /{supplier} to avoid route conflict
+        Route::middleware('module:qc')->group(function () {
+            Route::get('/quality-ranking', [SupplierController::class, 'qualityRanking'])->middleware('permission:qc.view');
+        });
+
         Route::get('/{supplier}', [SupplierController::class, 'show'])->middleware('permission:purchasing.view');
         Route::put('/{supplier}', [SupplierController::class, 'update'])->middleware('permission:purchasing.edit');
         Route::delete('/{supplier}', [SupplierController::class, 'destroy'])->middleware('permission:purchasing.delete');
         Route::post('/{supplier}/toggle-active', [SupplierController::class, 'toggleActive'])->middleware('permission:purchasing.edit');
         Route::get('/{supplier}/statistics', [SupplierController::class, 'statistics'])->middleware('permission:purchasing.view');
-        Route::get('/{supplier}/quality-score', [SupplierController::class, 'qualityScore'])->middleware('permission:qc.view');
-        Route::get('/{supplier}/quality-statistics', [SupplierController::class, 'qualityStatistics'])->middleware('permission:qc.view');
+
+        // Supplier Quality routes for specific supplier (requires QC module)
+        Route::middleware('module:qc')->group(function () {
+            Route::get('/{supplier}/quality-score', [SupplierController::class, 'qualityScore'])->middleware('permission:qc.view');
+            Route::get('/{supplier}/quality-statistics', [SupplierController::class, 'qualityStatistics'])->middleware('permission:qc.view');
+        });
 
         // Supplier product management
         Route::post('/{supplier}/products', [SupplierController::class, 'attachProducts'])->middleware('permission:purchasing.edit');
@@ -312,10 +325,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{goodsReceivedNote}/cancel', [GoodsReceivedNoteController::class, 'cancel'])->middleware('permission:purchasing.receive');
     });
 
+    }); // End of procurement module
+
     // ===================================================
-    // QUALITY CONTROL (QC) - Standard Level
-    // Part of Procurement Module
+    // QUALITY CONTROL MODULE
+    // Requires: MODULE_QC_ENABLED=true
     // ===================================================
+    Route::middleware('module:qc')->group(function () {
 
     // Acceptance Rules routes
     Route::prefix('acceptance-rules')->group(function () {
@@ -369,10 +385,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{nonConformanceReport}/cancel', [NonConformanceReportController::class, 'cancel'])->middleware('permission:qc.edit');
     });
 
-    }); // End of procurement module
+    }); // End of qc module
 
     // ===================================================
-    // MANUFACTURING MODULE (Phase 5)
+    // MANUFACTURING MODULE
     // Requires: MODULE_MANUFACTURING_ENABLED=true
     // ===================================================
     Route::middleware('module:manufacturing')->group(function () {
@@ -470,4 +486,76 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     }); // End of manufacturing module
+
+    // ===================================================
+    // SALES MODULE
+    // Requires: MODULE_SALES_ENABLED=true
+    // ===================================================
+    Route::middleware('module:sales')->group(function () {
+
+    // Customer Group routes
+    Route::prefix('customer-groups')->group(function () {
+        Route::get('/', [CustomerGroupController::class, 'index'])->middleware('permission:sales.view');
+        Route::get('/list', [CustomerGroupController::class, 'list'])->middleware('permission:sales.view');
+        Route::post('/', [CustomerGroupController::class, 'store'])->middleware('permission:sales.create');
+        Route::get('/{customerGroup}', [CustomerGroupController::class, 'show'])->middleware('permission:sales.view');
+        Route::put('/{customerGroup}', [CustomerGroupController::class, 'update'])->middleware('permission:sales.edit');
+        Route::delete('/{customerGroup}', [CustomerGroupController::class, 'destroy'])->middleware('permission:sales.delete');
+
+        // Customer Group Pricing
+        Route::get('/{customerGroup}/prices', [CustomerGroupController::class, 'prices'])->middleware('permission:sales.view');
+        Route::post('/{customerGroup}/prices', [CustomerGroupController::class, 'setPrice'])->middleware('permission:sales.edit');
+        Route::post('/{customerGroup}/prices/bulk', [CustomerGroupController::class, 'bulkSetPrices'])->middleware('permission:sales.edit');
+        Route::delete('/{customerGroup}/prices/{priceId}', [CustomerGroupController::class, 'deletePrice'])->middleware('permission:sales.edit');
+    });
+
+    // Customer routes
+    Route::prefix('customers')->group(function () {
+        Route::get('/', [CustomerController::class, 'index'])->middleware('permission:sales.view');
+        Route::get('/list', [CustomerController::class, 'list'])->middleware('permission:sales.view');
+        Route::post('/', [CustomerController::class, 'store'])->middleware('permission:sales.create');
+        Route::get('/{customer}', [CustomerController::class, 'show'])->middleware('permission:sales.view');
+        Route::put('/{customer}', [CustomerController::class, 'update'])->middleware('permission:sales.edit');
+        Route::delete('/{customer}', [CustomerController::class, 'destroy'])->middleware('permission:sales.delete');
+        Route::get('/{customer}/statistics', [CustomerController::class, 'statistics'])->middleware('permission:sales.view');
+    });
+
+    // Sales Order routes
+    Route::prefix('sales-orders')->group(function () {
+        Route::get('/', [SalesOrderController::class, 'index'])->middleware('permission:sales.view');
+        Route::post('/', [SalesOrderController::class, 'store'])->middleware('permission:sales.create');
+        Route::get('/statistics', [SalesOrderController::class, 'statistics'])->middleware('permission:sales.view');
+        Route::get('/statuses', [SalesOrderController::class, 'statuses'])->middleware('permission:sales.view');
+        Route::get('/{salesOrder}', [SalesOrderController::class, 'show'])->middleware('permission:sales.view');
+        Route::put('/{salesOrder}', [SalesOrderController::class, 'update'])->middleware('permission:sales.edit');
+        Route::delete('/{salesOrder}', [SalesOrderController::class, 'destroy'])->middleware('permission:sales.delete');
+
+        // Sales Order Workflow actions
+        Route::post('/{salesOrder}/submit', [SalesOrderController::class, 'submitForApproval'])->middleware('permission:sales.edit');
+        Route::post('/{salesOrder}/approve', [SalesOrderController::class, 'approve'])->middleware('permission:sales.approve');
+        Route::post('/{salesOrder}/reject', [SalesOrderController::class, 'reject'])->middleware('permission:sales.approve');
+        Route::post('/{salesOrder}/confirm', [SalesOrderController::class, 'confirm'])->middleware('permission:sales.edit');
+        Route::post('/{salesOrder}/mark-shipped', [SalesOrderController::class, 'markAsShipped'])->middleware('permission:sales.ship');
+        Route::post('/{salesOrder}/mark-delivered', [SalesOrderController::class, 'markAsDelivered'])->middleware('permission:sales.ship');
+        Route::post('/{salesOrder}/cancel', [SalesOrderController::class, 'cancel'])->middleware('permission:sales.edit');
+    });
+
+    // Delivery Note routes
+    Route::prefix('delivery-notes')->group(function () {
+        Route::get('/', [DeliveryNoteController::class, 'index'])->middleware('permission:sales.view');
+        Route::post('/', [DeliveryNoteController::class, 'store'])->middleware('permission:sales.ship');
+        Route::get('/statuses', [DeliveryNoteController::class, 'statuses'])->middleware('permission:sales.view');
+        Route::get('/for-sales-order/{salesOrder}', [DeliveryNoteController::class, 'forSalesOrder'])->middleware('permission:sales.view');
+        Route::get('/{deliveryNote}', [DeliveryNoteController::class, 'show'])->middleware('permission:sales.view');
+        Route::put('/{deliveryNote}', [DeliveryNoteController::class, 'update'])->middleware('permission:sales.ship');
+        Route::delete('/{deliveryNote}', [DeliveryNoteController::class, 'destroy'])->middleware('permission:sales.ship');
+
+        // Delivery Note Workflow actions
+        Route::post('/{deliveryNote}/confirm', [DeliveryNoteController::class, 'confirm'])->middleware('permission:sales.ship');
+        Route::post('/{deliveryNote}/ship', [DeliveryNoteController::class, 'ship'])->middleware('permission:sales.ship');
+        Route::post('/{deliveryNote}/mark-delivered', [DeliveryNoteController::class, 'markAsDelivered'])->middleware('permission:sales.ship');
+        Route::post('/{deliveryNote}/cancel', [DeliveryNoteController::class, 'cancel'])->middleware('permission:sales.ship');
+    });
+
+    }); // End of sales module
 });

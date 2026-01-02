@@ -42,18 +42,16 @@ return [
     |--------------------------------------------------------------------------
     |
     | Handles supplier management, purchase orders, and receiving operations.
-    | Includes optional basic quality control (pass/fail inspections).
     |
     */
     'procurement' => [
         'enabled' => env('MODULE_PROCUREMENT_ENABLED', true),
         'name' => 'Procurement',
-        'description' => 'Supplier management, purchase orders, receiving, and quality control',
+        'description' => 'Supplier management, purchase orders, and receiving',
         'features' => [
             'suppliers' => true,
             'purchase_orders' => true,
             'receiving' => true,
-            'quality_control' => env('MODULE_PROCUREMENT_QC_ENABLED', true),
         ],
     ],
 
@@ -63,18 +61,58 @@ return [
     |--------------------------------------------------------------------------
     |
     | Handles bill of materials, work orders, and production operations.
-    | Includes optional basic quality control (pass/fail inspections).
     |
     */
     'manufacturing' => [
         'enabled' => env('MODULE_MANUFACTURING_ENABLED', false),
         'name' => 'Manufacturing',
-        'description' => 'Bill of materials, work orders, production, and quality control',
+        'description' => 'Bill of materials, work orders, and production',
         'features' => [
             'bom' => true,
             'work_orders' => true,
             'production' => true,
-            'quality_control' => env('MODULE_MANUFACTURING_QC_ENABLED', true),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sales Module
+    |--------------------------------------------------------------------------
+    |
+    | Handles customer management, sales orders, and delivery operations.
+    | Provides data for ML forecasting service.
+    |
+    */
+    'sales' => [
+        'enabled' => env('MODULE_SALES_ENABLED', false),
+        'name' => 'Sales',
+        'description' => 'Customer management, sales orders, delivery notes, and customer group pricing',
+        'features' => [
+            'customer_groups' => true,
+            'sales_orders' => true,
+            'delivery_notes' => true,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Quality Control Module
+    |--------------------------------------------------------------------------
+    |
+    | Handles quality control operations including acceptance rules,
+    | receiving inspections, and non-conformance reports.
+    | Can be used independently or with Procurement/Manufacturing modules.
+    |
+    */
+    'qc' => [
+        'enabled' => env('MODULE_QC_ENABLED', false),
+        'name' => 'Quality Control',
+        'description' => 'Acceptance rules, receiving inspections, non-conformance reports, and supplier quality tracking',
+        'features' => [
+            'acceptance_rules' => true,
+            'receiving_inspections' => true,
+            'non_conformance_reports' => true,
+            'supplier_quality' => true,
         ],
     ],
 

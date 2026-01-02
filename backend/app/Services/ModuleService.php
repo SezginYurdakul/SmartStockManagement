@@ -60,7 +60,7 @@ class ModuleService
     public function getEnabledModules(): array
     {
         $modules = [];
-        $allModules = ['core', 'procurement', 'manufacturing'];
+        $allModules = ['core', 'procurement', 'manufacturing', 'sales', 'qc'];
 
         foreach ($allModules as $module) {
             if ($this->isModuleEnabled($module)) {
@@ -150,11 +150,18 @@ class ModuleService
      */
     public function clearCache(): void
     {
-        $modules = ['core', 'procurement', 'manufacturing'];
+        $modules = ['core', 'procurement', 'manufacturing', 'sales', 'qc'];
         $features = [
-            'stock_tracking', 'multi_warehouse', 'lot_tracking', 'serial_tracking',
-            'stock_reservations', 'suppliers', 'purchase_orders', 'receiving',
-            'quality_control', 'bom', 'work_orders', 'production',
+            // Core features
+            'stock_tracking', 'multi_warehouse', 'lot_tracking', 'serial_tracking', 'stock_reservations',
+            // Procurement features
+            'suppliers', 'purchase_orders', 'receiving',
+            // Manufacturing features
+            'bom', 'work_orders', 'production',
+            // Sales features
+            'customer_groups', 'sales_orders', 'delivery_notes',
+            // QC features
+            'acceptance_rules', 'receiving_inspections', 'non_conformance_reports', 'supplier_quality',
         ];
 
         foreach ($modules as $module) {
@@ -167,11 +174,11 @@ class ModuleService
     }
 
     /**
-     * Check if quality control is enabled for a module
+     * Check if quality control module is enabled
      */
-    public function isQualityControlEnabled(string $module): bool
+    public function isQualityControlEnabled(): bool
     {
-        return $this->isFeatureEnabled($module, 'quality_control');
+        return $this->isModuleEnabled('qc');
     }
 
     /**
@@ -181,7 +188,7 @@ class ModuleService
      */
     public function getAvailableModules(): array
     {
-        return ['core', 'procurement', 'manufacturing'];
+        return ['core', 'procurement', 'manufacturing', 'sales', 'qc'];
     }
 
     /**
