@@ -1,0 +1,39 @@
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class CustomerGroupResource extends JsonResource
+{
+    /**
+     * Transform the resource into an array.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'code' => $this->code,
+            'description' => $this->description,
+            'discount_percentage' => $this->discount_percentage,
+            'payment_terms_days' => $this->payment_terms_days,
+            'credit_limit' => $this->credit_limit,
+            'is_active' => $this->is_active,
+
+            // Relationships
+            'customers' => CustomerListResource::collection($this->whenLoaded('customers')),
+            'group_prices' => CustomerGroupPriceResource::collection($this->whenLoaded('groupPrices')),
+
+            // Counts
+            'customers_count' => $this->when(isset($this->customers_count), $this->customers_count),
+
+            // Timestamps
+            'created_at' => $this->created_at?->toISOString(),
+            'updated_at' => $this->updated_at?->toISOString(),
+        ];
+    }
+}
