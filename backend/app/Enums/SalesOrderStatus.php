@@ -12,6 +12,7 @@ enum SalesOrderStatus: string
     case DRAFT = 'draft';
     case PENDING_APPROVAL = 'pending_approval';
     case APPROVED = 'approved';
+    case REJECTED = 'rejected';
     case CONFIRMED = 'confirmed';
     case PROCESSING = 'processing';
     case PARTIALLY_SHIPPED = 'partially_shipped';
@@ -26,8 +27,9 @@ enum SalesOrderStatus: string
     {
         return match ($this) {
             self::DRAFT => [self::PENDING_APPROVAL, self::CANCELLED],
-            self::PENDING_APPROVAL => [self::APPROVED, self::DRAFT, self::CANCELLED],
+            self::PENDING_APPROVAL => [self::APPROVED, self::REJECTED, self::DRAFT, self::CANCELLED],
             self::APPROVED => [self::CONFIRMED, self::CANCELLED],
+            self::REJECTED => [self::DRAFT], // Can be revised and resubmitted
             self::CONFIRMED => [self::PROCESSING, self::CANCELLED],
             self::PROCESSING => [self::PARTIALLY_SHIPPED, self::SHIPPED, self::CANCELLED],
             self::PARTIALLY_SHIPPED => [self::SHIPPED, self::CANCELLED],
@@ -38,12 +40,20 @@ enum SalesOrderStatus: string
     }
 
     /**
+     * Check if transition to target status is allowed
+     */
+    public function canTransitionTo(self $target): bool
+    {
+        return in_array($target, $this->allowedTransitions(), true);
+    }
+
+    /**
      * Check if SO can be edited
      */
     public function canEdit(): bool
     {
         return match ($this) {
-            self::DRAFT, self::PENDING_APPROVAL => true,
+            self::DRAFT, self::PENDING_APPROVAL, self::REJECTED => true,
             default => false,
         };
     }
@@ -114,6 +124,7 @@ enum SalesOrderStatus: string
             self::DRAFT => 'Draft',
             self::PENDING_APPROVAL => 'Pending Approval',
             self::APPROVED => 'Approved',
+            self::REJECTED => 'Rejected',
             self::CONFIRMED => 'Confirmed',
             self::PROCESSING => 'Processing',
             self::PARTIALLY_SHIPPED => 'Partially Shipped',
