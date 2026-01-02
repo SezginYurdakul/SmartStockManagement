@@ -133,4 +133,23 @@ enum SalesOrderStatus: string
             self::CANCELLED => 'Cancelled',
         };
     }
+
+    /**
+     * Get color for UI display
+     */
+    public function color(): string
+    {
+        return match ($this) {
+            self::DRAFT => 'gray',
+            self::PENDING_APPROVAL => 'yellow',
+            self::APPROVED => 'blue',
+            self::REJECTED => 'red',
+            self::CONFIRMED => 'indigo',
+            self::PROCESSING => 'purple',
+            self::PARTIALLY_SHIPPED => 'orange',
+            self::SHIPPED => 'cyan',
+            self::DELIVERED => 'green',
+            self::CANCELLED => 'red',
+        };
+    }
 }
