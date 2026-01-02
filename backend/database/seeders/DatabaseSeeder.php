@@ -69,5 +69,8 @@ class DatabaseSeeder extends Seeder
 
         // Seed manufacturing data (work centers, BOMs, routings)
         $this->call(ManufacturingSeeder::class);
+
+        // Seed sales data (customer groups, customers, sales orders, delivery notes)
+        $this->call(SalesSeeder::class);
     }
 }
