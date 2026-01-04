@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('company_id')->constrained()->cascadeOnDelete();
             $table->string('code', 20); // 'kg', 'lbs', 'pcs', 'l', 'm', 'box'
             $table->string('name', 100); // 'Kilogram', 'Pound', 'Piece', 'Liter'
-            $table->enum('uom_type', ['weight', 'volume', 'length', 'area', 'quantity', 'time'])->default('quantity');
+            $table->string('uom_type', 30)->default('quantity'); // Validated by App\Enums\UomType
             $table->foreignId('base_unit_id')->nullable()->constrained('units_of_measure')->nullOnDelete();
             $table->decimal('conversion_factor', 20, 6)->nullable(); // Conversion to base unit
             $table->integer('precision')->default(2); // Decimal places

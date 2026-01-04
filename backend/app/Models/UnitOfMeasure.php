@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\UomType;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,21 +26,10 @@ class UnitOfMeasure extends Model
     ];
 
     protected $casts = [
+        'uom_type' => UomType::class,
         'conversion_factor' => 'decimal:6',
         'precision' => 'integer',
         'is_active' => 'boolean',
-    ];
-
-    /**
-     * UOM types enum values
-     */
-    public const TYPES = [
-        'weight' => 'Weight',
-        'volume' => 'Volume',
-        'length' => 'Length',
-        'area' => 'Area',
-        'quantity' => 'Quantity',
-        'time' => 'Time',
     ];
 
     /**
@@ -85,7 +75,11 @@ class UnitOfMeasure extends Model
         }
 
         // Different types cannot be converted
-        if ($this->uom_type !== $targetUnit->uom_type) {
+        // Compare enum values since uom_type is now cast to UomType enum
+        $thisType = $this->uom_type instanceof UomType ? $this->uom_type->value : $this->uom_type;
+        $targetType = $targetUnit->uom_type instanceof UomType ? $targetUnit->uom_type->value : $targetUnit->uom_type;
+
+        if ($thisType !== $targetType) {
             return null;
         }
 

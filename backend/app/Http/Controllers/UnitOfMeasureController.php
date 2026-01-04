@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UomType;
 use App\Models\UnitOfMeasure;
 use App\Services\UnitOfMeasureService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\Rule;
 
 class UnitOfMeasureController extends Controller
 {
@@ -43,7 +45,7 @@ class UnitOfMeasureController extends Controller
 
         return response()->json([
             'data' => $grouped,
-            'types' => UnitOfMeasure::TYPES,
+            'types' => UomType::options(),
         ]);
     }
 
@@ -55,7 +57,7 @@ class UnitOfMeasureController extends Controller
         $validated = $request->validate([
             'code' => 'required|string|max:20',
             'name' => 'required|string|max:100',
-            'uom_type' => 'required|in:weight,volume,length,area,quantity,time',
+            'uom_type' => ['required', Rule::enum(UomType::class)],
             'base_unit_id' => 'nullable|exists:units_of_measure,id',
             'conversion_factor' => 'nullable|numeric|min:0',
             'precision' => 'integer|min:0|max:6',
@@ -88,7 +90,7 @@ class UnitOfMeasureController extends Controller
         $validated = $request->validate([
             'code' => 'sometimes|required|string|max:20',
             'name' => 'sometimes|required|string|max:100',
-            'uom_type' => 'sometimes|required|in:weight,volume,length,area,quantity,time',
+            'uom_type' => ['sometimes', 'required', Rule::enum(UomType::class)],
             'base_unit_id' => 'nullable|exists:units_of_measure,id',
             'conversion_factor' => 'nullable|numeric|min:0',
             'precision' => 'integer|min:0|max:6',
