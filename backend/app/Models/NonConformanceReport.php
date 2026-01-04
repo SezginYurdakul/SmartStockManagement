@@ -16,21 +16,6 @@ class NonConformanceReport extends Model
 {
     use HasFactory, SoftDeletes, BelongsToCompany;
 
-    // Legacy constants - kept for backward compatibility, prefer using Enums
-    // @deprecated Use NcrStatus enum instead
-    public const STATUS_OPEN = 'open';
-    public const STATUS_UNDER_REVIEW = 'under_review';
-    public const STATUS_PENDING_DISPOSITION = 'pending_disposition';
-    public const STATUS_DISPOSITION_APPROVED = 'disposition_approved';
-    public const STATUS_IN_PROGRESS = 'in_progress';
-    public const STATUS_CLOSED = 'closed';
-    public const STATUS_CANCELLED = 'cancelled';
-
-    // @deprecated Use NcrSeverity enum instead
-    public const SEVERITY_MINOR = 'minor';
-    public const SEVERITY_MAJOR = 'major';
-    public const SEVERITY_CRITICAL = 'critical';
-
     // Source type constants (no enum needed - simple category)
     public const SOURCE_RECEIVING = 'receiving';
     public const SOURCE_PRODUCTION = 'production';
@@ -42,15 +27,6 @@ class NonConformanceReport extends Model
     public const PRIORITY_MEDIUM = 'medium';
     public const PRIORITY_HIGH = 'high';
     public const PRIORITY_URGENT = 'urgent';
-
-    // @deprecated Use NcrDisposition enum instead
-    public const DISPOSITION_PENDING = 'pending';
-    public const DISPOSITION_USE_AS_IS = 'use_as_is';
-    public const DISPOSITION_REWORK = 'rework';
-    public const DISPOSITION_SCRAP = 'scrap';
-    public const DISPOSITION_RETURN = 'return_to_supplier';
-    public const DISPOSITION_SORT = 'sort_and_use';
-    public const DISPOSITION_REJECT = 'reject';
 
     protected $fillable = [
         'company_id',
@@ -97,28 +73,6 @@ class NonConformanceReport extends Model
     ];
 
     /**
-     * Status labels for UI
-     */
-    public const STATUSES = [
-        self::STATUS_OPEN => 'Open',
-        self::STATUS_UNDER_REVIEW => 'Under Review',
-        self::STATUS_PENDING_DISPOSITION => 'Pending Disposition',
-        self::STATUS_DISPOSITION_APPROVED => 'Disposition Approved',
-        self::STATUS_IN_PROGRESS => 'In Progress',
-        self::STATUS_CLOSED => 'Closed',
-        self::STATUS_CANCELLED => 'Cancelled',
-    ];
-
-    /**
-     * Severity labels for UI
-     */
-    public const SEVERITIES = [
-        self::SEVERITY_MINOR => 'Minor',
-        self::SEVERITY_MAJOR => 'Major',
-        self::SEVERITY_CRITICAL => 'Critical',
-    ];
-
-    /**
      * Defect type labels for UI
      */
     public const DEFECT_TYPES = [
@@ -133,19 +87,6 @@ class NonConformanceReport extends Model
         'quantity_over' => 'Quantity Over',
         'damage' => 'Damage',
         'other' => 'Other',
-    ];
-
-    /**
-     * Disposition labels for UI
-     */
-    public const DISPOSITIONS = [
-        self::DISPOSITION_PENDING => 'Pending Decision',
-        self::DISPOSITION_USE_AS_IS => 'Use As Is',
-        self::DISPOSITION_REWORK => 'Rework',
-        self::DISPOSITION_SCRAP => 'Scrap',
-        self::DISPOSITION_RETURN => 'Return to Supplier',
-        self::DISPOSITION_SORT => 'Sort and Use',
-        self::DISPOSITION_REJECT => 'Reject',
     ];
 
     /**
@@ -355,7 +296,7 @@ class NonConformanceReport extends Model
      */
     public function scopeOpen($query)
     {
-        return $query->whereNotIn('status', [self::STATUS_CLOSED, self::STATUS_CANCELLED]);
+        return $query->whereNotIn('status', [NcrStatus::CLOSED->value, NcrStatus::CANCELLED->value]);
     }
 
     /**
@@ -363,7 +304,7 @@ class NonConformanceReport extends Model
      */
     public function scopeClosed($query)
     {
-        return $query->where('status', self::STATUS_CLOSED);
+        return $query->where('status', NcrStatus::CLOSED->value);
     }
 
     /**
@@ -411,6 +352,6 @@ class NonConformanceReport extends Model
      */
     public function scopeCriticalOrMajor($query)
     {
-        return $query->whereIn('severity', [self::SEVERITY_CRITICAL, self::SEVERITY_MAJOR]);
+        return $query->whereIn('severity', [NcrSeverity::CRITICAL->value, NcrSeverity::MAJOR->value]);
     }
 }
