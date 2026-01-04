@@ -2,75 +2,108 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
+use Database\Seeders\Traits\SeederModeTrait;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
+    use SeederModeTrait;
 
     /**
      * Seed the application's database.
+     *
+     * Usage:
+     *   php artisan db:seed                    # Minimal mode (system essentials only)
+     *   php artisan db:seed --demo             # Demo mode (with sample data)
+     *   php artisan migrate:fresh --seed       # Minimal mode
+     *   php artisan migrate:fresh --seed --demo # Demo mode
+     *
+     * Or set environment variable:
+     *   SEED_MODE=demo php artisan db:seed
      */
     public function run(): void
     {
-        // Seed company first (required for multi-tenant data)
+        $this->outputModeInfo();
+
+        // ═══════════════════════════════════════════════════════════════
+        // CORE SYSTEM (Always Required)
+        // These seeders run in both minimal and demo modes
+        // ═══════════════════════════════════════════════════════════════
+
+        // Company (required for multi-tenant architecture)
         $this->call(CompanySeeder::class);
 
-        // Seed system settings
+        // System settings (app configuration)
         $this->call(SettingsSeeder::class);
 
-        // Seed roles and permissions
+        // Roles and permissions (RBAC)
         $this->call(RolePermissionSeeder::class);
 
-        // Seed test users (with company assignment)
+        // Admin user (at minimum, need one admin to login)
         $this->call(UserSeeder::class);
 
-        // Seed currencies and exchange rates
+        // Currencies (base currency required)
         $this->call(CurrencySeeder::class);
 
-        // Seed product types
+        // Product types (Simple, Configurable, etc.)
         $this->call(ProductTypeSeeder::class);
 
-        // Seed units of measure
+        // Units of measure (kg, pcs, m, etc.)
         $this->call(UnitOfMeasureSeeder::class);
 
-        // Seed categories
-        $this->call(CategorySeeder::class);
+        // ═══════════════════════════════════════════════════════════════
+        // DEMO DATA (Optional - only in demo mode)
+        // Sample data for testing and demonstration
+        // ═══════════════════════════════════════════════════════════════
 
-        // Seed attributes and values
-        $this->call(AttributeSeeder::class);
+        if ($this->isDemoMode()) {
+            $this->command->info('Seeding demo data...');
 
-        // Seed products (depends on categories)
-        $this->call(ProductSeeder::class);
+            // Categories (sample category hierarchy)
+            $this->call(CategorySeeder::class);
 
-        // Assign attributes to categories
-        $this->call(CategoryAttributeSeeder::class);
+            // Attributes and values (Color, Size, Material, etc.)
+            $this->call(AttributeSeeder::class);
 
-        // Assign attributes to products (Brand, Warranty, Material)
-        $this->call(ProductAttributeSeeder::class);
+            // Products (sample products)
+            $this->call(ProductSeeder::class);
 
-        // Generate product variants (Color, Size, Storage combinations)
-        $this->call(ProductVariantSeeder::class);
+            // Product-specific UOM conversions
+            $this->call(ProductUomConversionSeeder::class);
 
-        // Seed warehouses
-        $this->call(WarehouseSeeder::class);
+            // Category-attribute assignments
+            $this->call(CategoryAttributeSeeder::class);
 
-        // Seed stock and stock movements
-        $this->call(StockSeeder::class);
+            // Product-attribute assignments
+            $this->call(ProductAttributeSeeder::class);
 
-        // Seed suppliers (Phase 3 - Procurement)
-        $this->call(SupplierSeeder::class);
+            // Product variants (Color/Size combinations)
+            $this->call(ProductVariantSeeder::class);
 
-        // Seed QC test scenarios (acceptance rules, inspections, NCRs)
-        $this->call(QualityControlSeeder::class);
+            // Warehouses (sample locations)
+            $this->call(WarehouseSeeder::class);
 
-        // Seed manufacturing data (work centers, BOMs, routings)
-        $this->call(ManufacturingSeeder::class);
+            // Stock and movements (sample inventory)
+            $this->call(StockSeeder::class);
 
-        // Seed sales data (customer groups, customers, sales orders, delivery notes)
-        $this->call(SalesSeeder::class);
+            // Suppliers (sample vendors)
+            $this->call(SupplierSeeder::class);
+
+            // QC data (acceptance rules, inspections, NCRs)
+            $this->call(QualityControlSeeder::class);
+
+            // Manufacturing (work centers, BOMs, routings, work orders)
+            $this->call(ManufacturingSeeder::class);
+
+            // Sales (customer groups, customers, orders, deliveries)
+            $this->call(SalesSeeder::class);
+
+            $this->command->info('Demo data seeding completed!');
+        } else {
+            $this->command->info('Minimal mode: Skipping demo data.');
+            $this->command->info('To include demo data, run: php artisan db:seed --demo');
+        }
     }
 }

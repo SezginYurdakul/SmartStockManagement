@@ -10,6 +10,9 @@ class CategorySeeder extends Seeder
 {
     /**
      * Run the database seeds.
+     *
+     * Agricultural Machinery Manufacturing Categories
+     * Based on Netherlands agricultural technology sector
      */
     public function run(): void
     {
@@ -20,268 +23,413 @@ class CategorySeeder extends Seeder
         // Clear existing categories
         Category::query()->forceDelete();
 
-        // Main categories (parent categories)
-        $electronics = Category::create([
+        // ========================================
+        // MAIN CATEGORIES (Parent categories)
+        // ========================================
+
+        $tractors = Category::create([
             'company_id' => $companyId,
-            'name' => 'Electronics',
-            'slug' => 'electronics',
-            'description' => 'Electronic devices and accessories'
+            'name' => 'Tractors',
+            'slug' => 'tractors',
+            'description' => 'Agricultural tractors for farming operations'
         ]);
 
-        $computersLaptops = Category::create([
+        $harvestingEquipment = Category::create([
             'company_id' => $companyId,
-            'name' => 'Computers & Laptops',
-            'slug' => 'computers-laptops',
-            'description' => 'Desktop computers, laptops, and computer accessories'
+            'name' => 'Harvesting Equipment',
+            'slug' => 'harvesting-equipment',
+            'description' => 'Combine harvesters, balers, and harvesting machinery'
         ]);
 
-        $mobilePhones = Category::create([
+        $soilPreparation = Category::create([
             'company_id' => $companyId,
-            'name' => 'Mobile Phones',
-            'slug' => 'mobile-phones',
-            'description' => 'Smartphones, feature phones, and mobile accessories'
+            'name' => 'Soil Preparation',
+            'slug' => 'soil-preparation',
+            'description' => 'Ploughs, cultivators, and tillage equipment'
         ]);
 
-        $camerasPhotography = Category::create([
+        $seedingPlanting = Category::create([
             'company_id' => $companyId,
-            'name' => 'Cameras & Photography',
-            'slug' => 'cameras-photography',
-            'description' => 'Digital cameras, lenses, and photography equipment'
+            'name' => 'Seeding & Planting',
+            'slug' => 'seeding-planting',
+            'description' => 'Seed drills, planters, and transplanting equipment'
         ]);
 
-        $audioHeadphones = Category::create([
+        $irrigationSystems = Category::create([
             'company_id' => $companyId,
-            'name' => 'Audio & Headphones',
-            'slug' => 'audio-headphones',
-            'description' => 'Speakers, headphones, and audio equipment'
+            'name' => 'Irrigation Systems',
+            'slug' => 'irrigation-systems',
+            'description' => 'Irrigation and water management equipment'
         ]);
 
-        $gaming = Category::create([
+        $sprayingEquipment = Category::create([
             'company_id' => $companyId,
-            'name' => 'Gaming',
-            'slug' => 'gaming',
-            'description' => 'Gaming consoles, accessories, and video games'
+            'name' => 'Spraying Equipment',
+            'slug' => 'spraying-equipment',
+            'description' => 'Crop sprayers and fertilizer spreaders'
         ]);
 
-        $wearables = Category::create([
+        $livestockEquipment = Category::create([
             'company_id' => $companyId,
-            'name' => 'Wearables',
-            'slug' => 'wearables',
-            'description' => 'Smartwatches, fitness trackers, and wearable tech'
+            'name' => 'Livestock Equipment',
+            'slug' => 'livestock-equipment',
+            'description' => 'Dairy, feeding, and animal husbandry equipment'
         ]);
 
-        $homeAppliances = Category::create([
+        $greenhouseEquipment = Category::create([
             'company_id' => $companyId,
-            'name' => 'Home Appliances',
-            'slug' => 'home-appliances',
-            'description' => 'Kitchen appliances and home electronics'
+            'name' => 'Greenhouse Equipment',
+            'slug' => 'greenhouse-equipment',
+            'description' => 'Climate control and greenhouse systems'
         ]);
 
-        $smartHome = Category::create([
+        $spareParts = Category::create([
             'company_id' => $companyId,
-            'name' => 'Smart Home',
-            'slug' => 'smart-home',
-            'description' => 'Smart home devices and automation systems'
+            'name' => 'Spare Parts',
+            'slug' => 'spare-parts',
+            'description' => 'Replacement parts and components'
         ]);
 
-        $officeSupplies = Category::create([
+        $rawMaterials = Category::create([
             'company_id' => $companyId,
-            'name' => 'Office Supplies',
-            'slug' => 'office-supplies',
-            'description' => 'Office equipment and supplies'
+            'name' => 'Raw Materials',
+            'slug' => 'raw-materials',
+            'description' => 'Steel, metals, and manufacturing materials'
         ]);
 
-        // Subcategories - Electronics
-        Category::create([
-            'company_id' => $companyId,
-            'name' => 'Tablets',
-            'slug' => 'tablets',
-            'description' => 'Tablets and e-readers',
-            'parent_id' => $electronics->id
-        ]);
+        // ========================================
+        // SUBCATEGORIES - Tractors
+        // ========================================
 
         Category::create([
             'company_id' => $companyId,
-            'name' => 'Accessories',
-            'slug' => 'accessories',
-            'description' => 'Electronic accessories',
-            'parent_id' => $electronics->id
-        ]);
-
-        // Subcategories - Computers & Laptops
-        Category::create([
-            'company_id' => $companyId,
-            'name' => 'Laptops',
-            'slug' => 'laptops',
-            'description' => 'Portable laptops and notebooks',
-            'parent_id' => $computersLaptops->id
+            'name' => 'Compact Tractors',
+            'slug' => 'compact-tractors',
+            'description' => 'Small tractors 25-50 HP for orchards and gardens',
+            'parent_id' => $tractors->id
         ]);
 
         Category::create([
             'company_id' => $companyId,
-            'name' => 'Desktops',
-            'slug' => 'desktops',
-            'description' => 'Desktop computers and workstations',
-            'parent_id' => $computersLaptops->id
+            'name' => 'Utility Tractors',
+            'slug' => 'utility-tractors',
+            'description' => 'Medium tractors 50-100 HP for general farming',
+            'parent_id' => $tractors->id
         ]);
 
         Category::create([
             'company_id' => $companyId,
-            'name' => 'Computer Accessories',
-            'slug' => 'computer-accessories',
-            'description' => 'Keyboards, mice, and computer peripherals',
-            'parent_id' => $computersLaptops->id
-        ]);
-
-        // Subcategories - Mobile Phones
-        Category::create([
-            'company_id' => $companyId,
-            'name' => 'Smartphones',
-            'slug' => 'smartphones',
-            'description' => 'High-end smartphones',
-            'parent_id' => $mobilePhones->id
+            'name' => 'Row Crop Tractors',
+            'slug' => 'row-crop-tractors',
+            'description' => 'Large tractors 100-200 HP for field work',
+            'parent_id' => $tractors->id
         ]);
 
         Category::create([
             'company_id' => $companyId,
-            'name' => 'Mobile Accessories',
-            'slug' => 'mobile-accessories',
-            'description' => 'Cases, chargers, and mobile accessories',
-            'parent_id' => $mobilePhones->id
+            'name' => 'Specialty Tractors',
+            'slug' => 'specialty-tractors',
+            'description' => 'Vineyard, orchard, and narrow tractors',
+            'parent_id' => $tractors->id
         ]);
 
-        // Subcategories - Cameras & Photography
-        Category::create([
-            'company_id' => $companyId,
-            'name' => 'DSLR Cameras',
-            'slug' => 'dslr-cameras',
-            'description' => 'Professional DSLR cameras',
-            'parent_id' => $camerasPhotography->id
-        ]);
+        // ========================================
+        // SUBCATEGORIES - Harvesting Equipment
+        // ========================================
 
         Category::create([
             'company_id' => $companyId,
-            'name' => 'Mirrorless Cameras',
-            'slug' => 'mirrorless-cameras',
-            'description' => 'Mirrorless camera systems',
-            'parent_id' => $camerasPhotography->id
+            'name' => 'Combine Harvesters',
+            'slug' => 'combine-harvesters',
+            'description' => 'Grain and crop combine harvesters',
+            'parent_id' => $harvestingEquipment->id
         ]);
 
         Category::create([
             'company_id' => $companyId,
-            'name' => 'Lenses',
-            'slug' => 'lenses',
-            'description' => 'Camera lenses and optics',
-            'parent_id' => $camerasPhotography->id
-        ]);
-
-        // Subcategories - Audio & Headphones
-        Category::create([
-            'company_id' => $companyId,
-            'name' => 'Headphones',
-            'slug' => 'headphones',
-            'description' => 'Over-ear and in-ear headphones',
-            'parent_id' => $audioHeadphones->id
+            'name' => 'Forage Harvesters',
+            'slug' => 'forage-harvesters',
+            'description' => 'Silage and forage harvesting equipment',
+            'parent_id' => $harvestingEquipment->id
         ]);
 
         Category::create([
             'company_id' => $companyId,
-            'name' => 'Speakers',
-            'slug' => 'speakers',
-            'description' => 'Bluetooth and wired speakers',
-            'parent_id' => $audioHeadphones->id
-        ]);
-
-        // Subcategories - Gaming
-        Category::create([
-            'company_id' => $companyId,
-            'name' => 'Gaming Consoles',
-            'slug' => 'gaming-consoles',
-            'description' => 'PlayStation, Xbox, Nintendo consoles',
-            'parent_id' => $gaming->id
+            'name' => 'Balers',
+            'slug' => 'balers',
+            'description' => 'Round and square balers for hay and straw',
+            'parent_id' => $harvestingEquipment->id
         ]);
 
         Category::create([
             'company_id' => $companyId,
-            'name' => 'Gaming Accessories',
-            'slug' => 'gaming-accessories',
-            'description' => 'Controllers, headsets, and gaming peripherals',
-            'parent_id' => $gaming->id
+            'name' => 'Potato Harvesters',
+            'slug' => 'potato-harvesters',
+            'description' => 'Specialized potato and root vegetable harvesters',
+            'parent_id' => $harvestingEquipment->id
         ]);
 
-        // Subcategories - Wearables
-        Category::create([
-            'company_id' => $companyId,
-            'name' => 'Smartwatches',
-            'slug' => 'smartwatches',
-            'description' => 'Smart watches and wearable devices',
-            'parent_id' => $wearables->id
-        ]);
+        // ========================================
+        // SUBCATEGORIES - Soil Preparation
+        // ========================================
 
         Category::create([
             'company_id' => $companyId,
-            'name' => 'Fitness Trackers',
-            'slug' => 'fitness-trackers',
-            'description' => 'Activity and fitness tracking devices',
-            'parent_id' => $wearables->id
-        ]);
-
-        // Subcategories - Home Appliances
-        Category::create([
-            'company_id' => $companyId,
-            'name' => 'Kitchen Appliances',
-            'slug' => 'kitchen-appliances',
-            'description' => 'Kitchen tools and appliances',
-            'parent_id' => $homeAppliances->id
+            'name' => 'Ploughs',
+            'slug' => 'ploughs',
+            'description' => 'Reversible and conventional ploughs',
+            'parent_id' => $soilPreparation->id
         ]);
 
         Category::create([
             'company_id' => $companyId,
-            'name' => 'Cleaning Appliances',
-            'slug' => 'cleaning-appliances',
-            'description' => 'Vacuum cleaners and cleaning devices',
-            'parent_id' => $homeAppliances->id
-        ]);
-
-        // Subcategories - Smart Home
-        Category::create([
-            'company_id' => $companyId,
-            'name' => 'Smart Speakers',
-            'slug' => 'smart-speakers',
-            'description' => 'Voice-controlled smart speakers',
-            'parent_id' => $smartHome->id
+            'name' => 'Disc Harrows',
+            'slug' => 'disc-harrows',
+            'description' => 'Disc harrows for soil cultivation',
+            'parent_id' => $soilPreparation->id
         ]);
 
         Category::create([
             'company_id' => $companyId,
-            'name' => 'Security Cameras',
-            'slug' => 'security-cameras',
-            'description' => 'Home security and surveillance cameras',
-            'parent_id' => $smartHome->id
-        ]);
-
-        // Subcategories - Office Supplies
-        Category::create([
-            'company_id' => $companyId,
-            'name' => 'Office Furniture',
-            'slug' => 'office-furniture',
-            'description' => 'Desks, chairs, and office furniture',
-            'parent_id' => $officeSupplies->id
+            'name' => 'Cultivators',
+            'slug' => 'cultivators',
+            'description' => 'Field cultivators and chisel ploughs',
+            'parent_id' => $soilPreparation->id
         ]);
 
         Category::create([
             'company_id' => $companyId,
-            'name' => 'Printers & Scanners',
-            'slug' => 'printers-scanners',
-            'description' => 'Printing and scanning equipment',
-            'parent_id' => $officeSupplies->id
+            'name' => 'Rotary Tillers',
+            'slug' => 'rotary-tillers',
+            'description' => 'Rotavators and power tillers',
+            'parent_id' => $soilPreparation->id
+        ]);
+
+        // ========================================
+        // SUBCATEGORIES - Seeding & Planting
+        // ========================================
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Seed Drills',
+            'slug' => 'seed-drills',
+            'description' => 'Precision seed drills for row crops',
+            'parent_id' => $seedingPlanting->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Planters',
+            'slug' => 'planters',
+            'description' => 'Pneumatic and mechanical planters',
+            'parent_id' => $seedingPlanting->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Transplanters',
+            'slug' => 'transplanters',
+            'description' => 'Vegetable and seedling transplanters',
+            'parent_id' => $seedingPlanting->id
+        ]);
+
+        // ========================================
+        // SUBCATEGORIES - Irrigation Systems
+        // ========================================
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Drip Irrigation',
+            'slug' => 'drip-irrigation',
+            'description' => 'Drip lines and micro-irrigation systems',
+            'parent_id' => $irrigationSystems->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Sprinkler Systems',
+            'slug' => 'sprinkler-systems',
+            'description' => 'Center pivot and linear move sprinklers',
+            'parent_id' => $irrigationSystems->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Pumps',
+            'slug' => 'pumps',
+            'description' => 'Irrigation and water transfer pumps',
+            'parent_id' => $irrigationSystems->id
+        ]);
+
+        // ========================================
+        // SUBCATEGORIES - Spraying Equipment
+        // ========================================
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Field Sprayers',
+            'slug' => 'field-sprayers',
+            'description' => 'Mounted and trailed crop sprayers',
+            'parent_id' => $sprayingEquipment->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Fertilizer Spreaders',
+            'slug' => 'fertilizer-spreaders',
+            'description' => 'Broadcast and precision fertilizer spreaders',
+            'parent_id' => $sprayingEquipment->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Orchard Sprayers',
+            'slug' => 'orchard-sprayers',
+            'description' => 'Air blast sprayers for orchards and vineyards',
+            'parent_id' => $sprayingEquipment->id
+        ]);
+
+        // ========================================
+        // SUBCATEGORIES - Livestock Equipment
+        // ========================================
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Milking Systems',
+            'slug' => 'milking-systems',
+            'description' => 'Automated milking parlors and robots',
+            'parent_id' => $livestockEquipment->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Feeding Systems',
+            'slug' => 'feeding-systems',
+            'description' => 'Feed mixers and automated feeding equipment',
+            'parent_id' => $livestockEquipment->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Manure Handling',
+            'slug' => 'manure-handling',
+            'description' => 'Slurry tankers and manure spreaders',
+            'parent_id' => $livestockEquipment->id
+        ]);
+
+        // ========================================
+        // SUBCATEGORIES - Greenhouse Equipment
+        // ========================================
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Climate Control',
+            'slug' => 'climate-control',
+            'description' => 'Heating, ventilation, and cooling systems',
+            'parent_id' => $greenhouseEquipment->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Greenhouse Irrigation',
+            'slug' => 'greenhouse-irrigation',
+            'description' => 'Hydroponic and fertigation systems',
+            'parent_id' => $greenhouseEquipment->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Automation Systems',
+            'slug' => 'automation-systems',
+            'description' => 'Greenhouse automation and robotics',
+            'parent_id' => $greenhouseEquipment->id
+        ]);
+
+        // ========================================
+        // SUBCATEGORIES - Spare Parts
+        // ========================================
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Engine Parts',
+            'slug' => 'engine-parts',
+            'description' => 'Diesel engine components and filters',
+            'parent_id' => $spareParts->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Hydraulic Components',
+            'slug' => 'hydraulic-components',
+            'description' => 'Hydraulic pumps, cylinders, and valves',
+            'parent_id' => $spareParts->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Transmission Parts',
+            'slug' => 'transmission-parts',
+            'description' => 'Gearbox, clutch, and drivetrain components',
+            'parent_id' => $spareParts->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Electrical Components',
+            'slug' => 'electrical-components',
+            'description' => 'Sensors, wiring, and control units',
+            'parent_id' => $spareParts->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Wear Parts',
+            'slug' => 'wear-parts',
+            'description' => 'Blades, tines, and replacement wear items',
+            'parent_id' => $spareParts->id
+        ]);
+
+        // ========================================
+        // SUBCATEGORIES - Raw Materials
+        // ========================================
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Steel & Metals',
+            'slug' => 'steel-metals',
+            'description' => 'Steel sheets, tubes, and metal profiles',
+            'parent_id' => $rawMaterials->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Fasteners',
+            'slug' => 'fasteners',
+            'description' => 'Bolts, nuts, screws, and hardware',
+            'parent_id' => $rawMaterials->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Bearings & Seals',
+            'slug' => 'bearings-seals',
+            'description' => 'Ball bearings, roller bearings, and seals',
+            'parent_id' => $rawMaterials->id
+        ]);
+
+        Category::create([
+            'company_id' => $companyId,
+            'name' => 'Rubber & Plastics',
+            'slug' => 'rubber-plastics',
+            'description' => 'Hoses, belts, and plastic components',
+            'parent_id' => $rawMaterials->id
         ]);
 
         $totalCategories = Category::count();
         $parentCategories = Category::whereNull('parent_id')->count();
         $childCategories = Category::whereNotNull('parent_id')->count();
 
-        $this->command->info("Categories seeded successfully!");
+        $this->command->info("Agricultural Machinery categories seeded successfully!");
         $this->command->info("Total: {$totalCategories} categories ({$parentCategories} parent + {$childCategories} subcategories)");
     }
 }

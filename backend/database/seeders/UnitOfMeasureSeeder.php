@@ -235,6 +235,114 @@ class UnitOfMeasureSeeder extends Seeder
                 'precision' => 2,
                 'is_active' => true,
             ],
+            [
+                'company_id' => $companyId,
+                'code' => 'ha',
+                'name' => 'Hectare',
+                'uom_type' => 'area',
+                'base_unit_id' => $createdUnits['m2'],
+                'conversion_factor' => 10000,
+                'precision' => 2,
+                'is_active' => true,
+            ],
+
+            // Power units (for agricultural machinery)
+            [
+                'company_id' => $companyId,
+                'code' => 'hp',
+                'name' => 'Horsepower',
+                'uom_type' => 'power',
+                'base_unit_id' => null,
+                'conversion_factor' => 1,
+                'precision' => 0,
+                'is_active' => true,
+            ],
+            [
+                'company_id' => $companyId,
+                'code' => 'kW',
+                'name' => 'Kilowatt',
+                'uom_type' => 'power',
+                'base_unit_id' => null,
+                'conversion_factor' => 1.341, // 1 kW = 1.341 HP
+                'precision' => 2,
+                'is_active' => true,
+            ],
+
+            // Speed/Flow units (for machinery)
+            [
+                'company_id' => $companyId,
+                'code' => 'rpm',
+                'name' => 'Revolutions per Minute',
+                'uom_type' => 'speed',
+                'base_unit_id' => null,
+                'conversion_factor' => 1,
+                'precision' => 0,
+                'is_active' => true,
+            ],
+            [
+                'company_id' => $companyId,
+                'code' => 'L/min',
+                'name' => 'Liters per Minute',
+                'uom_type' => 'flow',
+                'base_unit_id' => null,
+                'conversion_factor' => 1,
+                'precision' => 1,
+                'is_active' => true,
+            ],
+
+            // Time units (for service/warranty)
+            [
+                'company_id' => $companyId,
+                'code' => 'hr',
+                'name' => 'Hour',
+                'uom_type' => 'time',
+                'base_unit_id' => null,
+                'conversion_factor' => 1,
+                'precision' => 0,
+                'is_active' => true,
+            ],
+
+            // Set units (for machinery sets/kits)
+            [
+                'company_id' => $companyId,
+                'code' => 'set',
+                'name' => 'Set',
+                'uom_type' => 'quantity',
+                'base_unit_id' => $createdUnits['pcs'],
+                'conversion_factor' => 1,
+                'precision' => 0,
+                'is_active' => true,
+            ],
+            [
+                'company_id' => $companyId,
+                'code' => 'pair',
+                'name' => 'Pair',
+                'uom_type' => 'quantity',
+                'base_unit_id' => $createdUnits['pcs'],
+                'conversion_factor' => 2,
+                'precision' => 0,
+                'is_active' => true,
+            ],
+            [
+                'company_id' => $companyId,
+                'code' => 'pallet',
+                'name' => 'Pallet',
+                'uom_type' => 'quantity',
+                'base_unit_id' => $createdUnits['pcs'],
+                'conversion_factor' => 1, // Product-specific, default 1
+                'precision' => 0,
+                'is_active' => true,
+            ],
+            [
+                'company_id' => $companyId,
+                'code' => 'drum',
+                'name' => 'Drum',
+                'uom_type' => 'quantity',
+                'base_unit_id' => $createdUnits['pcs'],
+                'conversion_factor' => 1, // Product-specific, default 1
+                'precision' => 0,
+                'is_active' => true,
+            ],
         ];
 
         foreach ($derivedUnits as $unitData) {
