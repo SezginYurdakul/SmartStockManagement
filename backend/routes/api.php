@@ -16,6 +16,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\ProductTypeController;
+use App\Http\Controllers\ProductUomConversionController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\ReceivingInspectionController;
 use App\Http\Controllers\RoleController;
@@ -147,6 +148,17 @@ Route::middleware('auth:sanctum')->group(function () {
         // Force delete variants (Admin only - permanent deletion)
         Route::delete('/{product}/variants/{variant}/force', [ProductController::class, 'forceDeleteVariant'])->middleware('role:admin');
         Route::delete('/{product}/variants/force-clear', [AttributeController::class, 'forceClearVariants'])->middleware('role:admin');
+
+        // Product UOM Conversions (product-specific unit conversions)
+        Route::get('/{product}/uom-conversions', [ProductUomConversionController::class, 'index'])->middleware('permission:products.view');
+        Route::post('/{product}/uom-conversions', [ProductUomConversionController::class, 'store'])->middleware('permission:products.edit');
+        Route::post('/{product}/uom-conversions/bulk', [ProductUomConversionController::class, 'bulkStore'])->middleware('permission:products.edit');
+        Route::post('/{product}/uom-conversions/copy-from', [ProductUomConversionController::class, 'copyFrom'])->middleware('permission:products.edit');
+        Route::post('/{product}/uom-conversions/convert', [ProductUomConversionController::class, 'convert'])->middleware('permission:products.view');
+        Route::get('/{product}/uom-conversions/{conversion}', [ProductUomConversionController::class, 'show'])->middleware('permission:products.view');
+        Route::put('/{product}/uom-conversions/{conversion}', [ProductUomConversionController::class, 'update'])->middleware('permission:products.edit');
+        Route::delete('/{product}/uom-conversions/{conversion}', [ProductUomConversionController::class, 'destroy'])->middleware('permission:products.edit');
+        Route::post('/{product}/uom-conversions/{conversion}/toggle-active', [ProductUomConversionController::class, 'toggleActive'])->middleware('permission:products.edit');
     });
 
     // Product types routes (permission-based)

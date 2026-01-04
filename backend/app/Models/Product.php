@@ -184,15 +184,6 @@ class Product extends Model
     }
 
     /**
-     * Alias for backwards compatibility
-     * @deprecated Use categories() or primaryCategory instead
-     */
-    public function category()
-    {
-        return $this->primaryCategory();
-    }
-
-    /**
      * Get the variants for the product
      */
     public function variants()
@@ -366,5 +357,87 @@ class Product extends Model
     public function isUsedAsComponent(): bool
     {
         return $this->bomItemsAsComponent()->exists();
+    }
+
+    // =========================================
+    // UOM Conversion Relationships
+    // =========================================
+
+    /**
+     * Get all product-specific UOM conversions
+     */
+    public function uomConversions()
+    {
+        return $this->hasMany(ProductUomConversion::class);
+    }
+
+    /**
+     * Get active UOM conversions
+     */
+    public function activeUomConversions()
+    {
+        return $this->uomConversions()->active();
+    }
+
+    /**
+     * Convert quantity between units for this product
+     *
+     * First checks product-specific conversions, then falls back to standard conversions.
+     *
+     * @param float $quantity Quantity to convert
+     * @param UnitOfMeasure $fromUnit Source unit
+     * @param UnitOfMeasure $toUnit Target unit
+     * @return float|null Converted quantity, null if conversion not possible
+     */
+    public function convertQuantity(float $quantity, UnitOfMeasure $fromUnit, UnitOfMeasure $toUnit): ?float
+    {
+        // Same unit, no conversion needed
+        if ($fromUnit->id === $toUnit->id) {
+            return $quantity;
+        }
+
+        // Try product-specific conversion first
+        $productConversion = $this->uomConversions()
+            ->active()
+            ->fromUnit($fromUnit->id)
+            ->toUnit($toUnit->id)
+            ->first();
+
+        if ($productConversion) {
+            return $productConversion->convert($quantity);
+        }
+
+        // Try reverse product-specific conversion
+        $reverseConversion = $this->uomConversions()
+            ->active()
+            ->fromUnit($toUnit->id)
+            ->toUnit($fromUnit->id)
+            ->first();
+
+        if ($reverseConversion) {
+            return $reverseConversion->reverseConvert($quantity);
+        }
+
+        // Fall back to standard conversion
+        return $fromUnit->convertTo($quantity, $toUnit);
+    }
+
+    /**
+     * Get all available units for this product
+     * (base unit + all units with conversions)
+     */
+    public function getAvailableUnits()
+    {
+        $unitIds = collect([$this->uom_id]);
+
+        // Add units from product-specific conversions
+        $conversionUnits = $this->uomConversions()
+            ->active()
+            ->get()
+            ->flatMap(fn($c) => [$c->from_uom_id, $c->to_uom_id]);
+
+        $unitIds = $unitIds->merge($conversionUnits)->unique()->filter();
+
+        return UnitOfMeasure::whereIn('id', $unitIds)->active()->get();
     }
 }
