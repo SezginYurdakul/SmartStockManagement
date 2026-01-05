@@ -99,4 +99,12 @@ class Company extends Model
     {
         return $this->base_currency ?? 'USD';
     }
+
+    /**
+     * Get calendar entries for this company
+     */
+    public function calendars(): HasMany
+    {
+        return $this->hasMany(CompanyCalendar::class);
+    }
 }
