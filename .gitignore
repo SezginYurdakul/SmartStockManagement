@@ -37,6 +37,9 @@ Thumbs.db
 *.pdf
 !docs/*.pdf
 
+# Exclude markdown documentation files in backend/docs
+backend/docs/*.md
+
 # Backup files
 *.backup
 *.bak
