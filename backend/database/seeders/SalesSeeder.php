@@ -7,6 +7,7 @@ use App\Enums\DeliveryNoteStatus;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\CustomerGroupPrice;
+use App\Models\Currency;
 use App\Models\DeliveryNote;
 use App\Models\DeliveryNoteItem;
 use App\Models\Product;
@@ -427,6 +428,10 @@ class SalesSeeder extends Seeder
             return;
         }
 
+        // Get default currency for company
+        $defaultCurrency = Currency::where('code', 'EUR')->first()
+            ?? Currency::where('is_active', true)->first();
+
         foreach ($products as $product) {
             $basePrice = $product->price ?? $product->cost_price ?? 50000;
 
@@ -440,6 +445,7 @@ class SalesSeeder extends Seeder
                 ],
                 [
                     'price' => $basePrice * 0.75, // 25% off
+                    'currency_id' => $defaultCurrency?->id,
                     'is_active' => true,
                 ]
             );
@@ -454,6 +460,7 @@ class SalesSeeder extends Seeder
                 ],
                 [
                     'price' => $basePrice * 0.80, // 20% off
+                    'currency_id' => $defaultCurrency?->id,
                     'is_active' => true,
                 ]
             );
@@ -468,6 +475,7 @@ class SalesSeeder extends Seeder
                 ],
                 [
                     'price' => $basePrice * 0.82, // 18% off for 3+
+                    'currency_id' => $defaultCurrency?->id,
                     'is_active' => true,
                 ]
             );

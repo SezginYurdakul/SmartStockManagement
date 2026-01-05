@@ -56,6 +56,8 @@ class StockSeeder extends Seeder
                 'expiry_date' => rand(0, 1) ? now()->addMonths(rand(3, 24)) : null,
                 'received_date' => now()->subDays(rand(30, 90)),
                 'status' => 'available',
+                // QC fields (from migration: add_qc_fields_to_warehouses_and_stock)
+                'quality_status' => 'available', // available, pending_inspection, on_hold, conditional, rejected, quarantine
                 'notes' => 'Initial stock setup',
             ]);
             $stockCount++;
@@ -97,6 +99,8 @@ class StockSeeder extends Seeder
                         'expiry_date' => rand(0, 1) ? now()->addMonths(rand(3, 24)) : null,
                         'received_date' => now()->subDays(rand(1, 30)),
                         'status' => 'available',
+                        // QC fields (from migration: add_qc_fields_to_warehouses_and_stock)
+                        'quality_status' => 'available', // available, pending_inspection, on_hold, conditional, rejected, quarantine
                         'notes' => 'Stock transfer from main warehouse',
                     ]);
                     $stockCount++;
