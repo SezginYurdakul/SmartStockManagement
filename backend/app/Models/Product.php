@@ -30,6 +30,15 @@ class Product extends Model
         'is_featured',
         'meta_data',
         'created_by',
+        // MRP Planning fields
+        'lead_time_days',
+        'safety_stock',
+        'reorder_point',
+        'make_or_buy',
+        'low_level_code',
+        'minimum_order_qty',
+        'order_multiple',
+        'maximum_stock',
     ];
 
     protected $casts = [
@@ -41,6 +50,14 @@ class Product extends Model
         'is_active' => 'boolean',
         'is_featured' => 'boolean',
         'meta_data' => 'array',
+        // MRP Planning casts
+        'lead_time_days' => 'integer',
+        'safety_stock' => 'decimal:4',
+        'reorder_point' => 'decimal:4',
+        'low_level_code' => 'integer',
+        'minimum_order_qty' => 'decimal:4',
+        'order_multiple' => 'decimal:4',
+        'maximum_stock' => 'decimal:4',
     ];
 
     /**
@@ -439,5 +456,102 @@ class Product extends Model
         $unitIds = $unitIds->merge($conversionUnits)->unique()->filter();
 
         return UnitOfMeasure::whereIn('id', $unitIds)->active()->get();
+    }
+
+    // =========================================
+    // MRP Planning Methods
+    // =========================================
+
+    /**
+     * Get MRP recommendations for this product
+     */
+    public function mrpRecommendations()
+    {
+        return $this->hasMany(MrpRecommendation::class);
+    }
+
+    /**
+     * Check if product should be manufactured (vs purchased)
+     */
+    public function shouldManufacture(): bool
+    {
+        return $this->make_or_buy === 'make';
+    }
+
+    /**
+     * Check if product should be purchased
+     */
+    public function shouldPurchase(): bool
+    {
+        return $this->make_or_buy === 'buy';
+    }
+
+    /**
+     * Calculate order quantity respecting order multiple and minimum
+     */
+    public function calculateOrderQuantity(float $netRequirement): float
+    {
+        // Apply minimum order quantity
+        $quantity = max($netRequirement, $this->minimum_order_qty ?? 1);
+
+        // Apply order multiple (lot sizing)
+        $multiple = $this->order_multiple ?? 1;
+        if ($multiple > 1) {
+            $quantity = ceil($quantity / $multiple) * $multiple;
+        }
+
+        // Check against maximum stock if set
+        if ($this->maximum_stock !== null) {
+            $currentStock = $this->getTotalStock();
+            $maxOrderQty = $this->maximum_stock - $currentStock;
+            if ($maxOrderQty > 0) {
+                $quantity = min($quantity, $maxOrderQty);
+            }
+        }
+
+        return $quantity;
+    }
+
+    /**
+     * Get total stock across all warehouses
+     */
+    public function getTotalStock(): float
+    {
+        return $this->stocks()->sum('available_quantity');
+    }
+
+    /**
+     * Get stock levels per warehouse
+     */
+    public function stocks()
+    {
+        return $this->hasMany(Stock::class);
+    }
+
+    /**
+     * Check if product is below reorder point
+     */
+    public function isBelowReorderPoint(): bool
+    {
+        $totalStock = $this->getTotalStock();
+        return $totalStock < ($this->reorder_point ?? 0);
+    }
+
+    /**
+     * Check if product is below safety stock
+     */
+    public function isBelowSafetyStock(): bool
+    {
+        $totalStock = $this->getTotalStock();
+        return $totalStock < ($this->safety_stock ?? 0);
+    }
+
+    /**
+     * Calculate when order should be placed (considering lead time)
+     */
+    public function calculateOrderDate(\DateTimeInterface $requiredDate): \DateTimeInterface
+    {
+        $orderDate = \Carbon\Carbon::parse($requiredDate);
+        return $orderDate->subDays($this->lead_time_days ?? 0);
     }
 }
