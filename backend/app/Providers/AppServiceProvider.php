@@ -3,6 +3,12 @@
 namespace App\Providers;
 
 use App\Scout\ElasticsearchEngine;
+use App\Models\Bom;
+use App\Models\Product;
+use App\Models\CompanyCalendar;
+use App\Observers\BomObserver;
+use App\Observers\ProductObserver;
+use App\Observers\CompanyCalendarObserver;
 use Elastic\Elasticsearch\Client;
 use Elastic\Elasticsearch\ClientBuilder;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -76,5 +82,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('bulk-variant-generate', function (Request $request) {
             return Limit::perMinute(5)->by($request->user()?->id ?: $request->ip());
         });
+
+        // Register Observers for automatic MRP cache invalidation
+        Bom::observe(BomObserver::class);
+        Product::observe(ProductObserver::class);
+        CompanyCalendar::observe(CompanyCalendarObserver::class);
     }
 }

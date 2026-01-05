@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Company;
 use App\Models\Product;
 use App\Models\ProductType;
+use App\Models\Bom;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -398,6 +399,27 @@ class ProductSeeder extends Seeder
                         $productTypeId = $rawMaterialsType?->id ?? $finishedGoodsType->id;
                     }
 
+                    // MRP Planning fields based on product type
+                    $isFinishedGoods = $productTypeId === $finishedGoodsType->id;
+                    $isSpareParts = in_array($category->slug, $sparePartsCategories);
+                    $isRawMaterials = in_array($category->slug, $rawMaterialsCategories);
+
+                    // Lead time: machinery takes longer, parts/materials are quicker
+                    $leadTimeDays = $isFinishedGoods ? rand(14, 45) : ($isSpareParts ? rand(3, 10) : rand(1, 5));
+
+                    // Safety stock: higher for fast-moving items
+                    $safetyStock = $isRawMaterials ? rand(20, 100) : ($isSpareParts ? rand(5, 25) : rand(1, 3));
+
+                    // Reorder point = safety stock + average daily usage * lead time
+                    $reorderPoint = $safetyStock + ($stock * 0.1 * $leadTimeDays / 30);
+
+                    // Make or buy decision
+                    $makeOrBuy = $isFinishedGoods ? 'make' : 'buy';
+
+                    // Minimum order qty and multiple
+                    $minimumOrderQty = $isRawMaterials ? rand(10, 50) : ($isSpareParts ? rand(2, 10) : 1);
+                    $orderMultiple = $isRawMaterials ? rand(5, 25) : ($isSpareParts ? rand(1, 5) : 1);
+
                     $product = Product::create([
                         'company_id' => $companyId,
                         'product_type_id' => $productTypeId,
@@ -413,6 +435,13 @@ class ProductSeeder extends Seeder
                         'low_stock_threshold' => $lowStockThreshold,
                         'is_active' => $isActive,
                         'is_featured' => $isFeatured,
+                        // MRP Planning fields
+                        'lead_time_days' => $leadTimeDays,
+                        'safety_stock' => $safetyStock,
+                        'reorder_point' => round($reorderPoint, 2),
+                        'make_or_buy' => $makeOrBuy,
+                        'minimum_order_qty' => $minimumOrderQty,
+                        'order_multiple' => $orderMultiple,
                         'meta_data' => [
                             'brand' => $template['brand'],
                             'power_requirement' => $template['power'],
@@ -435,5 +464,85 @@ class ProductSeeder extends Seeder
 
         $totalProducts = Product::count();
         $this->command->info("Agricultural Machinery products seeded successfully! Total: {$totalProducts} products");
+
+        // Calculate Low-Level Codes for all products
+        $this->command->info("Calculating Low-Level Codes for products...");
+        $this->calculateLowLevelCodes($companyId);
+        $this->command->info("✓ Low-Level Codes calculated successfully!");
+    }
+
+    /**
+     * Calculate Low-Level Codes for all products
+     * Low-Level Code determines the processing order in MRP:
+     * - Level 0: Finished goods (not used as components)
+     * - Level 1+: Components used in higher-level products
+     */
+    protected function calculateLowLevelCodes(?int $companyId): void
+    {
+        if (!$companyId) {
+            return;
+        }
+
+        // Reset all low-level codes to 0
+        Product::where('company_id', $companyId)
+            ->update(['low_level_code' => 0]);
+
+        $changed = true;
+        $maxIterations = 100; // Prevent infinite loops
+        $iteration = 0;
+
+        while ($changed && $iteration < $maxIterations) {
+            $changed = false;
+            $iteration++;
+
+            // Get all active BOMs
+            $boms = Bom::where('company_id', $companyId)
+                ->where('status', 'active')
+                ->with('items.component')
+                ->get();
+
+            foreach ($boms as $bom) {
+                $parentProduct = $bom->product;
+                if (!$parentProduct || !$parentProduct->is_active) {
+                    continue;
+                }
+
+                $parentLevel = $parentProduct->low_level_code ?? 0;
+
+                // Check all components in this BOM
+                foreach ($bom->items as $item) {
+                    $component = $item->component;
+                    if (!$component || !$component->is_active) {
+                        continue;
+                    }
+
+                    // Component's level should be at least parent's level + 1
+                    $requiredLevel = $parentLevel + 1;
+                    $currentLevel = $component->low_level_code ?? 0;
+
+                    if ($requiredLevel > $currentLevel) {
+                        $component->low_level_code = $requiredLevel;
+                        $component->save();
+                        $changed = true;
+                    }
+                }
+            }
+        }
+
+        if ($iteration >= $maxIterations) {
+            $this->command->warn('Low-Level Code calculation reached maximum iterations. Possible circular BOM reference.');
+        }
+
+        // Show statistics
+        $levelStats = Product::where('company_id', $companyId)
+            ->selectRaw('low_level_code, COUNT(*) as count')
+            ->groupBy('low_level_code')
+            ->orderBy('low_level_code')
+            ->pluck('count', 'low_level_code')
+            ->toArray();
+
+        foreach ($levelStats as $level => $count) {
+            $this->command->info("  Level {$level}: {$count} products");
+        }
     }
 }

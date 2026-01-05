@@ -99,6 +99,15 @@ class SettingController extends Controller
             ], 404);
         }
 
+        // System settings can only be modified by admin
+        // Route already has permission:settings.edit middleware, but adding extra check for security
+        if ($setting->is_system && !$request->user()->hasRole('admin')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'System settings can only be modified by administrators',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'value' => 'required',
             'description' => 'nullable|string|max:255',

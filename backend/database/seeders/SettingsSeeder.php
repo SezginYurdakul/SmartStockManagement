@@ -138,6 +138,45 @@ class SettingsSeeder extends Seeder
                 'description' => 'Default datetime format for display',
                 'is_system' => true,
             ],
+
+            // ===================
+            // MRP Settings
+            // ===================
+            [
+                'group' => 'mrp',
+                'key' => 'working_days',
+                'value' => [1, 2, 3, 4, 5], // Monday to Friday (0=Sunday, 1=Monday, ..., 6=Saturday)
+                'description' => 'Standard working days for MRP calculations. Array of day numbers: 0=Sunday, 1=Monday, ..., 6=Saturday',
+                'is_system' => true, // Only admin can modify
+            ],
+            [
+                'group' => 'mrp',
+                'key' => 'default_shift',
+                'value' => [
+                    'name' => 'default',
+                    'start_time' => '08:00:00',
+                    'end_time' => '17:00:00',
+                    'break_hours' => 1.0,
+                    'working_hours' => 8.0,
+                ],
+                'description' => 'Default shift configuration for MRP calculations',
+                'is_system' => true,
+            ],
+            [
+                'group' => 'mrp',
+                'key' => 'shifts',
+                'value' => [
+                    'default' => [
+                        'name' => 'default',
+                        'start_time' => '08:00:00',
+                        'end_time' => '17:00:00',
+                        'break_hours' => 1.0,
+                        'working_hours' => 8.0,
+                    ],
+                ],
+                'description' => 'Available shifts for MRP calculations. Can define multiple shifts (morning, afternoon, night, etc.)',
+                'is_system' => true,
+            ],
         ];
 
         foreach ($settings as $setting) {
