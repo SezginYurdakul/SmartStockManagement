@@ -71,6 +71,14 @@ class WorkCenter extends Model
     }
 
     /**
+     * Calendar entries for this work center (CRP)
+     */
+    public function calendars(): HasMany
+    {
+        return $this->hasMany(WorkCenterCalendar::class);
+    }
+
+    /**
      * Scope: Active work centers
      */
     public function scopeActive($query)
