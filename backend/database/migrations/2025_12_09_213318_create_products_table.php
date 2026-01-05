@@ -27,6 +27,17 @@ return new class extends Migration
             // category_id removed - now using category_product pivot table
             $table->boolean('is_active')->default(true);
             $table->boolean('is_featured')->default(false);
+            
+            // MRP Planning fields
+            $table->unsignedSmallInteger('lead_time_days')->default(0)->after('is_active');
+            $table->decimal('safety_stock', 15, 4)->default(0)->after('lead_time_days');
+            $table->decimal('reorder_point', 15, 4)->default(0)->after('safety_stock');
+            $table->string('make_or_buy', 10)->default('buy')->after('reorder_point');
+            $table->unsignedSmallInteger('low_level_code')->default(0)->after('make_or_buy');
+            $table->decimal('minimum_order_qty', 15, 4)->default(1)->after('low_level_code');
+            $table->decimal('order_multiple', 15, 4)->default(1)->after('minimum_order_qty');
+            $table->decimal('maximum_stock', 15, 4)->nullable()->after('order_multiple');
+            
             $table->json('meta_data')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
@@ -36,6 +47,8 @@ return new class extends Migration
             $table->index('company_id');
             $table->index('is_active');
             $table->index('is_featured');
+            $table->index(['make_or_buy', 'is_active'], 'idx_products_mrp');
+            $table->index('low_level_code', 'idx_products_low_level_code');
         });
     }
 

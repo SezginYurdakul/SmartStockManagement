@@ -30,6 +30,25 @@ return new class extends Migration
             $table->date('expiry_date')->nullable();
             $table->date('received_date')->nullable();
             $table->enum('status', ['available', 'reserved', 'quarantine', 'damaged', 'expired'])->default('available');
+            
+            // Quality control fields
+            $table->enum('quality_status', [
+                'available',           // Ready for use
+                'pending_inspection',  // Awaiting QC inspection
+                'on_hold',            // Held - no operations allowed
+                'conditional',        // Conditional use with restrictions
+                'rejected',           // Rejected - awaiting disposition
+                'quarantine'          // In quarantine
+            ])->default('available')->after('quantity_reserved');
+            $table->text('hold_reason')->nullable()->after('quality_status');
+            $table->timestamp('hold_until')->nullable()->after('hold_reason');
+            $table->json('quality_restrictions')->nullable()->after('hold_until');
+            $table->foreignId('quality_hold_by')->nullable()->after('quality_restrictions')
+                ->constrained('users')->nullOnDelete();
+            $table->timestamp('quality_hold_at')->nullable()->after('quality_hold_by');
+            $table->string('quality_reference_type', 50)->nullable()->after('quality_hold_at');
+            $table->unsignedBigInteger('quality_reference_id')->nullable()->after('quality_reference_type');
+            
             $table->text('notes')->nullable();
             $table->timestamps();
 
@@ -43,6 +62,8 @@ return new class extends Migration
             $table->index(['company_id', 'product_id']);
             $table->index(['company_id', 'warehouse_id']);
             $table->index(['product_id', 'warehouse_id', 'status']);
+            $table->index(['company_id', 'quality_status']);
+            $table->index(['quality_reference_type', 'quality_reference_id']);
             $table->index('lot_number');
             $table->index('serial_number');
             $table->index('expiry_date');

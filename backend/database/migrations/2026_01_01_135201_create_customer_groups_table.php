@@ -18,6 +18,8 @@ return new class extends Migration
             $table->string('name', 100);
             $table->text('description')->nullable();
             $table->decimal('discount_percentage', 5, 2)->default(0);
+            $table->integer('payment_terms_days')->nullable()->after('discount_percentage');
+            $table->decimal('credit_limit', 15, 2)->nullable()->after('payment_terms_days');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
 

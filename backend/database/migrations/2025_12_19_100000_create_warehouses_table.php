@@ -26,6 +26,14 @@ return new class extends Migration
             $table->string('contact_email', 255)->nullable();
             $table->boolean('is_active')->default(true);
             $table->boolean('is_default')->default(false);
+            // QC-related settings
+            $table->boolean('is_quarantine_zone')->default(false)->after('is_default');
+            $table->boolean('is_rejection_zone')->default(false)->after('is_quarantine_zone');
+            $table->boolean('requires_qc_release')->default(false)->after('is_rejection_zone');
+            $table->foreignId('linked_quarantine_warehouse_id')->nullable()->after('requires_qc_release')
+                ->constrained('warehouses')->nullOnDelete();
+            $table->foreignId('linked_rejection_warehouse_id')->nullable()->after('linked_quarantine_warehouse_id')
+                ->constrained('warehouses')->nullOnDelete();
             $table->json('settings')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
