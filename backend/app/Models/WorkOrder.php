@@ -21,6 +21,7 @@ class WorkOrder extends Model
         'product_id',
         'bom_id',
         'routing_id',
+        'mrp_recommendation_id',
         'quantity_ordered',
         'quantity_completed',
         'quantity_scrapped',
@@ -142,6 +143,14 @@ class WorkOrder extends Model
     public function completer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'completed_by');
+    }
+
+    /**
+     * MRP Recommendation that generated this work order
+     */
+    public function mrpRecommendation(): BelongsTo
+    {
+        return $this->belongsTo(MrpRecommendation::class);
     }
 
     /**

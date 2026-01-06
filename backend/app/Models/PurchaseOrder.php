@@ -28,6 +28,7 @@ class PurchaseOrder extends Model
         'company_id',
         'order_number',
         'supplier_id',
+        'mrp_recommendation_id',
         'warehouse_id',
         'order_date',
         'expected_delivery_date',
@@ -132,6 +133,14 @@ class PurchaseOrder extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * MRP Recommendation that generated this purchase order
+     */
+    public function mrpRecommendation(): BelongsTo
+    {
+        return $this->belongsTo(MrpRecommendation::class);
     }
 
     /**

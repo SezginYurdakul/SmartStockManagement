@@ -106,6 +106,14 @@ class SalesOrder extends Model
     }
 
     /**
+     * CreatedBy relationship (alias for creator)
+     */
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
      * Updater relationship
      */
     public function updater(): BelongsTo
@@ -114,9 +122,9 @@ class SalesOrder extends Model
     }
 
     /**
-     * Approver relationship
+     * ApprovedBy relationship
      */
-    public function approver(): BelongsTo
+    public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
     }
