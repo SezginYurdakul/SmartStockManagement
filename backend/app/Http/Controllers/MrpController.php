@@ -73,7 +73,10 @@ class MrpController extends Controller
             'product_filters.category_ids.*' => 'integer|exists:categories,id',
             'product_filters.make_or_buy' => 'nullable|string|in:make,buy',
             'warehouse_filters' => 'nullable|array',
-            'warehouse_filters.*' => 'integer|exists:warehouses,id',
+            'warehouse_filters.include' => 'nullable|array',
+            'warehouse_filters.include.*' => 'integer|exists:warehouses,id',
+            'warehouse_filters.exclude' => 'nullable|array',
+            'warehouse_filters.exclude.*' => 'integer|exists:warehouses,id',
         ]);
 
         $async = $validated['async'] ?? null;
