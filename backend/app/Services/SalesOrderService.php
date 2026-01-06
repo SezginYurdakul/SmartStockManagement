@@ -100,6 +100,7 @@ class SalesOrderService
             $salesOrder = SalesOrder::create([
                 'company_id' => $companyId,
                 'customer_id' => $customer->id,
+                'warehouse_id' => $data['warehouse_id'],
                 'order_number' => $this->generateOrderNumber(),
                 'order_date' => $data['order_date'] ?? now(),
                 'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
@@ -207,10 +208,14 @@ class SalesOrderService
             $unitPrice = $itemData['unit_price'] ?? $priceInfo['effective_price'];
             $lineTotal = $quantity * $unitPrice;
 
+            // Get UOM - use product's default UOM if not provided
+            $uomId = $itemData['uom_id'] ?? $product->uom_id ?? 1; // Default to UOM ID 1 if not set
+
             SalesOrderItem::create([
                 'sales_order_id' => $salesOrder->id,
                 'product_id' => $product->id,
-                'quantity' => $quantity,
+                'quantity_ordered' => $quantity,
+                'uom_id' => $uomId,
                 'unit_price' => $unitPrice,
                 'discount_amount' => $itemData['discount_amount'] ?? 0,
                 'tax_amount' => $itemData['tax_amount'] ?? 0,
@@ -357,7 +362,7 @@ class SalesOrderService
         }
 
         // Check if all items are shipped via delivery notes
-        $totalOrdered = $salesOrder->items()->sum('quantity');
+        $totalOrdered = $salesOrder->items()->sum('quantity_ordered');
         $totalShipped = $salesOrder->items()->sum('quantity_shipped');
 
         if ($totalShipped < $totalOrdered) {

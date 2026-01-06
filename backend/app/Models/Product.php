@@ -517,7 +517,7 @@ class Product extends Model
      */
     public function getTotalStock(): float
     {
-        return $this->stocks()->sum('available_quantity');
+        return $this->stocks()->sum('quantity_available');
     }
 
     /**

@@ -579,8 +579,25 @@ class StockService
      */
     public function getLowStockProducts(int $perPage = 15): LengthAwarePaginator
     {
+        $companyId = Auth::user()->company_id;
+
+        // Get products where total stock across all warehouses is below threshold
+        $lowStockProductIds = Product::where('company_id', $companyId)
+            ->where('is_active', true)
+            ->whereNotNull('low_stock_threshold')
+            ->where('low_stock_threshold', '>', 0)
+            ->get()
+            ->filter(function ($product) {
+                $totalStock = $product->getTotalStock();
+                return $totalStock <= $product->low_stock_threshold;
+            })
+            ->pluck('id');
+
+        // Get all stock records for these products
         return Stock::with(['product:id,name,sku,low_stock_threshold', 'warehouse:id,name,code'])
-            ->lowStock()
+            ->whereIn('product_id', $lowStockProductIds)
+            ->orderBy('product_id')
+            ->orderBy('warehouse_id')
             ->paginate($perPage);
     }
 

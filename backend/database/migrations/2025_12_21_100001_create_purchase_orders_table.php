@@ -15,7 +15,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('company_id')->constrained()->onDelete('cascade');
             $table->string('order_number', 50);
-            $table->foreignId('supplier_id')->constrained()->onDelete('restrict');
+            $table->foreignId('supplier_id')->nullable()->constrained()->onDelete('restrict');
+            $table->unsignedBigInteger('mrp_recommendation_id')->nullable();
             $table->foreignId('warehouse_id')->constrained()->onDelete('restrict');
 
             // Dates
@@ -78,6 +79,7 @@ return new class extends Migration
             $table->index(['company_id', 'supplier_id']);
             $table->index(['company_id', 'order_date']);
             $table->index('expected_delivery_date');
+            $table->index('mrp_recommendation_id');
         });
 
         Schema::create('purchase_order_items', function (Blueprint $table) {

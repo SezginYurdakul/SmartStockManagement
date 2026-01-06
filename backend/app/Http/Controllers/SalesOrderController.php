@@ -44,6 +44,7 @@ class SalesOrderController extends Controller
     {
         $validated = $request->validate([
             'customer_id' => 'required|exists:customers,id',
+            'warehouse_id' => 'required|exists:warehouses,id',
             'order_date' => 'nullable|date',
             'expected_delivery_date' => 'nullable|date|after_or_equal:order_date',
             'shipping_address' => 'nullable|string',

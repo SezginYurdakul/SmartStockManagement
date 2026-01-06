@@ -39,6 +39,15 @@ Route::get("/modules", function () {
     );
 });
 
+// Clear module cache endpoint (useful after .env changes)
+Route::post("/modules/clear-cache", function () {
+    app(\App\Services\ModuleService::class)->clearCache();
+    return response()->json([
+        'message' => 'Module cache cleared successfully',
+        'modules' => app(\App\Services\ModuleService::class)->getModuleStatus(),
+    ]);
+})->middleware('auth:sanctum');
+
 // ============================================================================
 // AUTHENTICATION ROUTES (Public + Protected)
 // ============================================================================

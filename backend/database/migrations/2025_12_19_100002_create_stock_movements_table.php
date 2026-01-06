@@ -49,7 +49,7 @@ return new class extends Migration
             $table->string('reference_number', 100)->nullable();
             $table->string('reference_type', 100)->nullable(); // Polymorphic: App\Models\PurchaseOrder
             $table->unsignedBigInteger('reference_id')->nullable();
-            
+
             // Quality control tracking
             $table->enum('quality_status_from', [
                 'available', 'pending_inspection', 'on_hold', 'conditional', 'rejected', 'quarantine'

@@ -509,13 +509,29 @@ class ReceivingInspectionService
             throw new BusinessException('Target warehouse must be a QC zone (quarantine or rejection)');
         }
 
-        $stock = Stock::where('product_id', $inspection->product_id)
-            ->where('warehouse_id', $grn->warehouse_id)
-            ->where('lot_number', $inspection->lot_number)
-            ->first();
+        // Find stock - match by product, warehouse, and lot_number (if provided)
+        $stockQuery = Stock::where('product_id', $inspection->product_id)
+            ->where('warehouse_id', $grn->warehouse_id);
+
+        if ($inspection->lot_number) {
+            $stockQuery->where('lot_number', $inspection->lot_number);
+        } else {
+            // If no lot_number, find stock with null lot_number or most recent stock for this product/warehouse
+            $stockQuery->whereNull('lot_number');
+        }
+
+        $stock = $stockQuery->first();
+
+        // If still not found and lot_number is null, try to find any stock for this product/warehouse
+        if (!$stock && !$inspection->lot_number) {
+            $stock = Stock::where('product_id', $inspection->product_id)
+                ->where('warehouse_id', $grn->warehouse_id)
+                ->orderBy('created_at', 'desc')
+                ->first();
+        }
 
         if (!$stock) {
-            throw new BusinessException('Stock not found for inspection');
+            throw new BusinessException('Stock not found for inspection. Ensure GRN has been completed and stock has been created.');
         }
 
         DB::beginTransaction();

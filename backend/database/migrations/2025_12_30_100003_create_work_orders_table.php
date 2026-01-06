@@ -20,6 +20,7 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained()->onDelete('restrict');
             $table->foreignId('bom_id')->nullable()->constrained()->onDelete('set null');
             $table->foreignId('routing_id')->nullable()->constrained()->onDelete('set null');
+            $table->unsignedBigInteger('mrp_recommendation_id')->nullable();
 
             // Identification
             $table->string('work_order_number', 50);
@@ -82,6 +83,7 @@ return new class extends Migration
             $table->index(['company_id', 'priority', 'status']);
             $table->index('planned_start_date');
             $table->index('planned_end_date');
+            $table->index('mrp_recommendation_id');
         });
 
         // Work Order Operations

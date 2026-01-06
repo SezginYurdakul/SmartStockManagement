@@ -19,13 +19,18 @@ Route::prefix('suppliers')->group(function () {
         Route::get('/', [SupplierController::class, 'index']);
         Route::get('/list', [SupplierController::class, 'list']);
         Route::get('/for-product/{productId}', [SupplierController::class, 'forProduct']);
+        
+        // Supplier Quality routes (requires QC module) - MUST be before /{supplier} route
+        Route::middleware('module:qc')->group(function () {
+            Route::get('/quality-ranking', [SupplierController::class, 'qualityRanking'])->middleware('permission:qc.view');
+        });
+        
         Route::get('/{supplier}', [SupplierController::class, 'show']);
         Route::get('/{supplier}/statistics', [SupplierController::class, 'statistics']);
     });
 
-    // Supplier Quality routes (requires QC module)
+    // Supplier Quality routes (requires QC module) - per supplier routes
     Route::middleware('module:qc')->group(function () {
-        Route::get('/quality-ranking', [SupplierController::class, 'qualityRanking'])->middleware('permission:qc.view');
         Route::get('/{supplier}/quality-score', [SupplierController::class, 'qualityScore'])->middleware('permission:qc.view');
         Route::get('/{supplier}/quality-statistics', [SupplierController::class, 'qualityStatistics'])->middleware('permission:qc.view');
     });

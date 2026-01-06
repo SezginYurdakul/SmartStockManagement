@@ -45,7 +45,7 @@ return [
     |
     */
     'procurement' => [
-        'enabled' => env('MODULE_PROCUREMENT_ENABLED', true),
+        'enabled' => env('MODULE_PROCUREMENT_ENABLED', false),
         'name' => 'Procurement',
         'description' => 'Supplier management, purchase orders, and receiving',
         'features' => [
