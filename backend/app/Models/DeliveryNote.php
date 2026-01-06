@@ -85,6 +85,14 @@ class DeliveryNote extends Model
     }
 
     /**
+     * Created by relationship (alias for creator)
+     */
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
      * Delivered by relationship
      */
     public function deliveredByUser(): BelongsTo

@@ -10,6 +10,7 @@ namespace App\Enums;
 enum DeliveryNoteStatus: string
 {
     case DRAFT = 'draft';
+    case CONFIRMED = 'confirmed';
     case SHIPPED = 'shipped';
     case DELIVERED = 'delivered';
     case CANCELLED = 'cancelled';
@@ -20,7 +21,8 @@ enum DeliveryNoteStatus: string
     public function allowedTransitions(): array
     {
         return match ($this) {
-            self::DRAFT => [self::SHIPPED, self::CANCELLED],
+            self::DRAFT => [self::CONFIRMED, self::SHIPPED, self::CANCELLED],
+            self::CONFIRMED => [self::SHIPPED, self::CANCELLED],
             self::SHIPPED => [self::DELIVERED, self::CANCELLED],
             self::DELIVERED => [],
             self::CANCELLED => [],
@@ -28,11 +30,19 @@ enum DeliveryNoteStatus: string
     }
 
     /**
+     * Check if transition to target status is allowed
+     */
+    public function canTransitionTo(self $target): bool
+    {
+        return in_array($target, $this->allowedTransitions(), true);
+    }
+
+    /**
      * Check if can be edited
      */
     public function canEdit(): bool
     {
-        return $this === self::DRAFT;
+        return $this === self::DRAFT || $this === self::CONFIRMED;
     }
 
     /**
@@ -72,9 +82,24 @@ enum DeliveryNoteStatus: string
     {
         return match ($this) {
             self::DRAFT => 'Draft',
+            self::CONFIRMED => 'Confirmed',
             self::SHIPPED => 'Shipped',
             self::DELIVERED => 'Delivered',
             self::CANCELLED => 'Cancelled',
+        };
+    }
+
+    /**
+     * Get color for UI display
+     */
+    public function color(): string
+    {
+        return match ($this) {
+            self::DRAFT => 'gray',
+            self::CONFIRMED => 'blue',
+            self::SHIPPED => 'cyan',
+            self::DELIVERED => 'green',
+            self::CANCELLED => 'red',
         };
     }
 }

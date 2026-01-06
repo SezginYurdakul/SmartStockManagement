@@ -18,13 +18,14 @@ class SalesOrderItemResource extends JsonResource
             'id' => $this->id,
             'sales_order_id' => $this->sales_order_id,
             'product_id' => $this->product_id,
-            'quantity' => $this->quantity,
+            'quantity' => $this->quantity_ordered,
+            'quantity_ordered' => $this->quantity_ordered,
             'unit_price' => $this->unit_price,
             'discount_amount' => $this->discount_amount,
             'tax_amount' => $this->tax_amount,
             'line_total' => $this->line_total,
             'quantity_shipped' => $this->quantity_shipped,
-            'quantity_remaining' => $this->quantity - $this->quantity_shipped,
+            'quantity_remaining' => $this->quantity_ordered - $this->quantity_shipped,
             'notes' => $this->notes,
 
             // Product

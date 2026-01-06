@@ -107,6 +107,7 @@ class DeliveryNoteService
             $deliveryNote = DeliveryNote::create([
                 'company_id' => $companyId,
                 'sales_order_id' => $salesOrder->id,
+                'customer_id' => $salesOrder->customer_id,
                 'warehouse_id' => $warehouse->id,
                 'delivery_number' => $this->generateDeliveryNumber(),
                 'delivery_date' => $data['delivery_date'] ?? now(),
@@ -154,7 +155,7 @@ class DeliveryNoteService
                 ->firstOrFail();
 
             $quantity = $itemData['quantity'];
-            $remainingQty = $salesOrderItem->quantity - $salesOrderItem->quantity_shipped;
+            $remainingQty = $salesOrderItem->quantity_ordered - $salesOrderItem->quantity_shipped;
 
             if ($quantity > $remainingQty) {
                 throw new BusinessException(
@@ -166,9 +167,9 @@ class DeliveryNoteService
                 'delivery_note_id' => $deliveryNote->id,
                 'sales_order_item_id' => $salesOrderItem->id,
                 'product_id' => $salesOrderItem->product_id,
-                'quantity' => $quantity,
+                'quantity_shipped' => $quantity,
                 'lot_number' => $itemData['lot_number'] ?? null,
-                'serial_numbers' => $itemData['serial_numbers'] ?? null,
+                'serial_number' => $itemData['serial_number'] ?? null,
                 'notes' => $itemData['notes'] ?? null,
             ]);
         }
@@ -247,19 +248,21 @@ class DeliveryNoteService
         try {
             // Deduct stock for each item
             foreach ($deliveryNote->items as $item) {
-                $this->stockService->issueStock(
-                    $item->product_id,
-                    $deliveryNote->warehouse_id,
-                    $item->quantity,
-                    'sale',
-                    "Delivery Note: {$deliveryNote->delivery_number}",
-                    DeliveryNote::class,
-                    $deliveryNote->id,
-                    $item->lot_number
-                );
+                $this->stockService->issueStock([
+                    'product_id' => $item->product_id,
+                    'warehouse_id' => $deliveryNote->warehouse_id,
+                    'quantity' => $item->quantity_shipped,
+                    'operation_type' => 'sale',
+                    'transaction_type' => 'sales_order',
+                    'reference_type' => DeliveryNote::class,
+                    'reference_id' => $deliveryNote->id,
+                    'reference_number' => $deliveryNote->delivery_number,
+                    'lot_number' => $item->lot_number,
+                    'notes' => "Delivery Note: {$deliveryNote->delivery_number}",
+                ]);
 
                 // Update sales order item shipped quantity
-                $item->salesOrderItem->increment('quantity_shipped', $item->quantity);
+                $item->salesOrderItem->increment('quantity_shipped', $item->quantity_shipped);
             }
 
             $deliveryNote->update([
@@ -325,7 +328,7 @@ class DeliveryNoteService
     {
         $salesOrder->refresh();
 
-        $totalOrdered = $salesOrder->items()->sum('quantity');
+        $totalOrdered = $salesOrder->items()->sum('quantity_ordered');
         $totalShipped = $salesOrder->items()->sum('quantity_shipped');
 
         if ($totalShipped >= $totalOrdered) {
