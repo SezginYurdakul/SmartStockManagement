@@ -361,16 +361,144 @@ class BomService
      * @param float $quantity The quantity to produce
      * @param int $maxLevel Maximum recursion depth
      * @param bool $includeOptional Whether to include optional items
+     * @param bool $explodeAllLevels Whether to explode all sub-BOMs (not just phantoms)
+     * @param bool $aggregateByProduct Whether to aggregate quantities by product_id
      */
-    public function explodeBom(Bom $bom, float $quantity = 1, int $maxLevel = 10, bool $includeOptional = false): array
+    public function explodeBom(Bom $bom, float $quantity = 1, int $maxLevel = 10, bool $includeOptional = false, bool $explodeAllLevels = false, bool $aggregateByProduct = false, bool $asTree = false): array
     {
-        return $this->explodeBomRecursive($bom, $quantity, 0, $maxLevel, [], $includeOptional);
+        $materials = $this->explodeBomRecursive($bom, $quantity, 0, $maxLevel, [], $includeOptional, $explodeAllLevels);
+        
+        // Check if multi-level
+        $hasMultiLevel = false;
+        foreach ($materials as $material) {
+            if ($material['level'] > 0) {
+                $hasMultiLevel = true;
+                break;
+            }
+        }
+        
+        // Single level: return aggregated summary
+        if (!$hasMultiLevel && $aggregateByProduct) {
+            return $this->aggregateMaterialsByProduct($materials);
+        }
+        
+        // Multi-level: return tree structure if requested
+        if ($hasMultiLevel && $asTree) {
+            return $this->buildTreeStructure($materials);
+        }
+        
+        // Default: return flat list
+        return $materials;
+    }
+    
+    /**
+     * Build hierarchical tree structure from flat material list
+     */
+    protected function buildTreeStructure(array $materials): array
+    {
+        // Create a map: parent_product_id => [children]
+        $childrenMap = [];
+        $rootItems = [];
+        
+        foreach ($materials as $material) {
+            $parentId = $material['parent_product_id'] ?? null;
+            
+            // Clean up internal fields
+            $node = $material;
+            unset($node['parent_product_id']);
+            unset($node['has_children']);
+            
+            if ($parentId === null) {
+                // Root level item
+                $rootItems[] = $node;
+            } else {
+                // Child item - group by parent
+                if (!isset($childrenMap[$parentId])) {
+                    $childrenMap[$parentId] = [];
+                }
+                $childrenMap[$parentId][] = $node;
+            }
+        }
+        
+        // Recursively attach children to parents
+        $attachChildren = function(&$items) use (&$attachChildren, &$childrenMap) {
+            foreach ($items as &$item) {
+                $productId = $item['product_id'];
+                if (isset($childrenMap[$productId])) {
+                    $item['children'] = $childrenMap[$productId];
+                    // Recursively attach children's children
+                    $attachChildren($item['children']);
+                }
+            }
+        };
+        
+        $attachChildren($rootItems);
+        
+        return $rootItems;
+    }
+    
+    /**
+     * Aggregate materials by product_id, summing quantities
+     */
+    public function aggregateMaterialsByProduct(array $materials): array
+    {
+        $aggregated = [];
+        
+        foreach ($materials as $material) {
+            $productId = $material['product_id'];
+            
+            if (!isset($aggregated[$productId])) {
+                // First occurrence - use as base
+                $aggregated[$productId] = $material;
+                // Don't add sources yet - we'll add it only if there are multiple sources
+                unset($aggregated[$productId]['sources']);
+            } else {
+                // Multiple sources detected - initialize sources array if not exists
+                if (!isset($aggregated[$productId]['sources'])) {
+                    // Add the first source
+                    $aggregated[$productId]['sources'] = [
+                        [
+                            'bom_id' => $aggregated[$productId]['bom_id'],
+                            'bom_number' => $aggregated[$productId]['bom_number'],
+                            'bom_name' => $aggregated[$productId]['bom_name'],
+                            'level' => $aggregated[$productId]['level'],
+                            'quantity' => $aggregated[$productId]['quantity'],
+                        ]
+                    ];
+                }
+                
+                // Sum quantities
+                $aggregated[$productId]['quantity'] += $material['quantity'];
+                
+                // Track sources (which BOMs contribute to this product)
+                $aggregated[$productId]['sources'][] = [
+                    'bom_id' => $material['bom_id'],
+                    'bom_number' => $material['bom_number'],
+                    'bom_name' => $material['bom_name'],
+                    'level' => $material['level'],
+                    'quantity' => $material['quantity'],
+                ];
+                
+                // Keep the highest level (most detailed)
+                if ($material['level'] > $aggregated[$productId]['level']) {
+                    $aggregated[$productId]['level'] = $material['level'];
+                }
+            }
+        }
+        
+        // Round final quantities
+        foreach ($aggregated as &$item) {
+            $item['quantity'] = round($item['quantity'], 4);
+        }
+        
+        return array_values($aggregated);
     }
 
     /**
      * Recursive BOM explosion
+     * Returns flat list with parent tracking for tree structure
      */
-    protected function explodeBomRecursive(Bom $bom, float $quantity, int $level, int $maxLevel, array $visited, bool $includeOptional = false): array
+    protected function explodeBomRecursive(Bom $bom, float $quantity, int $level, int $maxLevel, array $visited, bool $includeOptional = false, bool $explodeAllLevels = false, ?int $parentProductId = null): array
     {
         if ($level > $maxLevel) {
             throw new BusinessException("BOM explosion exceeded maximum level ({$maxLevel}). Possible circular reference.");
@@ -392,30 +520,51 @@ class BomService
         foreach ($itemsQuery->get() as $item) {
             $requiredQty = $item->getRequiredQuantity($quantity / $bom->quantity);
 
+            // Check if this component should be exploded
+            $shouldExplode = false;
+            $childBom = null;
+
             if ($item->is_phantom) {
-                // Get default BOM of phantom component
+                // Phantom items are always exploded if they have a BOM
                 $childBom = Bom::where('product_id', $item->component_id)
                     ->where('is_default', true)
                     ->active()
                     ->first();
+                $shouldExplode = $childBom !== null;
+            } elseif ($explodeAllLevels) {
+                // If explodeAllLevels is true, check if component has a BOM
+                $childBom = Bom::where('product_id', $item->component_id)
+                    ->where('is_default', true)
+                    ->active()
+                    ->first();
+                $shouldExplode = $childBom !== null;
+            }
 
-                if ($childBom) {
-                    // Recursive explosion
-                    $childMaterials = $this->explodeBomRecursive(
-                        $childBom,
-                        $requiredQty,
-                        $level + 1,
-                        $maxLevel,
-                        $visited,
-                        $includeOptional
-                    );
-                    $materials = array_merge($materials, $childMaterials);
-                } else {
-                    // No BOM found, treat as raw material
-                    $materials[] = $this->createMaterialEntry($item, $requiredQty, $level);
-                }
+            if ($shouldExplode && $childBom) {
+                // Create parent entry (intermediate product with BOM)
+                $parentEntry = $this->createMaterialEntry($item, $requiredQty, $level, $bom);
+                $parentEntry['parent_product_id'] = $parentProductId;
+                $parentEntry['has_children'] = true;
+                $materials[] = $parentEntry;
+                
+                // Recursive explosion - children will have this product as parent
+                $childMaterials = $this->explodeBomRecursive(
+                    $childBom,
+                    $requiredQty,
+                    $level + 1,
+                    $maxLevel,
+                    $visited,
+                    $includeOptional,
+                    $explodeAllLevels,
+                    $item->component_id // This product is the parent for children
+                );
+                $materials = array_merge($materials, $childMaterials);
             } else {
-                $materials[] = $this->createMaterialEntry($item, $requiredQty, $level);
+                // No BOM found or shouldn't explode, treat as raw material
+                $material = $this->createMaterialEntry($item, $requiredQty, $level, $bom);
+                $material['parent_product_id'] = $parentProductId;
+                $material['has_children'] = false;
+                $materials[] = $material;
             }
         }
 
@@ -425,7 +574,7 @@ class BomService
     /**
      * Create material entry for explosion result
      */
-    protected function createMaterialEntry(BomItem $item, float $quantity, int $level): array
+    protected function createMaterialEntry(BomItem $item, float $quantity, int $level, Bom $bom): array
     {
         return [
             'product_id' => $item->component_id,
@@ -435,6 +584,9 @@ class BomService
             'uom_id' => $item->uom_id,
             'uom_code' => $item->uom->code,
             'level' => $level,
+            'bom_id' => $bom->id,
+            'bom_number' => $bom->bom_number,
+            'bom_name' => $bom->name,
             'bom_item_id' => $item->id,
             'is_phantom' => $item->is_phantom,
             'is_optional' => $item->is_optional,

@@ -263,28 +263,102 @@ class BomController extends Controller
     }
 
     /**
-     * Explode BOM (multi-level)
+     * Explode BOM (multi-level only - all levels exploded)
+     * 
+     * Note: For single-level BOMs, use GET /api/boms/{bom} instead.
+     * This endpoint always explodes all sub-BOMs recursively (phantom + regular items).
      */
     public function explode(Request $request, Bom $bom): JsonResponse
     {
+        // Normalize boolean query parameters
+        $request->merge([
+            'include_optional' => $request->has('include_optional') 
+                ? filter_var($request->input('include_optional'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false
+                : null,
+            'aggregate_by_product' => $request->has('aggregate_by_product')
+                ? filter_var($request->input('aggregate_by_product'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false
+                : null,
+        ]);
+
         $validated = $request->validate([
             'quantity' => 'nullable|numeric|min:0.0001',
             'include_optional' => 'nullable|boolean',
+            'aggregate_by_product' => 'nullable|boolean',
         ]);
 
         $quantity = $validated['quantity'] ?? 1;
-        $includeOptional = filter_var($validated['include_optional'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $materials = $this->bomService->explodeBom($bom, $quantity, 10, $includeOptional);
+        $includeOptional = $validated['include_optional'] ?? false;
+        $explodeAllLevels = true; // Always explode all levels for this endpoint
+        
+        // Auto-detect aggregate_by_product based on BOM levels
+        $aggregateByProduct = $validated['aggregate_by_product'] ?? null;
+        
+        // First, explode without aggregation to check levels
+        $materials = $this->bomService->explodeBom($bom, $quantity, 10, $includeOptional, $explodeAllLevels, false);
+        
+        // Check if BOM has multi-level structure
+        $hasMultiLevel = false;
+        foreach ($materials as $material) {
+            if ($material['level'] > 0) {
+                $hasMultiLevel = true;
+                break;
+            }
+        }
+        
+        // If single-level BOM, suggest using GET BOM instead
+        if (!$hasMultiLevel) {
+            return response()->json([
+                'message' => 'This BOM is single-level. Use GET /api/boms/{bom} to view direct components.',
+                'suggestion' => 'For single-level BOMs, GET /api/boms/' . $bom->id . ' provides the same information.',
+                'data' => [
+                    'bom' => BomListResource::make($bom),
+                    'is_single_level' => true,
+                ],
+            ], 200);
+        }
+        
+        // Auto-detect: Multi level → use tree structure (don't aggregate by default)
+        if ($aggregateByProduct === null) {
+            $aggregateByProduct = false; // Default: show detailed tree for multi-level
+        }
+        
+        // Explode with tree structure for multi-level BOMs (always all levels)
+        $materials = $this->bomService->explodeBom(
+            $bom, 
+            $quantity, 
+            10, 
+            $includeOptional, 
+            $explodeAllLevels, // Always true
+            $aggregateByProduct,
+            $hasMultiLevel // asTree: true for multi-level
+        );
 
         return response()->json([
             'data' => [
                 'bom' => BomListResource::make($bom),
                 'quantity' => $quantity,
                 'include_optional' => $includeOptional,
+                'aggregate_by_product' => $aggregateByProduct,
+                'structure' => 'tree', // Always tree for multi-level
                 'materials' => $materials,
-                'total_materials' => count($materials),
+                'total_materials' => $this->countTreeItems($materials),
             ],
         ]);
+    }
+    
+    /**
+     * Count total items in tree structure
+     */
+    protected function countTreeItems(array $tree): int
+    {
+        $count = 0;
+        foreach ($tree as $item) {
+            $count++;
+            if (isset($item['children']) && is_array($item['children'])) {
+                $count += $this->countTreeItems($item['children']);
+            }
+        }
+        return $count;
     }
 
     /**
