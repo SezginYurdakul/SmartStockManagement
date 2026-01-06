@@ -31,6 +31,7 @@ class MrpRun extends Model
         'products_processed',
         'recommendations_generated',
         'warnings_count',
+        'warnings_summary',
         'created_by',
     ];
 
@@ -49,6 +50,7 @@ class MrpRun extends Model
         'products_processed' => 'integer',
         'recommendations_generated' => 'integer',
         'warnings_count' => 'integer',
+        'warnings_summary' => 'array',
     ];
 
     // =========================================
@@ -105,7 +107,7 @@ class MrpRun extends Model
         ]);
     }
 
-    public function markAsCompleted(int $productsProcessed, int $recommendationsGenerated, int $warnings = 0): bool
+    public function markAsCompleted(int $productsProcessed, int $recommendationsGenerated, int $warnings = 0, ?array $warningsSummary = null): bool
     {
         if ($this->status !== MrpRunStatus::RUNNING) {
             return false;
@@ -117,6 +119,7 @@ class MrpRun extends Model
             'products_processed' => $productsProcessed,
             'recommendations_generated' => $recommendationsGenerated,
             'warnings_count' => $warnings,
+            'warnings_summary' => $warningsSummary,
         ]);
     }
 

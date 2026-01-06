@@ -45,6 +45,7 @@ class MrpRunResource extends JsonResource
             'products_processed' => $this->products_processed,
             'recommendations_generated' => $this->recommendations_generated,
             'warnings_count' => $this->warnings_count,
+            'warnings_summary' => $this->warnings_summary,
             'pending_recommendations_count' => $this->when(
                 $this->relationLoaded('recommendations'),
                 fn() => $this->getPendingRecommendationsCount()

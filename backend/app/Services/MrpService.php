@@ -17,6 +17,7 @@ use App\Enums\MrpRecommendationType;
 use App\Enums\MrpRecommendationStatus;
 use App\Enums\MrpPriority;
 use App\Enums\WorkOrderStatus;
+use App\Enums\PoStatus;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -29,6 +30,7 @@ class MrpService
     protected int $companyId;
     protected MrpRun $currentRun;
     protected array $warnings = [];
+    protected array $warningsSummary = []; // Grouped warnings by type
     protected int $recommendationsGenerated = 0;
     
     // Pre-loaded data to avoid N+1 queries
@@ -129,6 +131,7 @@ class MrpService
     {
         $this->companyId = Auth::user()->company_id;
         $this->warnings = [];
+        $this->warningsSummary = [];
         $this->recommendationsGenerated = 0;
 
         // Auto-detect if async should be used based on product count
@@ -172,17 +175,20 @@ class MrpService
                 $productsProcessed = $this->executeMrpCalculation();
 
                 // Log warnings if any
-                if (!empty($this->warnings)) {
+                $totalWarnings = $this->getTotalWarningsCount();
+                if ($totalWarnings > 0) {
                     Log::warning('MRP run completed with warnings', [
                         'run_id' => $this->currentRun->id,
-                        'warnings' => $this->warnings,
+                        'warnings_summary' => $this->warningsSummary,
+                        'total_warnings' => $totalWarnings,
                     ]);
                 }
 
                 $this->currentRun->markAsCompleted(
                     $productsProcessed,
                     $this->recommendationsGenerated,
-                    count($this->warnings)
+                    $totalWarnings,
+                    $this->getWarningsSummary()
                 );
 
                 // Clear progress cache
@@ -193,7 +199,7 @@ class MrpService
                     'run_id' => $this->currentRun->id,
                     'products_processed' => $productsProcessed,
                     'recommendations' => $this->recommendationsGenerated,
-                    'warnings_count' => count($this->warnings),
+                    'warnings_count' => $totalWarnings,
                 ]);
             } catch (\Exception $e) {
                 Log::error('MRP run failed', [
@@ -286,17 +292,20 @@ class MrpService
             $productsProcessed = $this->executeMrpCalculation();
 
             // Log warnings if any
-            if (!empty($this->warnings)) {
+            $totalWarnings = $this->getTotalWarningsCount();
+            if ($totalWarnings > 0) {
                 Log::warning('MRP run completed with warnings', [
                     'run_id' => $this->currentRun->id,
-                    'warnings' => $this->warnings,
+                    'warnings_summary' => $this->warningsSummary,
+                    'total_warnings' => $totalWarnings,
                 ]);
             }
 
             $this->currentRun->markAsCompleted(
                 $productsProcessed,
                 $this->recommendationsGenerated,
-                count($this->warnings)
+                $totalWarnings,
+                $this->getWarningsSummary()
             );
 
             // Clear progress cache
@@ -307,7 +316,7 @@ class MrpService
                 'run_id' => $this->currentRun->id,
                 'products_processed' => $productsProcessed,
                 'recommendations' => $this->recommendationsGenerated,
-                'warnings_count' => count($this->warnings),
+                'warnings_count' => $totalWarnings,
             ]);
         } catch (\Exception $e) {
             Log::error('MRP run failed', [
@@ -391,7 +400,11 @@ class MrpService
                 ->count();
 
             if ($productsWithoutBom > 0) {
-                $this->warnings[] = "{$productsWithoutBom} manufactured product(s) without active BOM found. These will be skipped.";
+                $this->warningsSummary['products_without_bom'] = [
+                    'type' => 'Products Without BOM',
+                    'count' => $productsWithoutBom,
+                    'message' => "{$productsWithoutBom} manufactured product(s) without active BOM found. These will be skipped.",
+                ];
             }
         }
 
@@ -747,7 +760,11 @@ class MrpService
         }
 
         if ($iteration >= $maxIterations) {
-            $this->warnings[] = 'Low-Level Code calculation reached maximum iterations. Possible circular BOM reference.';
+            $this->warningsSummary['llc_calculation_warning'] = [
+                'type' => 'Low-Level Code Calculation Warning',
+                'count' => 1,
+                'message' => 'Low-Level Code calculation reached maximum iterations. Possible circular BOM reference.',
+            ];
             Log::warning('Low-Level Code calculation reached max iterations', [
                 'company_id' => $this->companyId,
             ]);
@@ -816,26 +833,55 @@ class MrpService
             ->qualityAvailable();
 
         if (!empty($this->currentRun->warehouse_filters)) {
-            $stockQuery->whereIn('warehouse_id', $this->currentRun->warehouse_filters);
+            $filters = $this->currentRun->warehouse_filters;
+            
+            // Include specific warehouses
+            if (!empty($filters['include'])) {
+                $stockQuery->whereIn('warehouse_id', $filters['include']);
+            }
+            
+            // Exclude specific warehouses
+            if (!empty($filters['exclude'])) {
+                $stockQuery->whereNotIn('warehouse_id', $filters['exclude']);
+            }
         }
 
         $this->preloadedStocks = $stockQuery->get()->groupBy('product_id');
 
         // Pre-load sales order demands
+        // Include: approved, pending_approval, confirmed, processing, partially_shipped
+        // (approved and pending_approval are included because they represent committed demand)
         $this->preloadedSalesDemands = DB::table('sales_order_items')
             ->join('sales_orders', 'sales_orders.id', '=', 'sales_order_items.sales_order_id')
             ->where('sales_orders.company_id', $this->companyId)
             ->whereIn('sales_order_items.product_id', $productIds)
-            ->whereIn('sales_orders.status', ['confirmed', 'processing', 'partially_shipped'])
-            ->whereBetween('sales_orders.requested_delivery_date', [$startDate, $endDate])
+            ->whereIn('sales_orders.status', ['approved', 'pending_approval', 'confirmed', 'processing', 'partially_shipped'])
+            ->where(function ($query) use ($startDate, $endDate) {
+                // Use requested_delivery_date if available, otherwise fall back to order_date
+                $query->whereBetween(
+                    DB::raw('COALESCE(sales_orders.requested_delivery_date, sales_orders.order_date)'),
+                    [$startDate, $endDate]
+                );
+            })
             ->select([
                 'sales_order_items.product_id',
                 'sales_orders.id as source_id',
-                'sales_orders.requested_delivery_date as required_date',
+                DB::raw('COALESCE(sales_orders.requested_delivery_date, sales_orders.order_date) as required_date'),
                 DB::raw('(sales_order_items.quantity_ordered - COALESCE(sales_order_items.quantity_shipped, 0)) as quantity'),
             ])
             ->get()
             ->groupBy('product_id');
+
+        // Debug: Log how many sales order demands were found
+        $totalSalesDemands = $this->preloadedSalesDemands->sum(function ($group) {
+            return $group->count();
+        });
+        Log::info('MRP: Pre-loaded sales order demands', [
+            'run_id' => $this->currentRun->id,
+            'total_demands' => $totalSalesDemands,
+            'planning_horizon' => [$startDate, $endDate],
+            'products_with_demands' => $this->preloadedSalesDemands->count(),
+        ]);
 
         // Pre-load purchase order receipts
         $this->preloadedPoReceipts = DB::table('purchase_order_items')
@@ -910,6 +956,20 @@ class MrpService
             // Get scheduled receipts (open POs, WOs producing this product)
             $scheduledReceipts = $this->getScheduledReceipts($product);
 
+            // Debug logging for products with demands but no recommendations
+            if ($allDemands->isNotEmpty() && $currentStock > 0) {
+                Log::debug('MRP: Processing product with demands', [
+                    'product_id' => $product->id,
+                    'product_sku' => $product->sku,
+                    'current_stock' => $currentStock,
+                    'independent_demands_count' => $independentDemands->count(),
+                    'dependent_demands_count' => $dependentDemandForProduct->count(),
+                    'total_demands_count' => $allDemands->count(),
+                    'scheduled_receipts_count' => $scheduledReceipts->count(),
+                    'safety_stock' => $product->safety_stock,
+                ]);
+            }
+
             // Calculate net requirements
             $netRequirements = $this->calculateNetRequirements(
                 $product,
@@ -917,6 +977,18 @@ class MrpService
                 $allDemands,
                 $scheduledReceipts
             );
+
+            // Debug logging if no net requirements despite having demands
+            if ($allDemands->isNotEmpty() && empty($netRequirements)) {
+                Log::debug('MRP: No net requirements despite having demands', [
+                    'product_id' => $product->id,
+                    'product_sku' => $product->sku,
+                    'current_stock' => $currentStock,
+                    'safety_stock' => $product->safety_stock,
+                    'total_demands' => $allDemands->sum('quantity'),
+                    'include_safety_stock' => $this->currentRun->include_safety_stock,
+                ]);
+            }
 
             // Generate recommendations
             $this->generateRecommendations($product, $netRequirements);
@@ -926,7 +998,22 @@ class MrpService
                 $this->explodeBomForDependentDemands($product, $netRequirements, $dependentDemands);
             }
         } catch (\Exception $e) {
-            $this->warnings[] = "Error processing product {$product->sku}: " . $e->getMessage();
+            // Group warnings by error type instead of storing individual messages
+            if (!isset($this->warningsSummary['product_processing_errors'])) {
+                $this->warningsSummary['product_processing_errors'] = [
+                    'type' => 'Product Processing Errors',
+                    'count' => 0,
+                    'examples' => [],
+                ];
+            }
+            $this->warningsSummary['product_processing_errors']['count']++;
+            if (count($this->warningsSummary['product_processing_errors']['examples']) < 3) {
+                $this->warningsSummary['product_processing_errors']['examples'][] = [
+                    'product_sku' => $product->sku,
+                    'error' => $e->getMessage(),
+                ];
+            }
+            
             Log::error('Error processing product in MRP', [
                 'product_id' => $product->id,
                 'product_sku' => $product->sku,
@@ -1007,7 +1094,22 @@ class MrpService
                 }
             }
         } catch (\Exception $e) {
-            $this->warnings[] = "Error exploding BOM for product {$product->sku}: " . $e->getMessage();
+            // Group warnings by error type
+            if (!isset($this->warningsSummary['bom_explosion_errors'])) {
+                $this->warningsSummary['bom_explosion_errors'] = [
+                    'type' => 'BOM Explosion Errors',
+                    'count' => 0,
+                    'examples' => [],
+                ];
+            }
+            $this->warningsSummary['bom_explosion_errors']['count']++;
+            if (count($this->warningsSummary['bom_explosion_errors']['examples']) < 3) {
+                $this->warningsSummary['bom_explosion_errors']['examples'][] = [
+                    'product_sku' => $product->sku,
+                    'error' => $e->getMessage(),
+                ];
+            }
+            
             Log::error('Error exploding BOM in MRP', [
                 'product_id' => $product->id,
                 'bom_id' => $defaultBom->id,
@@ -1030,7 +1132,17 @@ class MrpService
             ->qualityAvailable();
 
         if (!empty($this->currentRun->warehouse_filters)) {
-            $query->whereIn('warehouse_id', $this->currentRun->warehouse_filters);
+            $filters = $this->currentRun->warehouse_filters;
+            
+            // Include specific warehouses
+            if (!empty($filters['include'])) {
+                $query->whereIn('warehouse_id', $filters['include']);
+            }
+            
+            // Exclude specific warehouses
+            if (!empty($filters['exclude'])) {
+                $query->whereNotIn('warehouse_id', $filters['exclude']);
+            }
         }
 
         return $query->sum('quantity_available');
@@ -1184,6 +1296,14 @@ class MrpService
             $suggestedQty = $product->calculateOrderQuantity($requirement['net_requirement']);
 
             if ($suggestedQty <= 0) {
+                Log::debug('MRP: Skipping recommendation - suggested quantity <= 0', [
+                    'product_id' => $product->id,
+                    'product_sku' => $product->sku,
+                    'net_requirement' => $requirement['net_requirement'],
+                    'suggested_qty' => $suggestedQty,
+                    'minimum_order_qty' => $product->minimum_order_qty,
+                    'order_multiple' => $product->order_multiple,
+                ]);
                 continue;
             }
 
@@ -1411,11 +1531,205 @@ class MrpService
      */
     public function approveRecommendation(MrpRecommendation $recommendation): MrpRecommendation
     {
-        if (!$recommendation->approve()) {
+        if (!$recommendation->status->canApprove()) {
             throw new \Exception('Recommendation cannot be approved.');
         }
 
-        return $recommendation->fresh();
+        DB::beginTransaction();
+
+        try {
+            // Update status to APPROVED first
+            $recommendation->update([
+                'status' => MrpRecommendationStatus::APPROVED,
+            ]);
+
+            // Automatically create Purchase Order or Work Order based on recommendation type
+            if ($recommendation->recommendation_type === MrpRecommendationType::PURCHASE_ORDER) {
+                $this->createPurchaseOrderFromRecommendation($recommendation);
+            } elseif ($recommendation->recommendation_type === MrpRecommendationType::WORK_ORDER) {
+                $this->createWorkOrderFromRecommendation($recommendation);
+            }
+
+            DB::commit();
+
+            return $recommendation->fresh();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to approve MRP recommendation and create document', [
+                'recommendation_id' => $recommendation->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Create Purchase Order from MRP recommendation
+     */
+    protected function createPurchaseOrderFromRecommendation(MrpRecommendation $recommendation): void
+    {
+        $product = $recommendation->product;
+        $companyId = $recommendation->company_id;
+
+        // Try to get supplier for the product (optional - can be assigned later)
+        $supplierService = app(\App\Services\SupplierService::class);
+        $supplier = $supplierService->getPreferredSupplier($product->id);
+
+        if (!$supplier) {
+            // Try to get any active supplier for this product
+            $suppliers = $supplierService->getSuppliersForProduct($product->id);
+            $supplier = $suppliers->first();
+        }
+
+        // Supplier is optional at creation - will be required during approval
+        // If no supplier found, PO will be created without supplier and user can assign it later
+
+        // Get warehouse (from recommendation or use default)
+        $warehouseId = $recommendation->warehouse_id;
+        if (!$warehouseId) {
+            $warehouse = \App\Models\Warehouse::where('company_id', $companyId)
+                ->where('is_default', true)
+                ->where('is_active', true)
+                ->first();
+
+            if (!$warehouse) {
+                $warehouse = \App\Models\Warehouse::where('company_id', $companyId)
+                    ->where('is_active', true)
+                    ->first();
+            }
+
+            if (!$warehouse) {
+                throw new \Exception('No warehouse found. Please create a warehouse first.');
+            }
+
+            $warehouseId = $warehouse->id;
+        }
+
+        // Get supplier product info for pricing (if supplier exists)
+        $unitPrice = $product->cost_price ?? $product->price ?? 0;
+        if ($supplier) {
+            $supplierProduct = $supplier->products()
+                ->where('product_id', $product->id)
+                ->where('supplier_products.is_active', true)
+                ->first();
+            
+            $unitPrice = $supplierProduct?->pivot?->unit_price ?? $unitPrice;
+        }
+        $uomId = $product->uom_id ?? 1;
+
+        // Create Purchase Order
+        $purchaseOrderService = app(\App\Services\PurchaseOrderService::class);
+        $purchaseOrder = $purchaseOrderService->create([
+            'supplier_id' => $supplier?->id, // Optional - can be null
+            'warehouse_id' => $warehouseId,
+            'order_date' => $recommendation->suggested_date,
+            'expected_delivery_date' => $recommendation->required_date,
+            'status' => PoStatus::DRAFT->value,
+            'notes' => "Auto-generated from MRP Recommendation #{$recommendation->id}",
+            'internal_notes' => "MRP Run: {$recommendation->mrpRun->run_number}",
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity_ordered' => $recommendation->suggested_quantity,
+                    'uom_id' => $uomId,
+                    'unit_price' => $unitPrice,
+                    'expected_delivery_date' => $recommendation->required_date,
+                ],
+            ],
+        ]);
+
+        // Link recommendation to purchase order
+        $purchaseOrder->update([
+            'mrp_recommendation_id' => $recommendation->id,
+        ]);
+
+        // Mark recommendation as actioned
+        $recommendation->markAsActioned(
+            \App\Models\PurchaseOrder::class,
+            $purchaseOrder->id,
+            "Purchase Order {$purchaseOrder->order_number} created automatically"
+        );
+
+        Log::info('Purchase Order created from MRP recommendation', [
+            'recommendation_id' => $recommendation->id,
+            'purchase_order_id' => $purchaseOrder->id,
+            'order_number' => $purchaseOrder->order_number,
+        ]);
+    }
+
+    /**
+     * Create Work Order from MRP recommendation
+     */
+    protected function createWorkOrderFromRecommendation(MrpRecommendation $recommendation): void
+    {
+        $product = $recommendation->product;
+        $companyId = $recommendation->company_id;
+
+        // Get default BOM for the product
+        $bomService = app(\App\Services\BomService::class);
+        $bom = $bomService->getDefaultBomForProduct($product->id);
+
+        if (!$bom) {
+            throw new \Exception("No active BOM found for product: {$product->sku}. Please create a BOM for this product.");
+        }
+
+        // Get default routing for the product
+        $routingService = app(\App\Services\RoutingService::class);
+        $routing = $routingService->getDefaultRoutingForProduct($product->id);
+
+        // Get warehouse (from recommendation or use default)
+        $warehouseId = $recommendation->warehouse_id;
+        if (!$warehouseId) {
+            $warehouse = \App\Models\Warehouse::where('company_id', $companyId)
+                ->where('is_default', true)
+                ->where('is_active', true)
+                ->first();
+
+            if (!$warehouse) {
+                $warehouse = \App\Models\Warehouse::where('company_id', $companyId)
+                    ->where('is_active', true)
+                    ->first();
+            }
+
+            if (!$warehouse) {
+                throw new \Exception('No warehouse found. Please create a warehouse first.');
+            }
+
+            $warehouseId = $warehouse->id;
+        }
+
+        // Create Work Order
+        $workOrderService = app(\App\Services\WorkOrderService::class);
+        $workOrder = $workOrderService->create([
+            'product_id' => $product->id,
+            'bom_id' => $bom->id,
+            'routing_id' => $routing?->id,
+            'warehouse_id' => $warehouseId,
+            'quantity_ordered' => $recommendation->suggested_quantity,
+            'priority' => $recommendation->priority->value,
+            'planned_start_date' => $recommendation->suggested_date,
+            'planned_end_date' => $recommendation->required_date,
+            'status' => WorkOrderStatus::DRAFT->value,
+            'notes' => "Auto-generated from MRP Recommendation #{$recommendation->id}",
+        ]);
+
+        // Link recommendation to work order
+        $workOrder->update([
+            'mrp_recommendation_id' => $recommendation->id,
+        ]);
+
+        // Mark recommendation as actioned
+        $recommendation->markAsActioned(
+            \App\Models\WorkOrder::class,
+            $workOrder->id,
+            "Work Order {$workOrder->work_order_number} created automatically"
+        );
+
+        Log::info('Work Order created from MRP recommendation', [
+            'recommendation_id' => $recommendation->id,
+            'work_order_id' => $workOrder->id,
+            'work_order_number' => $workOrder->work_order_number,
+        ]);
     }
 
     /**
@@ -1548,5 +1862,25 @@ class MrpService
                     'is_below_safety' => $product->isBelowSafetyStock(),
                 ];
             });
+    }
+
+    /**
+     * Get total warnings count from summary
+     */
+    protected function getTotalWarningsCount(): int
+    {
+        $total = 0;
+        foreach ($this->warningsSummary as $summary) {
+            $total += $summary['count'] ?? 1;
+        }
+        return $total;
+    }
+
+    /**
+     * Get warnings summary for response
+     */
+    public function getWarningsSummary(): array
+    {
+        return array_values($this->warningsSummary);
     }
 }

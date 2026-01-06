@@ -46,6 +46,7 @@ return new class extends Migration
             $table->unsignedInteger('products_processed')->default(0);
             $table->unsignedInteger('recommendations_generated')->default(0);
             $table->unsignedInteger('warnings_count')->default(0);
+            $table->json('warnings_summary')->nullable()->after('warnings_count');
 
             // Tracking
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
@@ -119,6 +120,26 @@ return new class extends Migration
             $table->index(['company_id', 'required_date']);
             $table->index(['company_id', 'priority', 'status']);
         });
+
+        // Add foreign key constraints to work_orders and purchase_orders
+        // (These tables are created before mrp_recommendations, so we add FK here)
+        if (Schema::hasTable('work_orders') && Schema::hasColumn('work_orders', 'mrp_recommendation_id')) {
+            Schema::table('work_orders', function (Blueprint $table) {
+                $table->foreign('mrp_recommendation_id')
+                    ->references('id')
+                    ->on('mrp_recommendations')
+                    ->onDelete('set null');
+            });
+        }
+
+        if (Schema::hasTable('purchase_orders') && Schema::hasColumn('purchase_orders', 'mrp_recommendation_id')) {
+            Schema::table('purchase_orders', function (Blueprint $table) {
+                $table->foreign('mrp_recommendation_id')
+                    ->references('id')
+                    ->on('mrp_recommendations')
+                    ->onDelete('set null');
+            });
+        }
     }
 
     /**
