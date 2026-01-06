@@ -475,7 +475,11 @@ class NonConformanceReportService
      */
     public function getStatuses(): array
     {
-        return NonConformanceReport::STATUSES;
+        $statuses = [];
+        foreach (\App\Enums\NcrStatus::cases() as $status) {
+            $statuses[$status->value] = $status->fallbackLabel();
+        }
+        return $statuses;
     }
 
     /**
@@ -483,7 +487,11 @@ class NonConformanceReportService
      */
     public function getSeverities(): array
     {
-        return NonConformanceReport::SEVERITIES;
+        $severities = [];
+        foreach (\App\Enums\NcrSeverity::cases() as $severity) {
+            $severities[$severity->value] = $severity->fallbackLabel();
+        }
+        return $severities;
     }
 
     /**
@@ -499,6 +507,10 @@ class NonConformanceReportService
      */
     public function getDispositions(): array
     {
-        return NonConformanceReport::DISPOSITIONS;
+        $dispositions = [];
+        foreach (\App\Enums\NcrDisposition::cases() as $disposition) {
+            $dispositions[$disposition->value] = $disposition->fallbackLabel();
+        }
+        return $dispositions;
     }
 }

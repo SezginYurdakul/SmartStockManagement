@@ -6,6 +6,8 @@ use App\Models\NonConformanceReport;
 use App\Models\ReceivingInspection;
 use App\Services\NonConformanceReportService;
 use App\Http\Resources\NonConformanceReportResource;
+use App\Enums\NcrSeverity;
+use App\Enums\NcrDisposition;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -57,7 +59,7 @@ class NonConformanceReportController extends Controller
             'batch_number' => 'nullable|string|max:100',
             'quantity_affected' => 'nullable|numeric|min:0',
             'unit_of_measure' => 'nullable|string|max:20',
-            'severity' => ['required', Rule::in(array_keys(NonConformanceReport::SEVERITIES))],
+            'severity' => ['required', Rule::in(NcrSeverity::values())],
             'priority' => ['nullable', Rule::in(array_keys(NonConformanceReport::PRIORITIES))],
             'defect_type' => ['required', Rule::in(array_keys(NonConformanceReport::DEFECT_TYPES))],
             'root_cause' => 'nullable|string',
@@ -81,7 +83,7 @@ class NonConformanceReportController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'required|string',
             'quantity_affected' => 'nullable|numeric|min:0',
-            'severity' => ['required', Rule::in(array_keys(NonConformanceReport::SEVERITIES))],
+            'severity' => ['required', Rule::in(NcrSeverity::values())],
             'priority' => ['nullable', Rule::in(array_keys(NonConformanceReport::PRIORITIES))],
             'defect_type' => ['required', Rule::in(array_keys(NonConformanceReport::DEFECT_TYPES))],
             'root_cause' => 'nullable|string',
@@ -120,7 +122,7 @@ class NonConformanceReportController extends Controller
             'batch_number' => 'nullable|string|max:100',
             'quantity_affected' => 'nullable|numeric|min:0',
             'unit_of_measure' => 'nullable|string|max:20',
-            'severity' => ['sometimes', 'required', Rule::in(array_keys(NonConformanceReport::SEVERITIES))],
+            'severity' => ['sometimes', 'required', Rule::in(NcrSeverity::values())],
             'priority' => ['nullable', Rule::in(array_keys(NonConformanceReport::PRIORITIES))],
             'defect_type' => ['sometimes', 'required', Rule::in(array_keys(NonConformanceReport::DEFECT_TYPES))],
             'root_cause' => 'nullable|string',
@@ -165,7 +167,7 @@ class NonConformanceReportController extends Controller
     public function setDisposition(Request $request, NonConformanceReport $nonConformanceReport): JsonResource
     {
         $validated = $request->validate([
-            'disposition' => ['required', Rule::in(array_keys(NonConformanceReport::DISPOSITIONS))],
+            'disposition' => ['required', Rule::in(NcrDisposition::values())],
             'disposition_reason' => 'nullable|string',
             'cost_impact' => 'nullable|numeric|min:0',
             'cost_currency' => 'nullable|string|size:3',

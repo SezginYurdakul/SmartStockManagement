@@ -210,7 +210,8 @@ class NonConformanceReport extends Model
      */
     public function getStatusLabelAttribute(): string
     {
-        return self::STATUSES[$this->status] ?? ucfirst($this->status ?? 'Unknown');
+        $status = $this->status_enum;
+        return $status ? $status->fallbackLabel() : ucfirst($this->status ?? 'Unknown');
     }
 
     /**
@@ -218,7 +219,8 @@ class NonConformanceReport extends Model
      */
     public function getSeverityLabelAttribute(): string
     {
-        return self::SEVERITIES[$this->severity] ?? ucfirst($this->severity ?? 'Unknown');
+        $severity = $this->severity_enum;
+        return $severity ? $severity->fallbackLabel() : ucfirst($this->severity ?? 'Unknown');
     }
 
     /**
@@ -234,7 +236,8 @@ class NonConformanceReport extends Model
      */
     public function getDispositionLabelAttribute(): string
     {
-        return self::DISPOSITIONS[$this->disposition] ?? ucfirst($this->disposition ?? 'Unknown');
+        $disposition = $this->disposition_enum;
+        return $disposition ? $disposition->fallbackLabel() : ucfirst($this->disposition ?? 'Unknown');
     }
 
     /**
