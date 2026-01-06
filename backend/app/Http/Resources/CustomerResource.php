@@ -16,15 +16,18 @@ class CustomerResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'code' => $this->code,
+            'code' => $this->customer_code,
+            'customer_code' => $this->customer_code,
             'name' => $this->name,
             'email' => $this->email,
             'phone' => $this->phone,
-            'tax_number' => $this->tax_number,
+            'tax_number' => $this->tax_id,
+            'tax_id' => $this->tax_id,
 
             // Address
-            'billing_address' => $this->billing_address,
-            'shipping_address' => $this->shipping_address,
+            'address' => $this->address,
+            'billing_address' => $this->address,
+            'shipping_address' => $this->address,
             'city' => $this->city,
             'state' => $this->state,
             'postal_code' => $this->postal_code,

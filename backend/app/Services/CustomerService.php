@@ -25,9 +25,9 @@ class CustomerService
         if (!empty($filters['search'])) {
             $query->where(function ($q) use ($filters) {
                 $q->where('name', 'ilike', "%{$filters['search']}%")
-                  ->orWhere('code', 'ilike', "%{$filters['search']}%")
+                  ->orWhere('customer_code', 'ilike', "%{$filters['search']}%")
                   ->orWhere('email', 'ilike', "%{$filters['search']}%")
-                  ->orWhere('tax_number', 'ilike', "%{$filters['search']}%");
+                  ->orWhere('tax_id', 'ilike', "%{$filters['search']}%");
             });
         }
 
@@ -51,7 +51,7 @@ class CustomerService
     {
         return Customer::where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'name', 'code', 'customer_group_id']);
+            ->get(['id', 'name', 'customer_code', 'customer_group_id']);
     }
 
     /**
@@ -71,7 +71,7 @@ class CustomerService
     {
         Log::info('Creating customer', [
             'name' => $data['name'],
-            'code' => $data['code'] ?? null,
+            'code' => $data['code'] ?? $data['customer_code'] ?? null,
         ]);
 
         DB::beginTransaction();
@@ -80,36 +80,37 @@ class CustomerService
             $companyId = Auth::user()->company_id;
 
             // Generate code if not provided
-            if (empty($data['code'])) {
-                $data['code'] = $this->generateCustomerCode();
+            $customerCode = $data['customer_code'] ?? $data['code'] ?? null;
+            if (empty($customerCode)) {
+                $customerCode = $this->generateCustomerCode();
             }
 
             $customer = Customer::create([
                 'company_id' => $companyId,
                 'customer_group_id' => $data['customer_group_id'] ?? null,
-                'code' => $data['code'],
+                'customer_code' => $customerCode,
                 'name' => $data['name'],
                 'email' => $data['email'] ?? null,
                 'phone' => $data['phone'] ?? null,
-                'tax_number' => $data['tax_number'] ?? null,
-                'billing_address' => $data['billing_address'] ?? null,
-                'shipping_address' => $data['shipping_address'] ?? null,
+                'tax_id' => $data['tax_id'] ?? $data['tax_number'] ?? null,
+                'address' => $data['address'] ?? $data['billing_address'] ?? null,
                 'city' => $data['city'] ?? null,
                 'state' => $data['state'] ?? null,
                 'postal_code' => $data['postal_code'] ?? null,
                 'country' => $data['country'] ?? null,
                 'contact_person' => $data['contact_person'] ?? null,
-                'payment_terms_days' => $data['payment_terms_days'] ?? null,
-                'credit_limit' => $data['credit_limit'] ?? null,
+                'payment_terms_days' => $data['payment_terms_days'] ?? 30,
+                'credit_limit' => $data['credit_limit'] ?? 0,
                 'notes' => $data['notes'] ?? null,
                 'is_active' => $data['is_active'] ?? true,
+                'created_by' => Auth::id(),
             ]);
 
             DB::commit();
 
             Log::info('Customer created', [
                 'customer_id' => $customer->id,
-                'code' => $customer->code,
+                'customer_code' => $customer->customer_code,
             ]);
 
             return $customer->load('customerGroup');
@@ -169,7 +170,7 @@ class CustomerService
 
         Log::info('Deleting customer', [
             'customer_id' => $customer->id,
-            'code' => $customer->code,
+            'customer_code' => $customer->customer_code,
         ]);
 
         return $customer->delete();
@@ -185,11 +186,11 @@ class CustomerService
 
         $lastCustomer = Customer::withTrashed()
             ->where('company_id', $companyId)
-            ->where('code', 'like', "{$prefix}%")
-            ->orderByRaw("CAST(SUBSTRING(code FROM '[0-9]+$') AS INTEGER) DESC")
+            ->where('customer_code', 'like', "{$prefix}%")
+            ->orderByRaw("CAST(SUBSTRING(customer_code FROM '[0-9]+$') AS INTEGER) DESC")
             ->first();
 
-        if ($lastCustomer && preg_match('/(\d+)$/', $lastCustomer->code, $matches)) {
+        if ($lastCustomer && preg_match('/(\d+)$/', $lastCustomer->customer_code, $matches)) {
             $nextNumber = (int) $matches[1] + 1;
         } else {
             $nextNumber = 1;

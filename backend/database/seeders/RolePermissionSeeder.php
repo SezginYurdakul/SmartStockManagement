@@ -345,6 +345,12 @@ class RolePermissionSeeder extends Seeder
                 'description' => 'Can delete work centers, BOMs, routings, and work orders',
             ],
             [
+                'name' => 'manufacturing.mrp',
+                'display_name' => 'Run MRP',
+                'module' => 'manufacturing',
+                'description' => 'Can run MRP calculations and manage recommendations',
+            ],
+            [
                 'name' => 'manufacturing.release',
                 'display_name' => 'Release Work Orders',
                 'module' => 'manufacturing',
@@ -355,6 +361,32 @@ class RolePermissionSeeder extends Seeder
                 'display_name' => 'Complete Operations',
                 'module' => 'manufacturing',
                 'description' => 'Can complete work order operations and receive finished goods',
+            ],
+
+            // Customer management permissions
+            [
+                'name' => 'customers.view',
+                'display_name' => 'View Customers',
+                'module' => 'customers',
+                'description' => 'Can view customer list and details',
+            ],
+            [
+                'name' => 'customers.create',
+                'display_name' => 'Create Customers',
+                'module' => 'customers',
+                'description' => 'Can create new customers',
+            ],
+            [
+                'name' => 'customers.edit',
+                'display_name' => 'Edit Customers',
+                'module' => 'customers',
+                'description' => 'Can edit existing customers',
+            ],
+            [
+                'name' => 'customers.delete',
+                'display_name' => 'Delete Customers',
+                'module' => 'customers',
+                'description' => 'Can delete customers',
             ],
 
             // Sales permissions
@@ -549,6 +581,7 @@ class RolePermissionSeeder extends Seeder
             'manufacturing.create',
             'manufacturing.edit',
             'manufacturing.release',
+            'manufacturing.mrp',
         ])->get();
         $productionPlannerRole->permissions()->sync($productionPlannerPermissions->pluck('id'));
 

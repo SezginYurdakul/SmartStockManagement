@@ -13,10 +13,13 @@ class CustomerGroupPrice extends Model
     protected $fillable = [
         'customer_group_id',
         'product_id',
+        'company_id',
+        'currency_id',
         'price',
         'min_quantity',
         'valid_from',
         'valid_to',
+        'is_active',
     ];
 
     protected $casts = [
@@ -24,6 +27,7 @@ class CustomerGroupPrice extends Model
         'min_quantity' => 'decimal:4',
         'valid_from' => 'date',
         'valid_to' => 'date',
+        'is_active' => 'boolean',
     ];
 
     /**
@@ -40,6 +44,14 @@ class CustomerGroupPrice extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * Currency relationship
+     */
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
     }
 
     /**
@@ -73,5 +85,13 @@ class CustomerGroupPrice extends Model
     {
         return $query->where('min_quantity', '<=', $quantity)
             ->orderByDesc('min_quantity');
+    }
+
+    /**
+     * Scope: Active prices
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 }

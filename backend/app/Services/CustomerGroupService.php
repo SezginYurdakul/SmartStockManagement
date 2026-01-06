@@ -70,10 +70,15 @@ class CustomerGroupService
         try {
             $companyId = Auth::user()->company_id;
 
+            // Generate code if not provided
+            if (empty($data['code'])) {
+                $data['code'] = $this->generateCode($data['name'], $companyId);
+            }
+
             $customerGroup = CustomerGroup::create([
                 'company_id' => $companyId,
                 'name' => $data['name'],
-                'code' => $data['code'] ?? null,
+                'code' => $data['code'],
                 'description' => $data['description'] ?? null,
                 'discount_percentage' => $data['discount_percentage'] ?? 0,
                 'payment_terms_days' => $data['payment_terms_days'] ?? null,
@@ -139,5 +144,31 @@ class CustomerGroupService
         ]);
 
         return $customerGroup->delete();
+    }
+
+    /**
+     * Generate unique code for customer group
+     */
+    protected function generateCode(string $name, int $companyId): string
+    {
+        // Create base code from name
+        $baseCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', substr($name, 0, 10)));
+        
+        if (empty($baseCode)) {
+            $baseCode = 'CG';
+        }
+
+        // Check if code exists, append number if needed
+        $code = $baseCode;
+        $counter = 1;
+        
+        while (CustomerGroup::where('company_id', $companyId)
+            ->where('code', $code)
+            ->exists()) {
+            $code = $baseCode . $counter;
+            $counter++;
+        }
+
+        return $code;
     }
 }

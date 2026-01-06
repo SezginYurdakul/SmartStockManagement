@@ -51,6 +51,14 @@ class CustomerGroup extends Model
     }
 
     /**
+     * Group prices (alias for prices)
+     */
+    public function groupPrices(): HasMany
+    {
+        return $this->hasMany(CustomerGroupPrice::class);
+    }
+
+    /**
      * Scope: Active groups
      */
     public function scopeActive($query)

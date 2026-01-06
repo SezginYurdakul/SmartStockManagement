@@ -16,13 +16,15 @@ class CustomerListResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'code' => $this->code,
+            'code' => $this->customer_code,
+            'customer_code' => $this->customer_code,
             'name' => $this->name,
             'email' => $this->email,
             'phone' => $this->phone,
             'city' => $this->city,
             'country' => $this->country,
             'is_active' => $this->is_active,
+            'customer_group_id' => $this->customer_group_id,
             'customer_group' => new CustomerGroupListResource($this->whenLoaded('customerGroup')),
             'created_at' => $this->created_at?->toISOString(),
         ];
