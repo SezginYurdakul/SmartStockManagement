@@ -98,12 +98,14 @@ class PurchaseOrderService
                 $data['order_number'] = $this->generateOrderNumber();
             }
 
-            // Get supplier defaults
-            $supplier = Supplier::find($data['supplier_id']);
-            if ($supplier) {
-                $data['currency'] = $data['currency'] ?? $supplier->currency;
-                $data['payment_terms'] = $data['payment_terms'] ?? "{$supplier->payment_terms_days} days";
-                $data['payment_due_days'] = $data['payment_due_days'] ?? $supplier->payment_terms_days;
+            // Get supplier defaults (if supplier is provided)
+            if (!empty($data['supplier_id'])) {
+                $supplier = Supplier::find($data['supplier_id']);
+                if ($supplier) {
+                    $data['currency'] = $data['currency'] ?? $supplier->currency;
+                    $data['payment_terms'] = $data['payment_terms'] ?? "{$supplier->payment_terms_days} days";
+                    $data['payment_due_days'] = $data['payment_due_days'] ?? $supplier->payment_terms_days;
+                }
             }
 
             // Create purchase order
@@ -298,6 +300,10 @@ class PurchaseOrderService
             throw new BusinessException('Cannot submit an order without items.');
         }
 
+        if (!$purchaseOrder->supplier_id) {
+            throw new BusinessException('Cannot submit an order without a supplier. Please assign a supplier first.');
+        }
+
         Log::info('Submitting purchase order for approval', [
             'purchase_order_id' => $purchaseOrder->id,
             'order_number' => $purchaseOrder->order_number,
@@ -321,6 +327,10 @@ class PurchaseOrderService
 
         if (!$currentStatus || !in_array($targetStatus, $currentStatus->allowedTransitions())) {
             throw new BusinessException('Purchase order cannot be approved in current status.');
+        }
+
+        if (!$purchaseOrder->supplier_id) {
+            throw new BusinessException('Cannot approve an order without a supplier. Please assign a supplier first.');
         }
 
         Log::info('Approving purchase order', [

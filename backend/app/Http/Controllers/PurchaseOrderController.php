@@ -46,7 +46,7 @@ class PurchaseOrderController extends Controller
     {
         $validated = $request->validate([
             'order_number' => 'nullable|string|max:50',
-            'supplier_id' => 'required|exists:suppliers,id',
+            'supplier_id' => 'nullable|exists:suppliers,id',
             'warehouse_id' => 'required|exists:warehouses,id',
             'order_date' => 'nullable|date',
             'expected_delivery_date' => 'nullable|date|after_or_equal:order_date',
@@ -98,7 +98,7 @@ class PurchaseOrderController extends Controller
     public function update(Request $request, PurchaseOrder $purchaseOrder): JsonResource
     {
         $validated = $request->validate([
-            'supplier_id' => 'sometimes|required|exists:suppliers,id',
+            'supplier_id' => 'sometimes|nullable|exists:suppliers,id',
             'warehouse_id' => 'sometimes|required|exists:warehouses,id',
             'order_date' => 'nullable|date',
             'expected_delivery_date' => 'nullable|date',
