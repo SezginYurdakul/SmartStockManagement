@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
+use App\Models\Stock;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -18,10 +19,12 @@ use Exception;
 class SalesOrderService
 {
     protected CustomerGroupPriceService $priceService;
+    protected StockService $stockService;
 
-    public function __construct(CustomerGroupPriceService $priceService)
+    public function __construct(CustomerGroupPriceService $priceService, StockService $stockService)
     {
         $this->priceService = $priceService;
+        $this->stockService = $stockService;
     }
 
     /**
@@ -143,6 +146,7 @@ class SalesOrderService
 
     /**
      * Update sales order
+     * Releases reservation if status changes from CONFIRMED to a non-confirmed status
      */
     public function update(SalesOrder $salesOrder, array $data): SalesOrder
     {
@@ -158,6 +162,14 @@ class SalesOrderService
         DB::beginTransaction();
 
         try {
+            $oldStatus = $salesOrder->status;
+            $newStatus = isset($data['status']) ? SalesOrderStatus::from($data['status']) : null;
+
+            // If status is being changed from CONFIRMED to a non-confirmed status, release reservations
+            if ($oldStatus === SalesOrderStatus::CONFIRMED && $newStatus && $newStatus !== SalesOrderStatus::CONFIRMED) {
+                $this->releaseStockForOrder($salesOrder);
+            }
+
             $salesOrder->update([
                 'expected_delivery_date' => $data['expected_delivery_date'] ?? $salesOrder->expected_delivery_date,
                 'shipping_address' => $data['shipping_address'] ?? $salesOrder->shipping_address,
@@ -166,6 +178,7 @@ class SalesOrderService
                 'internal_notes' => $data['internal_notes'] ?? $salesOrder->internal_notes,
                 'discount_amount' => $data['discount_amount'] ?? $salesOrder->discount_amount,
                 'tax_amount' => $data['tax_amount'] ?? $salesOrder->tax_amount,
+                'status' => $newStatus?->value ?? $salesOrder->status,
             ]);
 
             // Update items if provided
@@ -302,6 +315,7 @@ class SalesOrderService
 
     /**
      * Reject sales order
+     * Releases any reserved stock if order was confirmed
      */
     public function reject(SalesOrder $salesOrder, ?string $reason = null): SalesOrder
     {
@@ -317,18 +331,38 @@ class SalesOrderService
             'reason' => $reason,
         ]);
 
-        $salesOrder->update([
-            'status' => SalesOrderStatus::REJECTED->value,
-            'internal_notes' => $reason
-                ? $salesOrder->internal_notes . "\nRejection reason: " . $reason
-                : $salesOrder->internal_notes,
-        ]);
+        DB::beginTransaction();
 
-        return $salesOrder->fresh();
+        try {
+            // Release reserved stock if order was confirmed
+            if ($currentStatus === SalesOrderStatus::CONFIRMED) {
+                $this->releaseStockForOrder($salesOrder);
+            }
+
+            $salesOrder->update([
+                'status' => SalesOrderStatus::REJECTED->value,
+                'internal_notes' => $reason
+                    ? $salesOrder->internal_notes . "\nRejection reason: " . $reason
+                    : $salesOrder->internal_notes,
+            ]);
+
+            DB::commit();
+
+            return $salesOrder->fresh();
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to reject sales order', [
+                'sales_order_id' => $salesOrder->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
      * Confirm sales order (after approval)
+     * Automatically reserves stock for all items
      */
     public function confirm(SalesOrder $salesOrder): SalesOrder
     {
@@ -343,11 +377,32 @@ class SalesOrderService
             'order_number' => $salesOrder->order_number,
         ]);
 
-        $salesOrder->update([
-            'status' => SalesOrderStatus::CONFIRMED->value,
-        ]);
+        DB::beginTransaction();
 
-        return $salesOrder->fresh();
+        try {
+            $salesOrder->update([
+                'status' => SalesOrderStatus::CONFIRMED->value,
+            ]);
+
+            // Automatically reserve stock for all items
+            $this->reserveStockForOrder($salesOrder);
+
+            DB::commit();
+
+            Log::info('Sales order confirmed and stock reserved', [
+                'sales_order_id' => $salesOrder->id,
+            ]);
+
+            return $salesOrder->fresh(['customer', 'items.product']);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to confirm sales order', [
+                'sales_order_id' => $salesOrder->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -406,6 +461,7 @@ class SalesOrderService
 
     /**
      * Cancel sales order
+     * Releases any reserved stock if order was confirmed
      */
     public function cancel(SalesOrder $salesOrder, ?string $reason = null): SalesOrder
     {
@@ -421,14 +477,33 @@ class SalesOrderService
             'reason' => $reason,
         ]);
 
-        $salesOrder->update([
-            'status' => SalesOrderStatus::CANCELLED->value,
-            'internal_notes' => $reason
-                ? $salesOrder->internal_notes . "\nCancellation reason: " . $reason
-                : $salesOrder->internal_notes,
-        ]);
+        DB::beginTransaction();
 
-        return $salesOrder->fresh();
+        try {
+            // Release reserved stock if order was confirmed
+            if ($currentStatus === SalesOrderStatus::CONFIRMED) {
+                $this->releaseStockForOrder($salesOrder);
+            }
+
+            $salesOrder->update([
+                'status' => SalesOrderStatus::CANCELLED->value,
+                'internal_notes' => $reason
+                    ? $salesOrder->internal_notes . "\nCancellation reason: " . $reason
+                    : $salesOrder->internal_notes,
+            ]);
+
+            DB::commit();
+
+            return $salesOrder->fresh();
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to cancel sales order', [
+                'sales_order_id' => $salesOrder->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -447,6 +522,90 @@ class SalesOrderService
 
         $salesOrder->items()->delete();
         return $salesOrder->delete();
+    }
+
+    /**
+     * Reserve stock for all items in a confirmed sales order
+     */
+    protected function reserveStockForOrder(SalesOrder $salesOrder): void
+    {
+        if (!$salesOrder->warehouse_id) {
+            Log::warning('Cannot reserve stock: sales order has no warehouse', [
+                'sales_order_id' => $salesOrder->id,
+            ]);
+            return;
+        }
+
+        $salesOrder->load('items.product');
+
+        foreach ($salesOrder->items as $item) {
+            try {
+                $this->stockService->reserveStock(
+                    $item->product_id,
+                    $salesOrder->warehouse_id,
+                    $item->quantity_ordered,
+                    null, // lot_number
+                    Stock::OPERATION_SALE,
+                    false // skipQualityCheck
+                );
+
+                Log::info('Stock reserved for sales order item', [
+                    'sales_order_id' => $salesOrder->id,
+                    'item_id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity_ordered,
+                ]);
+            } catch (BusinessException $e) {
+                Log::error('Failed to reserve stock for sales order item', [
+                    'sales_order_id' => $salesOrder->id,
+                    'item_id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'error' => $e->getMessage(),
+                ]);
+                // Continue with other items even if one fails
+            }
+        }
+    }
+
+    /**
+     * Release reserved stock for all items in a sales order
+     */
+    protected function releaseStockForOrder(SalesOrder $salesOrder): void
+    {
+        if (!$salesOrder->warehouse_id) {
+            Log::warning('Cannot release stock: sales order has no warehouse', [
+                'sales_order_id' => $salesOrder->id,
+            ]);
+            return;
+        }
+
+        $salesOrder->load('items.product');
+
+        foreach ($salesOrder->items as $item) {
+            try {
+                $this->stockService->releaseReservation(
+                    $item->product_id,
+                    $salesOrder->warehouse_id,
+                    $item->quantity_ordered,
+                    null // lot_number
+                );
+
+                Log::info('Stock reservation released for sales order item', [
+                    'sales_order_id' => $salesOrder->id,
+                    'item_id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity_ordered,
+                ]);
+            } catch (BusinessException $e) {
+                Log::error('Failed to release stock reservation for sales order item', [
+                    'sales_order_id' => $salesOrder->id,
+                    'item_id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'error' => $e->getMessage(),
+                ]);
+                // Continue with other items even if one fails
+            }
+        }
     }
 
     /**

@@ -248,6 +248,24 @@ class DeliveryNoteService
         try {
             // Deduct stock for each item
             foreach ($deliveryNote->items as $item) {
+                // Release reservation first (physical stock is being issued)
+                try {
+                    $this->stockService->releaseReservation(
+                        $item->product_id,
+                        $deliveryNote->warehouse_id,
+                        $item->quantity_shipped,
+                        $item->lot_number
+                    );
+                } catch (BusinessException $e) {
+                    // If reservation doesn't exist or is less, log warning but continue
+                    Log::warning('Could not release reservation for delivery note item', [
+                        'delivery_note_id' => $deliveryNote->id,
+                        'item_id' => $item->id,
+                        'product_id' => $item->product_id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+
                 $this->stockService->issueStock([
                     'product_id' => $item->product_id,
                     'warehouse_id' => $deliveryNote->warehouse_id,
