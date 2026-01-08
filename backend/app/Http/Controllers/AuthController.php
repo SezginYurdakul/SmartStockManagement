@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -88,8 +89,20 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json([
+                'message' => 'User not authenticated',
+                'user' => null,
+            ], 401);
+        }
+        
+        // Load relationships
+        $user->load(['company', 'roles']);
+        
         return response()->json([
-            'user' => $request->user(),
+            'user' => UserResource::make($user),
         ]);
     }
 

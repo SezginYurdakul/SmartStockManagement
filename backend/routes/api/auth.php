@@ -17,8 +17,8 @@ Route::prefix('auth')->withoutMiddleware('auth:sanctum')->group(function () {
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 });
 
-// Protected routes
-Route::prefix('auth')->group(function () {
+// Protected routes (require authentication)
+Route::prefix('auth')->middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/refresh', [AuthController::class, 'refresh']);
