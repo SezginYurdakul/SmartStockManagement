@@ -29,6 +29,7 @@ class PurchaseOrderItem extends Model
         'actual_delivery_date',
         'lot_number',
         'notes',
+        'over_delivery_tolerance_percentage',
     ];
 
     protected $casts = [
@@ -43,6 +44,7 @@ class PurchaseOrderItem extends Model
         'line_total' => 'decimal:2',
         'expected_delivery_date' => 'date',
         'actual_delivery_date' => 'date',
+        'over_delivery_tolerance_percentage' => 'decimal:2',
     ];
 
     /**

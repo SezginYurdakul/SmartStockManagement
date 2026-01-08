@@ -11,6 +11,9 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Stock;
 use App\Models\StockMovement;
+use App\Models\Product;
+use App\Models\Category;
+use App\Models\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -222,12 +225,58 @@ class GoodsReceivedNoteService
 
         foreach ($items as $item) {
             $lineNumber++;
-            $poItem = PurchaseOrderItem::find($item['purchase_order_item_id']);
+            $poItem = PurchaseOrderItem::with('product.primaryCategory')
+                ->find($item['purchase_order_item_id']);
 
-            // Validate quantity doesn't exceed remaining
-            $remainingQty = $poItem->remaining_quantity ?? $poItem->quantity_ordered;
-            if ($item['quantity_received'] > $remainingQty) {
-                throw new BusinessException("Quantity received ({$item['quantity_received']}) exceeds remaining quantity ({$remainingQty}) for item {$poItem->product->name}.");
+            if (!$poItem) {
+                throw new BusinessException(
+                    "PurchaseOrderItem not found. Item ID: {$item['purchase_order_item_id']}"
+                );
+            }
+
+            $quantity = $item['quantity_received'];
+            
+            // Calculate total quantity already in GRNs (including DRAFT ones)
+            // This prevents creating multiple GRNs that exceed the ordered quantity
+            $query = GoodsReceivedNoteItem::where('purchase_order_item_id', $poItem->id);
+            
+            // Exclude current GRN if updating
+            if ($grn->exists) {
+                $query->where('goods_received_note_id', '!=', $grn->id);
+            }
+            
+            $totalInGrns = $query->sum('quantity_received');
+            
+            $remainingQty = $poItem->quantity_ordered - $totalInGrns;
+            
+            // Get over-delivery tolerance using fallback logic
+            $tolerancePercentage = $this->getOverDeliveryTolerance($poItem);
+            
+            // Calculate maximum allowed quantity (ordered + tolerance)
+            $maxAllowedQty = $poItem->quantity_ordered * (1 + $tolerancePercentage / 100);
+            $maxAllowedQtyInGrns = $maxAllowedQty - $totalInGrns;
+
+            // Check if quantity exceeds remaining (without tolerance)
+            if ($quantity > $remainingQty) {
+                // Check if it's within tolerance
+                if ($quantity > $maxAllowedQtyInGrns) {
+                    throw new BusinessException(
+                        "Cannot create GRN with {$quantity} units. " .
+                        "Only {$remainingQty} units remaining (max allowed with tolerance: " . number_format($maxAllowedQtyInGrns, 2) . "). " .
+                        "Total ordered: {$poItem->quantity_ordered}, " .
+                        "Tolerance: {$tolerancePercentage}%, " .
+                        "Already in GRNs: {$totalInGrns}."
+                    );
+                }
+                
+                // Within tolerance, log a warning
+                Log::warning('Over-delivery within tolerance for GRN', [
+                    'purchase_order_item_id' => $poItem->id,
+                    'quantity_ordered' => $poItem->quantity_ordered,
+                    'quantity_requested' => $quantity,
+                    'tolerance_percentage' => $tolerancePercentage,
+                    'max_allowed' => $maxAllowedQty,
+                ]);
             }
 
             GoodsReceivedNoteItem::create([
@@ -567,5 +616,43 @@ class GoodsReceivedNoteService
         return GoodsReceivedNote::pendingInspection()
             ->with(['purchaseOrder', 'supplier', 'items'])
             ->get();
+    }
+
+    /**
+     * Get over-delivery tolerance percentage using fallback logic
+     * 
+     * Priority order (most specific to least specific):
+     * 1. PurchaseOrderItem.over_delivery_tolerance_percentage
+     * 2. Product.over_delivery_tolerance_percentage
+     * 3. Category.over_delivery_tolerance_percentage (primary category)
+     * 4. System default (settings.delivery.default_over_delivery_tolerance)
+     * 
+     * @param PurchaseOrderItem $purchaseOrderItem
+     * @return float Tolerance percentage (e.g., 5.0 for 5%)
+     */
+    protected function getOverDeliveryTolerance(PurchaseOrderItem $purchaseOrderItem): float
+    {
+        // 1. Check PurchaseOrderItem level (most specific)
+        if ($purchaseOrderItem->over_delivery_tolerance_percentage !== null) {
+            return (float) $purchaseOrderItem->over_delivery_tolerance_percentage;
+        }
+
+        // 2. Check Product level
+        $product = $purchaseOrderItem->product;
+        if ($product && $product->over_delivery_tolerance_percentage !== null) {
+            return (float) $product->over_delivery_tolerance_percentage;
+        }
+
+        // 3. Check Category level (primary category)
+        if ($product) {
+            $primaryCategory = $product->primaryCategory;
+            if ($primaryCategory && $primaryCategory->over_delivery_tolerance_percentage !== null) {
+                return (float) $primaryCategory->over_delivery_tolerance_percentage;
+            }
+        }
+
+        // 4. System default
+        $systemDefault = Setting::get('delivery.default_over_delivery_tolerance', 0);
+        return (float) $systemDefault;
     }
 }

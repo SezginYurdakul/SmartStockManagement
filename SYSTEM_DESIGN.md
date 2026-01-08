@@ -1,7 +1,7 @@
 # Smart Stock Management System (MRP II) - Final Design Document
 
-**Version:** 5.6
-**Date:** 2025-12-30
+**Version:** 5.7
+**Date:** 2026-01-08
 **Status:** Production Ready Design
 **System Type:** Material Requirements Planning II (MRP II) - Modular Architecture
 
@@ -909,6 +909,8 @@ purchase_order_items
 ├── unit_price (decimal(15,4))
 ├── tax_percentage (decimal(5,2), default: 0)
 ├── line_total (decimal(15,2))
+├── over_delivery_tolerance_percentage (decimal(5,2), nullable)
+│   -- Over-delivery tolerance for this specific order item (most specific level)
 └── created_at (timestamp)
 ```
 
@@ -967,9 +969,254 @@ INDEX idx_so_customer ON sales_orders(customer_id, order_date DESC)
 INDEX idx_so_status ON sales_orders(status)
 ```
 
+#### Sales Order Items
+```sql
+sales_order_items
+├── id (bigint, PK)
+├── sales_order_id (bigint, FK)
+├── product_id (bigint, FK)
+├── quantity_ordered (decimal(15,3))
+├── quantity_shipped (decimal(15,3), default: 0)
+├── uom_id (bigint, FK)
+├── unit_price (decimal(15,4))
+├── tax_percentage (decimal(5,2), default: 0)
+├── line_total (decimal(15,2))
+├── over_delivery_tolerance_percentage (decimal(5,2), nullable)
+│   -- Over-delivery tolerance for this specific order item (most specific level)
+└── created_at (timestamp)
+```
+
 ---
 
-### 6.7 Manufacturing (Phase 5)
+### 6.7 Over-Delivery Tolerance System
+
+The system implements a flexible over-delivery tolerance mechanism for both **Sales Orders → Delivery Notes** and **Purchase Orders → Goods Received Notes (GRN)**. This allows partial deliveries while preventing excessive over-delivery through a hierarchical fallback system.
+
+#### 6.7.1 Tolerance Levels (Fallback Logic)
+
+The system uses a **4-level fallback hierarchy** (most specific to least specific):
+
+```
+1. Order Item Level (Most Specific)
+   ├── sales_order_items.over_delivery_tolerance_percentage
+   └── purchase_order_items.over_delivery_tolerance_percentage
+
+2. Product Level
+   └── products.over_delivery_tolerance_percentage
+
+3. Category Level
+   └── categories.over_delivery_tolerance_percentage (primary category)
+
+4. System Default (Least Specific)
+   └── settings.delivery.default_over_delivery_tolerance
+```
+
+**Decision Logic:**
+```php
+$tolerance = $orderItem->over_delivery_tolerance_percentage
+    ?? $product->over_delivery_tolerance_percentage
+    ?? $category->over_delivery_tolerance_percentage
+    ?? Setting::get('delivery.default_over_delivery_tolerance', 0);
+```
+
+#### 6.7.2 Database Schema
+
+**Products Table:**
+```sql
+products
+├── ...
+├── over_delivery_tolerance_percentage (decimal(5,2), nullable)
+│   -- Product-specific tolerance (e.g., 5.0 for 5%)
+└── ...
+```
+
+**Categories Table:**
+```sql
+categories
+├── ...
+├── over_delivery_tolerance_percentage (decimal(5,2), nullable)
+│   -- Category-specific tolerance (e.g., 2.0 for bulk items)
+└── ...
+```
+
+**Sales Order Items Table:**
+```sql
+sales_order_items
+├── ...
+├── over_delivery_tolerance_percentage (decimal(5,2), nullable)
+│   -- Item-specific override (most specific)
+└── ...
+```
+
+**Purchase Order Items Table:**
+```sql
+purchase_order_items
+├── ...
+├── over_delivery_tolerance_percentage (decimal(5,2), nullable)
+│   -- Item-specific override (most specific)
+└── ...
+```
+
+**System Settings:**
+```sql
+system_settings
+├── category = 'delivery'
+├── key = 'default_over_delivery_tolerance'
+├── value = '0' (default: no tolerance)
+└── ...
+```
+
+#### 6.7.3 Sales Order → Delivery Note Flow
+
+**Quantity Control Logic:**
+1. Calculate total quantity already in delivery notes (including DRAFTs):
+   ```php
+   $totalInDeliveryNotes = DeliveryNoteItem::where('sales_order_item_id', $item->id)
+       ->sum('quantity_shipped');
+   ```
+
+2. Calculate remaining quantity:
+   ```php
+   $remainingQty = $salesOrderItem->quantity_ordered - $totalInDeliveryNotes;
+   ```
+
+3. Get tolerance using fallback logic:
+   ```php
+   $tolerancePercentage = $this->getOverDeliveryTolerance($salesOrderItem);
+   ```
+
+4. Calculate maximum allowed quantity:
+   ```php
+   $maxAllowedQty = $salesOrderItem->quantity_ordered * (1 + $tolerancePercentage / 100);
+   $maxAllowedQtyInDeliveryNotes = $maxAllowedQty - $totalInDeliveryNotes;
+   ```
+
+5. Validate:
+   - If `quantity_requested > remainingQty`:
+     - If `quantity_requested <= maxAllowedQtyInDeliveryNotes`: ✅ **Allow with warning log**
+     - If `quantity_requested > maxAllowedQtyInDeliveryNotes`: ❌ **Reject with error**
+
+**Example Scenario:**
+- Sales Order Item: 1000 units ordered
+- System default tolerance: 5%
+- Max allowed: 1000 × 1.05 = 1050 units
+
+| Delivery Note | Quantity | Result | Reason |
+|--------------|----------|--------|--------|
+| DN-001 | 1000 | ✅ Success | Normal delivery |
+| DN-002 | 50 | ✅ Success (Warning) | Within tolerance (1050 total) |
+| DN-003 | 1 | ❌ Error | Exceeds tolerance (1051 > 1050) |
+
+#### 6.7.4 Purchase Order → GRN Flow
+
+**Quantity Control Logic:**
+1. Calculate total quantity already in GRNs (including DRAFTs):
+   ```php
+   $totalInGrns = GoodsReceivedNoteItem::where('purchase_order_item_id', $item->id)
+       ->sum('quantity_received');
+   ```
+
+2. Calculate remaining quantity:
+   ```php
+   $remainingQty = $purchaseOrderItem->quantity_ordered - $totalInGrns;
+   ```
+
+3. Get tolerance using fallback logic (same as Sales Orders):
+   ```php
+   $tolerancePercentage = $this->getOverDeliveryTolerance($purchaseOrderItem);
+   ```
+
+4. Calculate maximum allowed quantity:
+   ```php
+   $maxAllowedQty = $purchaseOrderItem->quantity_ordered * (1 + $tolerancePercentage / 100);
+   $maxAllowedQtyInGrns = $maxAllowedQty - $totalInGrns;
+   ```
+
+5. Validate (same logic as Delivery Notes)
+
+**Example Scenario:**
+- Purchase Order Item: 500 units ordered
+- Product tolerance: 3%
+- Max allowed: 500 × 1.03 = 515 units
+
+| GRN | Quantity | Result | Reason |
+|-----|----------|--------|--------|
+| GRN-001 | 500 | ✅ Success | Normal receipt |
+| GRN-002 | 15 | ✅ Success (Warning) | Within tolerance (515 total) |
+| GRN-003 | 1 | ❌ Error | Exceeds tolerance (516 > 515) |
+
+#### 6.7.5 Partial Delivery Support
+
+Both systems support **multiple partial deliveries**:
+
+- **Sales Orders**: Multiple delivery notes can be created for the same sales order item
+- **Purchase Orders**: Multiple GRNs can be created for the same purchase order item
+- **Total Control**: System tracks total quantity across all delivery notes/GRNs (including DRAFTs)
+- **Tolerance Applied**: Tolerance is applied to the **total delivered/received quantity**, not per delivery
+
+#### 6.7.6 Service Implementation
+
+**DeliveryNoteService:**
+```php
+protected function getOverDeliveryTolerance(SalesOrderItem $salesOrderItem): float
+{
+    // 1. Check SalesOrderItem level (most specific)
+    if ($salesOrderItem->over_delivery_tolerance_percentage !== null) {
+        return (float) $salesOrderItem->over_delivery_tolerance_percentage;
+    }
+
+    // 2. Check Product level
+    $product = $salesOrderItem->product;
+    if ($product && $product->over_delivery_tolerance_percentage !== null) {
+        return (float) $product->over_delivery_tolerance_percentage;
+    }
+
+    // 3. Check Category level (primary category)
+    if ($product) {
+        $primaryCategory = $product->primaryCategory;
+        if ($primaryCategory && $primaryCategory->over_delivery_tolerance_percentage !== null) {
+            return (float) $primaryCategory->over_delivery_tolerance_percentage;
+        }
+    }
+
+    // 4. System default
+    $systemDefault = Setting::get('delivery.default_over_delivery_tolerance', 0);
+    return (float) $systemDefault;
+}
+```
+
+**GoodsReceivedNoteService:**
+- Same `getOverDeliveryTolerance()` method, but accepts `PurchaseOrderItem` instead
+
+#### 6.7.7 Benefits
+
+1. **Flexibility**: Different tolerance levels for different products/categories
+2. **Control**: Prevents excessive over-delivery while allowing reasonable variations
+3. **Hierarchy**: Most specific setting wins (item > product > category > system)
+4. **Partial Delivery**: Supports multiple deliveries/receipts per order
+5. **Audit Trail**: Warning logs when tolerance is used
+
+#### 6.7.8 Use Cases
+
+**High-Value Items (0% tolerance):**
+- Electronics, precision instruments
+- Set at Product or Category level
+
+**Bulk Materials (2-5% tolerance):**
+- Raw materials, chemicals, grains
+- Set at Category level
+
+**Special Orders (Item-level override):**
+- Customer-specific tolerance for specific order
+- Set at Sales Order Item level
+
+**System-Wide Default:**
+- General tolerance for all items (e.g., 0% = strict, 5% = flexible)
+- Set in System Settings
+
+---
+
+### 6.8 Manufacturing (Phase 5)
 
 Manufacturing modülü MRP II sisteminin çekirdeğidir. BOM, Work Centers, Routings ve Work Orders içerir.
 
@@ -2033,6 +2280,20 @@ function ProductForm() {
 
 ## Document History
 
+**Version 5.7** - 2026-01-08
+- ✅ **Over-Delivery Tolerance System**: Comprehensive tolerance management for Sales Orders and Purchase Orders
+- ✅ Added Section 6.7: Over-Delivery Tolerance System with hierarchical fallback logic
+- ✅ Added `over_delivery_tolerance_percentage` to `purchase_order_items` table
+- ✅ Added `over_delivery_tolerance_percentage` to `sales_order_items` table
+- ✅ Added `over_delivery_tolerance_percentage` to `products` table
+- ✅ Added `over_delivery_tolerance_percentage` to `categories` table
+- ✅ Implemented 4-level fallback hierarchy: Order Item → Product → Category → System Default
+- ✅ Delivery Note quantity control with tolerance validation
+- ✅ GRN quantity control with tolerance validation
+- ✅ Support for multiple partial deliveries per order
+- ✅ Warning logs when tolerance is used
+- ✅ Renumbered Manufacturing section from 6.7 to 6.8
+
 **Version 5.6** - 2025-12-30
 - ✅ **Manufacturing Module (Phase 5)**: Complete Manufacturing documentation
 - ✅ Added Section 6.7-6.11: Comprehensive Manufacturing module
@@ -2109,5 +2370,5 @@ function ProductForm() {
 
 ---
 
-*Current Version: 5.6*
-*Last Updated: 2025-12-30*
+*Current Version: 5.7*
+*Last Updated: 2026-01-08*
