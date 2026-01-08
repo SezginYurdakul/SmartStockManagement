@@ -19,12 +19,29 @@ class ProductSeeder extends Seeder
      */
     public function run(): void
     {
-        // Get default company
-        $company = Company::first();
-        $companyId = $company?->id;
+        // Get all companies
+        $companies = Company::all();
 
-        // Only get subcategories (categories with parent_id)
-        $categories = Category::whereNotNull('parent_id')->get();
+        if ($companies->isEmpty()) {
+            $this->command->error('No companies found! Please run CompanySeeder first.');
+            return;
+        }
+
+        // Create products for each company
+        foreach ($companies as $company) {
+            $this->createProductsForCompany($company);
+        }
+
+        $totalProducts = Product::count();
+        $this->command->info("Products seeded successfully! Total: {$totalProducts} products for " . $companies->count() . " companies");
+    }
+
+    private function createProductsForCompany($company): void
+    {
+        $companyId = $company->id;
+
+        // Only get subcategories (categories with parent_id) for this company
+        $categories = Category::where('company_id', $companyId)->whereNotNull('parent_id')->get();
 
         if ($categories->isEmpty()) {
             $this->command->warn('No categories found! Please run CategorySeeder first.');
@@ -462,13 +479,10 @@ class ProductSeeder extends Seeder
             }
         });
 
-        $totalProducts = Product::count();
-        $this->command->info("Agricultural Machinery products seeded successfully! Total: {$totalProducts} products");
-
         // Calculate Low-Level Codes for all products
-        $this->command->info("Calculating Low-Level Codes for products...");
+        $this->command->info("Calculating Low-Level Codes for products in {$company->name}...");
         $this->calculateLowLevelCodes($companyId);
-        $this->command->info("✓ Low-Level Codes calculated successfully!");
+        $this->command->info("✓ Low-Level Codes calculated for {$company->name}!");
     }
 
     /**

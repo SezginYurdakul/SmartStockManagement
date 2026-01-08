@@ -275,20 +275,23 @@ class SupplierService
     public function generateSupplierCode(): string
     {
         $companyId = Auth::user()->company_id;
+        $companyIdPadded = str_pad($companyId, 3, '0', STR_PAD_LEFT);
+        $prefix = "SUP-{$companyIdPadded}-";
 
         // Include soft-deleted records to avoid duplicate codes
         $lastSupplier = Supplier::withTrashed()
             ->where('company_id', $companyId)
-            ->orderByRaw("CAST(SUBSTRING(supplier_code FROM '[0-9]+') AS INTEGER) DESC")
+            ->where('supplier_code', 'like', "{$prefix}%")
+            ->orderByRaw("CAST(SUBSTRING(supplier_code FROM '[0-9]+$') AS INTEGER) DESC")
             ->first();
 
-        if ($lastSupplier && preg_match('/(\d+)/', $lastSupplier->supplier_code, $matches)) {
+        if ($lastSupplier && preg_match('/(\d+)$/', $lastSupplier->supplier_code, $matches)) {
             $nextNumber = (int) $matches[1] + 1;
         } else {
             $nextNumber = 1;
         }
 
-        return 'SUP-' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+        return $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
     }
 
     /**

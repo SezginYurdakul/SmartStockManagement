@@ -71,9 +71,16 @@ class CategoryController extends Controller
      */
     public function update(Request $request, Category $category): JsonResource
     {
+        $companyId = $request->user()->company_id;
+        
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'slug' => ['sometimes', 'required', 'string', Rule::unique('categories')->ignore($category->id)],
+            'slug' => [
+                'sometimes',
+                'required',
+                'string',
+                Rule::unique('categories')->where('company_id', $companyId)->ignore($category->id),
+            ],
             'description' => 'nullable|string',
             'parent_id' => 'nullable|exists:categories,id',
         ]);

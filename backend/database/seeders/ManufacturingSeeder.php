@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Bom;
 use App\Models\BomItem;
+use App\Models\Company;
 use App\Models\Product;
 use App\Models\Routing;
 use App\Models\RoutingOperation;
@@ -31,19 +32,40 @@ class ManufacturingSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->command->info('Seeding Agricultural Machinery Manufacturing data...');
+        // Get all companies
+        $companies = Company::all();
 
-        // Get company_id from first user
-        $companyId = \App\Models\User::first()?->company_id ?? 1;
-        $userId = \App\Models\User::first()?->id ?? 1;
+        if ($companies->isEmpty()) {
+            $this->command->error('No companies found! Please run CompanySeeder first.');
+            return;
+        }
+
+        // Create manufacturing data for each company
+        foreach ($companies as $company) {
+            $this->createManufacturingDataForCompany($company);
+        }
+
+        $this->command->info('Manufacturing data seeded successfully for ' . $companies->count() . ' companies');
+    }
+
+    private function createManufacturingDataForCompany($company): void
+    {
+        $this->command->info("Seeding Agricultural Machinery Manufacturing data for {$company->name}...");
+
+        $companyId = $company->id;
+        $userId = \App\Models\User::where('company_id', $companyId)->first()?->id ?? 1;
 
         // Get default UOM (piece)
         $pieceUom = UnitOfMeasure::where('code', 'pcs')->first();
         $uomId = $pieceUom?->id ?? 1;
 
-        // Get WIP warehouse (Production Plant)
-        $wipWarehouse = Warehouse::where('code', 'WH-PROD')->first()
-            ?? Warehouse::where('warehouse_type', 'wip')->first();
+        // Get WIP warehouse (Production Plant) for this company
+        $wipWarehouse = Warehouse::where('code', 'LIKE', 'WH-PROD-%')
+            ->where('company_id', $companyId)
+            ->first()
+            ?? Warehouse::where('company_id', $companyId)
+                ->where('warehouse_type', 'wip')
+                ->first();
         $warehouseId = $wipWarehouse?->id ?? 1;
 
         // Create Agricultural Machinery Work Centers

@@ -4,9 +4,11 @@ namespace App\Services;
 
 use App\Enums\PoStatus;
 use App\Exceptions\BusinessException;
+use App\Models\Company;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
+use App\Services\NumberFormatService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -478,23 +480,33 @@ class PurchaseOrderService
     public function generateOrderNumber(): string
     {
         $companyId = Auth::user()->company_id;
+        $numberFormatService = app(NumberFormatService::class);
+        
+        // Get year prefix for filtering (format may vary, so use flexible pattern)
         $year = now()->format('Y');
         $prefix = "PO-{$year}-";
-
+        
         // Include soft-deleted records to avoid duplicate order numbers
+        // Filter by company and prefix pattern
         $lastOrder = PurchaseOrder::withTrashed()
             ->where('company_id', $companyId)
             ->where('order_number', 'like', "{$prefix}%")
             ->orderByRaw("CAST(SUBSTRING(order_number FROM '[0-9]+$') AS INTEGER) DESC")
             ->first();
 
-        if ($lastOrder && preg_match('/(\d+)$/', $lastOrder->order_number, $matches)) {
-            $nextNumber = (int) $matches[1] + 1;
-        } else {
-            $nextNumber = 1;
-        }
+        // Extract sequence from last order or start from 1
+        $nextNumber = $lastOrder 
+            ? $numberFormatService->extractSequence($lastOrder->order_number) + 1
+            : 1;
 
-        return $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+        // Generate number using format service
+        // Company ID inclusion controlled by company settings (default: false for privacy)
+        return $numberFormatService->generate(
+            'purchase_order',
+            $nextNumber,
+            $companyId,
+            'PO'
+        );
     }
 
     /**

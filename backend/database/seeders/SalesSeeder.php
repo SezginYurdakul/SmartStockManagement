@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Enums\SalesOrderStatus;
 use App\Enums\DeliveryNoteStatus;
+use App\Models\Company;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\CustomerGroupPrice;
@@ -35,6 +36,12 @@ class SalesSeeder extends Seeder
         }
 
         $companyId = $user->company_id;
+        $company = Company::find($companyId);
+
+        if (!$company) {
+            $this->command->error('Company not found for user.');
+            return;
+        }
 
         $this->command->info('Creating Agricultural Machinery Sales demo data...');
 
@@ -56,7 +63,7 @@ class SalesSeeder extends Seeder
             $this->command->info('Created ' . count($salesOrders) . ' sales orders');
         });
 
-        $this->command->info('Agricultural Machinery Sales data created successfully!');
+        $this->command->info("Agricultural Machinery Sales data created successfully for {$company->name}!");
     }
 
     private function createCustomerGroups(int $companyId): array

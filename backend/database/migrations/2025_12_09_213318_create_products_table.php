@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('company_id')->constrained()->cascadeOnDelete();
             $table->string('name');
-            $table->string('slug')->unique();
+            $table->string('slug'); // Company-scoped unique (composite index below)
             $table->string('sku'); // Unique per company, handled by composite index
             $table->text('description')->nullable();
             $table->text('short_description')->nullable();
@@ -54,6 +54,8 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
+            // Composite unique constraints: company-scoped uniqueness
+            $table->unique(['company_id', 'slug'], 'products_company_slug_unique'); // Slug unique per company
             $table->unique(['company_id', 'sku']); // SKU unique per company
             $table->index('company_id');
             $table->index('is_active');

@@ -17,8 +17,27 @@ class SupplierSeeder extends Seeder
      */
     public function run(): void
     {
-        $company = Company::first();
-        $user = User::where('company_id', $company->id)->first();
+        // Get all companies
+        $companies = Company::all();
+
+        if ($companies->isEmpty()) {
+            $this->command->error('No companies found! Please run CompanySeeder first.');
+            return;
+        }
+
+        // Create suppliers for each company
+        foreach ($companies as $company) {
+            $this->createSuppliersForCompany($company);
+        }
+
+        $totalSuppliers = \App\Models\Supplier::count();
+        $this->command->info("Suppliers seeded successfully! Total: {$totalSuppliers} suppliers for " . $companies->count() . " companies");
+    }
+
+    private function createSuppliersForCompany($company): void
+    {
+        $companyId = $company->id;
+        $user = User::where('company_id', $companyId)->first();
 
         $suppliers = [
             // ========================================
@@ -365,7 +384,7 @@ class SupplierSeeder extends Seeder
         // Attach products to suppliers based on their specialty
         $this->attachProductsToSuppliers($company);
 
-        $this->command->info('Agricultural Machinery suppliers seeded: ' . count($suppliers) . ' suppliers');
+        // Info message moved to createSuppliersForCompany method
     }
 
     /**
@@ -432,5 +451,7 @@ class SupplierSeeder extends Seeder
                 ]);
             }
         }
+
+        $this->command->info("Suppliers seeded for {$company->name}: " . count($suppliers) . " suppliers");
     }
 }

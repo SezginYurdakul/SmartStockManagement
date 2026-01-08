@@ -17,8 +17,27 @@ class StockSeeder extends Seeder
      */
     public function run(): void
     {
-        $company = Company::first();
-        $companyId = $company?->id;
+        // Get all companies
+        $companies = Company::all();
+
+        if ($companies->isEmpty()) {
+            $this->command->error('No companies found! Please run CompanySeeder first.');
+            return;
+        }
+
+        // Create stock for each company
+        foreach ($companies as $company) {
+            $this->createStockForCompany($company);
+        }
+
+        $totalStock = Stock::count();
+        $totalMovements = StockMovement::count();
+        $this->command->info("Stock seeded successfully! Total: {$totalStock} stock records, {$totalMovements} movements for " . $companies->count() . " companies");
+    }
+
+    private function createStockForCompany($company): void
+    {
+        $companyId = $company->id;
 
         $warehouses = Warehouse::where('company_id', $companyId)->get();
         $products = Product::where('company_id', $companyId)->limit(200)->get(); // First 200 products
@@ -158,7 +177,6 @@ class StockSeeder extends Seeder
             }
         }
 
-        $this->command->info("Stock seeded: {$stockCount} stock records");
-        $this->command->info("Stock movements seeded: {$movementCount} movements");
+        $this->command->info("Stock seeded for {$company->name}: {$stockCount} stock records, {$movementCount} movements");
     }
 }

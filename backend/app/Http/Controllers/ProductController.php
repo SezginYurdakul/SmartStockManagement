@@ -60,10 +60,20 @@ class ProductController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $companyId = $request->user()->company_id;
+        
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'slug' => 'nullable|string|unique:products,slug',
-            'sku' => 'required|string|unique:products,sku',
+            'slug' => [
+                'nullable',
+                'string',
+                Rule::unique('products')->where('company_id', $companyId),
+            ],
+            'sku' => [
+                'required',
+                'string',
+                Rule::unique('products')->where('company_id', $companyId),
+            ],
             'description' => 'nullable|string',
             'short_description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
@@ -123,10 +133,22 @@ class ProductController extends Controller
      */
     public function update(Request $request, Product $product): JsonResource
     {
+        $companyId = $request->user()->company_id;
+        
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'slug' => ['sometimes', 'required', 'string', Rule::unique('products')->ignore($product->id)],
-            'sku' => ['sometimes', 'required', 'string', Rule::unique('products')->ignore($product->id)],
+            'slug' => [
+                'sometimes',
+                'required',
+                'string',
+                Rule::unique('products')->where('company_id', $companyId)->ignore($product->id),
+            ],
+            'sku' => [
+                'sometimes',
+                'required',
+                'string',
+                Rule::unique('products')->where('company_id', $companyId)->ignore($product->id),
+            ],
             'description' => 'nullable|string',
             'short_description' => 'nullable|string',
             'price' => 'sometimes|required|numeric|min:0',

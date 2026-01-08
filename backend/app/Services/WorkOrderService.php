@@ -760,7 +760,8 @@ class WorkOrderService
     public function generateWorkOrderNumber(): string
     {
         $companyId = Auth::user()->company_id;
-        $prefix = 'WO-' . now()->format('Ym') . '-';
+        $companyIdPadded = str_pad($companyId, 3, '0', STR_PAD_LEFT);
+        $prefix = 'WO-' . now()->format('Ym') . "-{$companyIdPadded}-";
 
         $lastWO = WorkOrder::withTrashed()
             ->where('company_id', $companyId)

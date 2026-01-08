@@ -16,12 +16,33 @@ class CategorySeeder extends Seeder
      */
     public function run(): void
     {
-        // Get default company
-        $company = Company::first();
-        $companyId = $company?->id;
+        // Get all companies
+        $companies = Company::all();
+
+        if ($companies->isEmpty()) {
+            $this->command->error('No companies found! Please run CompanySeeder first.');
+            return;
+        }
 
         // Clear existing categories
         Category::query()->forceDelete();
+
+        // Create categories for each company
+        foreach ($companies as $company) {
+            $this->createCategoriesForCompany($company);
+        }
+
+        $totalCategories = Category::count();
+        $parentCategories = Category::whereNull('parent_id')->count();
+        $childCategories = Category::whereNotNull('parent_id')->count();
+
+        $this->command->info("Agricultural Machinery categories seeded successfully!");
+        $this->command->info("Total: {$totalCategories} categories ({$parentCategories} parent + {$childCategories} subcategories) for " . $companies->count() . " companies");
+    }
+
+    private function createCategoriesForCompany($company): void
+    {
+        $companyId = $company->id;
 
         // ========================================
         // MAIN CATEGORIES (Parent categories)

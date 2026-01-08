@@ -574,7 +574,8 @@ class ReceivingInspectionService
     {
         $companyId = Auth::user()->company_id;
         $year = now()->format('Y');
-        $prefix = "INS-{$year}-";
+        $companyIdPadded = str_pad($companyId, 3, '0', STR_PAD_LEFT);
+        $prefix = "INS-{$year}-{$companyIdPadded}-";
 
         $lastInspection = ReceivingInspection::where('company_id', $companyId)
             ->where('inspection_number', 'like', "{$prefix}%")

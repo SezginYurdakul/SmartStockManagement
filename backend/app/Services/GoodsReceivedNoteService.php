@@ -580,7 +580,8 @@ class GoodsReceivedNoteService
     {
         $companyId = Auth::user()->company_id;
         $year = now()->format('Y');
-        $prefix = "GRN-{$year}-";
+        $companyIdPadded = str_pad($companyId, 3, '0', STR_PAD_LEFT);
+        $prefix = "GRN-{$year}-{$companyIdPadded}-";
 
         // Include soft-deleted records to avoid duplicate GRN numbers
         $lastGrn = GoodsReceivedNote::withTrashed()

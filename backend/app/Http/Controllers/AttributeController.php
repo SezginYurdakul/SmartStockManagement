@@ -80,8 +80,14 @@ class AttributeController extends Controller
      */
     public function update(Request $request, Attribute $attribute): JsonResponse
     {
+        $companyId = $request->user()->company_id;
+        
         $validated = $request->validate([
-            'name' => ['string', 'max:255', Rule::unique('attributes')->ignore($attribute->id)],
+            'name' => [
+                'string',
+                'max:255',
+                Rule::unique('attributes')->where('company_id', $companyId)->ignore($attribute->id),
+            ],
             'display_name' => 'string|max:255',
             'type' => 'in:select,text,number,boolean',
             'order' => 'integer|min:0',

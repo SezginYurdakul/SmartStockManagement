@@ -186,19 +186,21 @@ class MrpRun extends Model
     public static function generateRunNumber(int $companyId): string
     {
         $date = now()->format('Ymd');
+        $companyIdPadded = str_pad($companyId, 3, '0', STR_PAD_LEFT);
+        $prefix = "MRP-{$date}-{$companyIdPadded}-";
+        
         $lastRun = static::where('company_id', $companyId)
+            ->where('run_number', 'like', "{$prefix}%")
             ->whereDate('created_at', today())
-            ->orderByDesc('id')
+            ->orderByRaw("CAST(SUBSTRING(run_number FROM '[0-9]+$') AS INTEGER) DESC")
             ->first();
 
         $sequence = 1;
-        if ($lastRun) {
-            // Extract sequence from last run number (format: MRP-YYYYMMDD-XXX)
-            preg_match('/MRP-\d{8}-(\d+)/', $lastRun->run_number, $matches);
-            $sequence = isset($matches[1]) ? (int) $matches[1] + 1 : 1;
+        if ($lastRun && preg_match('/(\d+)$/', $lastRun->run_number, $matches)) {
+            $sequence = (int) $matches[1] + 1;
         }
 
-        return sprintf('MRP-%s-%03d', $date, $sequence);
+        return $prefix . str_pad($sequence, 3, '0', STR_PAD_LEFT);
     }
 
     public function getPendingRecommendationsCount(): int

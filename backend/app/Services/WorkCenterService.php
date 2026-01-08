@@ -136,20 +136,22 @@ class WorkCenterService
     public function generateCode(string $prefix = 'WC'): string
     {
         $companyId = Auth::user()->company_id;
+        $companyIdPadded = str_pad($companyId, 3, '0', STR_PAD_LEFT);
+        $fullPrefix = "{$prefix}-{$companyIdPadded}-";
 
         $lastWC = WorkCenter::withTrashed()
             ->where('company_id', $companyId)
-            ->where('code', 'like', "{$prefix}-%")
-            ->orderByRaw("CAST(SUBSTRING(code FROM '[0-9]+') AS INTEGER) DESC")
+            ->where('code', 'like', "{$fullPrefix}%")
+            ->orderByRaw("CAST(SUBSTRING(code FROM '[0-9]+$') AS INTEGER) DESC")
             ->first();
 
-        if ($lastWC && preg_match('/(\d+)/', $lastWC->code, $matches)) {
+        if ($lastWC && preg_match('/(\d+)$/', $lastWC->code, $matches)) {
             $nextNumber = (int) $matches[1] + 1;
         } else {
             $nextNumber = 1;
         }
 
-        return $prefix . '-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        return $fullPrefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
     /**

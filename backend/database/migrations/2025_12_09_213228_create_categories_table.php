@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('company_id')->constrained()->cascadeOnDelete();
             $table->string('name');
-            $table->string('slug')->unique();
+            $table->string('slug'); // Company-scoped unique (composite index below)
             $table->text('description')->nullable();
             $table->foreignId('parent_id')->nullable()->constrained('categories')->nullOnDelete();
             $table->boolean('is_active')->default(true);
@@ -26,6 +26,8 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
+            // Composite unique constraint: company_id + slug (allows same slug for different companies)
+            $table->unique(['company_id', 'slug'], 'categories_company_slug_unique');
             $table->index('company_id');
             $table->index('parent_id');
             $table->index('is_active');

@@ -416,19 +416,22 @@ class RoutingService
     public function generateRoutingNumber(): string
     {
         $companyId = Auth::user()->company_id;
+        $companyIdPadded = str_pad($companyId, 3, '0', STR_PAD_LEFT);
+        $prefix = "RTG-{$companyIdPadded}-";
 
         $lastRouting = Routing::withTrashed()
             ->where('company_id', $companyId)
-            ->orderByRaw("CAST(SUBSTRING(routing_number FROM '[0-9]+') AS INTEGER) DESC")
+            ->where('routing_number', 'like', "{$prefix}%")
+            ->orderByRaw("CAST(SUBSTRING(routing_number FROM '[0-9]+$') AS INTEGER) DESC")
             ->first();
 
-        if ($lastRouting && preg_match('/(\d+)/', $lastRouting->routing_number, $matches)) {
+        if ($lastRouting && preg_match('/(\d+)$/', $lastRouting->routing_number, $matches)) {
             $nextNumber = (int) $matches[1] + 1;
         } else {
             $nextNumber = 1;
         }
 
-        return 'RTG-' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+        return $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
     }
 
     /**

@@ -43,7 +43,24 @@ class QualityControlSeeder extends Seeder
      */
     public function run(): void
     {
-        $company = Company::first();
+        // Get all companies
+        $companies = Company::all();
+
+        if ($companies->isEmpty()) {
+            $this->command->error('No companies found! Please run CompanySeeder first.');
+            return;
+        }
+
+        // Create QC data for each company
+        foreach ($companies as $company) {
+            $this->createQcDataForCompany($company);
+        }
+
+        $this->command->info('Quality Control data seeded successfully for ' . $companies->count() . ' companies');
+    }
+
+    private function createQcDataForCompany($company): void
+    {
         $user = User::where('company_id', $company->id)->first();
         $qcManager = User::where('company_id', $company->id)->skip(1)->first() ?? $user;
 
@@ -76,7 +93,7 @@ class QualityControlSeeder extends Seeder
         $this->createScenario7SkipLot($company, $user, $products[6] ?? null, $suppliers[4] ?? null, $warehouse, $rules['skip_lot'], $uom);
         $this->createScenario8ComplexNcr($company, $user, $qcManager, $products[7] ?? null, $suppliers[3] ?? null, $warehouse, $rules['aql'], $uom);
 
-        $this->command->info('Quality Control scenarios seeded successfully!');
+        $this->command->info("Quality Control scenarios seeded successfully for {$company->name}!");
         $this->command->info('Created:');
         $this->command->info('  - ' . AcceptanceRule::count() . ' acceptance rules');
         $this->command->info('  - ' . GoodsReceivedNote::count() . ' goods received notes');

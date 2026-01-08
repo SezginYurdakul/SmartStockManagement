@@ -15,8 +15,25 @@ class WarehouseSeeder extends Seeder
      */
     public function run(): void
     {
-        $company = Company::first();
-        $companyId = $company?->id;
+        // Get all companies
+        $companies = Company::all();
+
+        if ($companies->isEmpty()) {
+            $this->command->error('No companies found! Please run CompanySeeder first.');
+            return;
+        }
+
+        // Create warehouses for each company
+        foreach ($companies as $company) {
+            $this->createWarehousesForCompany($company);
+        }
+
+        $this->command->info('Warehouses seeded for ' . $companies->count() . ' companies');
+    }
+
+    private function createWarehousesForCompany($company): void
+    {
+        $companyId = $company->id;
 
         $warehouses = [
             // ========================================
@@ -279,17 +296,19 @@ class WarehouseSeeder extends Seeder
         ];
 
         foreach ($warehouses as $warehouseData) {
+            // Make code unique per company
+            $uniqueCode = $warehouseData['code'] . '-' . $company->id;
             Warehouse::firstOrCreate(
-                ['code' => $warehouseData['code'], 'company_id' => $companyId],
-                $warehouseData
+                ['code' => $uniqueCode, 'company_id' => $companyId],
+                array_merge($warehouseData, ['code' => $uniqueCode])
             );
         }
 
         // Link QC zones to production warehouse
-        $prodWarehouse = Warehouse::where('code', 'WH-PROD')->first();
-        $incomingQZ = Warehouse::where('code', 'QZ-INCOMING')->first();
-        $finalQZ = Warehouse::where('code', 'QZ-FINAL')->first();
-        $rejectionZone = Warehouse::where('code', 'RZ-NCR')->first();
+        $prodWarehouse = Warehouse::where('code', 'WH-PROD-' . $company->id)->where('company_id', $companyId)->first();
+        $incomingQZ = Warehouse::where('code', 'QZ-INCOMING-' . $company->id)->where('company_id', $companyId)->first();
+        $finalQZ = Warehouse::where('code', 'QZ-FINAL-' . $company->id)->where('company_id', $companyId)->first();
+        $rejectionZone = Warehouse::where('code', 'RZ-NCR-' . $company->id)->where('company_id', $companyId)->first();
 
         if ($prodWarehouse && $incomingQZ && $rejectionZone) {
             $prodWarehouse->update([
@@ -299,7 +318,7 @@ class WarehouseSeeder extends Seeder
         }
 
         // Link QC zones to main warehouse
-        $mainWarehouse = Warehouse::where('code', 'WH-MAIN')->first();
+        $mainWarehouse = Warehouse::where('code', 'WH-MAIN-' . $company->id)->where('company_id', $companyId)->first();
         if ($mainWarehouse && $finalQZ && $rejectionZone) {
             $mainWarehouse->update([
                 'linked_quarantine_warehouse_id' => $finalQZ->id,
@@ -307,6 +326,6 @@ class WarehouseSeeder extends Seeder
             ]);
         }
 
-        $this->command->info('Netherlands warehouses seeded: ' . count($warehouses) . ' locations (including QC zones)');
+        $this->command->info("Warehouses seeded for {$company->name}: " . count($warehouses) . " locations (including QC zones)");
     }
 }

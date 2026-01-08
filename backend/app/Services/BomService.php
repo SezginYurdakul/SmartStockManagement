@@ -640,19 +640,22 @@ class BomService
     public function generateBomNumber(): string
     {
         $companyId = Auth::user()->company_id;
+        $companyIdPadded = str_pad($companyId, 3, '0', STR_PAD_LEFT);
+        $prefix = "BOM-{$companyIdPadded}-";
 
         $lastBom = Bom::withTrashed()
             ->where('company_id', $companyId)
-            ->orderByRaw("CAST(SUBSTRING(bom_number FROM '[0-9]+') AS INTEGER) DESC")
+            ->where('bom_number', 'like', "{$prefix}%")
+            ->orderByRaw("CAST(SUBSTRING(bom_number FROM '[0-9]+$') AS INTEGER) DESC")
             ->first();
 
-        if ($lastBom && preg_match('/(\d+)/', $lastBom->bom_number, $matches)) {
+        if ($lastBom && preg_match('/(\d+)$/', $lastBom->bom_number, $matches)) {
             $nextNumber = (int) $matches[1] + 1;
         } else {
             $nextNumber = 1;
         }
 
-        return 'BOM-' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+        return $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
     }
 
     /**

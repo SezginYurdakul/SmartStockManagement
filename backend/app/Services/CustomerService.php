@@ -182,7 +182,8 @@ class CustomerService
     public function generateCustomerCode(): string
     {
         $companyId = Auth::user()->company_id;
-        $prefix = 'CUS-';
+        $companyIdPadded = str_pad($companyId, 3, '0', STR_PAD_LEFT);
+        $prefix = "CUS-{$companyIdPadded}-";
 
         $lastCustomer = Customer::withTrashed()
             ->where('company_id', $companyId)

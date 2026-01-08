@@ -319,7 +319,8 @@ class AcceptanceRuleService
     public function generateRuleCode(): string
     {
         $companyId = Auth::user()->company_id;
-        $prefix = "AR-";
+        $companyIdPadded = str_pad($companyId, 3, '0', STR_PAD_LEFT);
+        $prefix = "AR-{$companyIdPadded}-";
 
         $lastRule = AcceptanceRule::withTrashed()
             ->where('company_id', $companyId)

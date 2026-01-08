@@ -395,7 +395,8 @@ class NonConformanceReportService
     {
         $companyId = Auth::user()->company_id;
         $year = now()->format('Y');
-        $prefix = "NCR-{$year}-";
+        $companyIdPadded = str_pad($companyId, 3, '0', STR_PAD_LEFT);
+        $prefix = "NCR-{$year}-{$companyIdPadded}-";
 
         $lastNcr = NonConformanceReport::withTrashed()
             ->where('company_id', $companyId)

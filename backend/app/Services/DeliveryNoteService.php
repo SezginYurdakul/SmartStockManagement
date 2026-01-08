@@ -464,7 +464,8 @@ class DeliveryNoteService
     {
         $companyId = Auth::user()->company_id;
         $year = now()->format('Y');
-        $prefix = "DN-{$year}-";
+        $companyIdPadded = str_pad($companyId, 3, '0', STR_PAD_LEFT);
+        $prefix = "DN-{$year}-{$companyIdPadded}-";
 
         $lastNote = DeliveryNote::withTrashed()
             ->where('company_id', $companyId)
