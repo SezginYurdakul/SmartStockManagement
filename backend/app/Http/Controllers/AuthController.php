@@ -31,7 +31,7 @@ class AuthController extends Controller
             'last_name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'company_id' => 'required|exists:companies,id',
+            'company_id' => 'required|integer|exists:companies,id',
         ]);
 
         // Validate company is active
