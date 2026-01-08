@@ -81,6 +81,13 @@ class UserController extends Controller
             ], 403);
         }
 
+        // Company ownership check (defense in depth - BelongsToCompany scope already filters)
+        if ($user->company_id !== $request->user()->company_id) {
+            return response()->json([
+                'message' => 'Forbidden. You can only view users from your company.',
+            ], 403);
+        }
+
         $user->load(['roles', 'company']);
 
         return UserResource::make($user);
@@ -95,6 +102,13 @@ class UserController extends Controller
         if (!$request->user()->hasPermission('users.edit')) {
             return response()->json([
                 'message' => 'Forbidden. You do not have permission to update users.',
+            ], 403);
+        }
+
+        // Company ownership check (defense in depth - BelongsToCompany scope already filters)
+        if ($user->company_id !== $request->user()->company_id) {
+            return response()->json([
+                'message' => 'Forbidden. You can only update users from your company.',
             ], 403);
         }
 
@@ -114,6 +128,9 @@ class UserController extends Controller
             'role_ids.*' => 'exists:roles,id',
         ]);
 
+        // Security: Prevent company_id from being changed
+        unset($validated['company_id']);
+
         $user = $this->userService->updateUser($user, $validated);
 
         return UserResource::make($user)
@@ -129,6 +146,13 @@ class UserController extends Controller
         if (!$request->user()->hasPermission('users.delete')) {
             return response()->json([
                 'message' => 'Forbidden. You do not have permission to delete users.',
+            ], 403);
+        }
+
+        // Company ownership check (defense in depth - BelongsToCompany scope already filters)
+        if ($user->company_id !== $request->user()->company_id) {
+            return response()->json([
+                'message' => 'Forbidden. You can only delete users from your company.',
             ], 403);
         }
 
@@ -165,6 +189,13 @@ class UserController extends Controller
             ], 404);
         }
 
+        // Company ownership check
+        if ($user->company_id !== $request->user()->company_id) {
+            return response()->json([
+                'message' => 'Forbidden. You can only restore users from your company.',
+            ], 403);
+        }
+
         $user->load(['roles', 'company']);
 
         return UserResource::make($user)
@@ -189,6 +220,13 @@ class UserController extends Controller
             return response()->json([
                 'message' => 'User not found',
             ], 404);
+        }
+
+        // Company ownership check
+        if ($user->company_id !== $request->user()->company_id) {
+            return response()->json([
+                'message' => 'Forbidden. You can only permanently delete users from your company.',
+            ], 403);
         }
 
         if ($user->id === $request->user()->id) {

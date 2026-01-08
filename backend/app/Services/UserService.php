@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\BusinessException;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -22,31 +23,44 @@ class UserService
 
     /**
      * Get paginated users with optional search
+     * Automatically filtered by company via BelongsToCompany trait
      */
     public function getUsers(?string $search = null, int $perPage = 15): LengthAwarePaginator
     {
         $query = User::with('roles');
 
-    if ($search) {
-        $query->where(function ($q) use ($search) {
-            $q->where('first_name', 'like', "%{$search}%")
-            ->orWhere('last_name', 'like', "%{$search}%")
-            ->orWhere('email', 'like', "%{$search}%");
-        });
-    }
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                ->orWhere('last_name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
 
         return $query->latest()->paginate($perPage);
     }
 
     /**
      * Create a new user
+     * Automatically assigns to authenticated user's company
      */
     public function createUser(array $data): User
     {
+        // Get company ID from authenticated user
+        $companyId = Auth::user()->company_id;
+        
+        if (!$companyId) {
+            throw new BusinessException('User must belong to a company to create users.');
+        }
+
+        // Security: Prevent company_id from being set via request
+        unset($data['company_id']);
+
         Log::info('Creating new user', [
             'first_name' => $data['first_name'],
             'last_name' => $data['last_name'],
             'email' => $data['email'],
+            'company_id' => $companyId,
         ]);
 
         DB::beginTransaction();
@@ -57,6 +71,7 @@ class UserService
                 'last_name' => $data['last_name'],
                 'email' => $data['email'],
                 'password' => Hash::make($data['password']),
+                'company_id' => $companyId, // Set from authenticated user's company
             ]);
 
             // Assign roles if provided
@@ -92,9 +107,13 @@ class UserService
 
     /**
      * Update user
+     * Prevents company_id from being changed
      */
     public function updateUser(User $user, array $data): User
     {
+        // Security: Prevent company_id from being changed via request
+        unset($data['company_id']);
+
         Log::info('Updating user', [
             'user_id' => $user->id,
             'changes' => array_keys($data),

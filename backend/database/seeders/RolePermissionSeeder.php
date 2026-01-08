@@ -645,5 +645,22 @@ class RolePermissionSeeder extends Seeder
             'reports.view',
         ])->get();
         $salesManagerRole->permissions()->sync($salesManagerPermissions->pluck('id'));
+
+        // Create Platform Admin role
+        // Platform admins can access all companies and bypass company isolation
+        $platformAdminRole = Role::firstOrCreate(
+            ['name' => 'platform_admin'],
+            [
+                'display_name' => 'Platform Administrator',
+                'description' => 'Platform administrator with access to all companies. Can bypass company isolation.',
+                'is_system_role' => true,
+            ]
+        );
+
+        // Platform admin gets all permissions
+        $allPermissions = Permission::all();
+        $platformAdminRole->permissions()->sync($allPermissions->pluck('id'));
+
+        $this->command->info('Platform Admin role created with all permissions');
     }
 }

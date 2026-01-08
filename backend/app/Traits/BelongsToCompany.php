@@ -46,16 +46,49 @@ trait BelongsToCompany
 
     /**
      * Scope to query without company filter
-     * Useful for admin operations that need to see all companies' data
+     * 
+     * ⚠️ SECURITY WARNING: This bypasses company isolation!
+     * 
+     * This method should ONLY be used by:
+     * - Platform/Super administrators (users without company_id or with special permission)
+     * - Background jobs that explicitly need cross-company access
+     * - System-level operations
+     * 
+     * ⚠️ DO NOT use this in regular controller/service methods accessible by company admins.
+     * Normal company admins should only see their own company's data.
+     * 
+     * If you need to query a specific company, use scopeForCompany() instead.
+     * 
+     * @throws \Exception if called by a regular company user (optional - can be enabled for strict mode)
      */
     public function scopeWithoutCompanyScope($query)
     {
+        // Strict security check: Only platform admins can bypass company scope
+        if (Auth::check()) {
+            $user = Auth::user();
+            
+            // Platform admin: company_id must be null
+            // Users with company_id cannot bypass company isolation
+            if ($user->company_id !== null) {
+                throw new \Exception('Access denied: withoutCompanyScope() can only be used by platform administrators (users with company_id = null). Regular company users cannot bypass company isolation.');
+            }
+        }
+        
         return $query->withoutGlobalScope(CompanyScope::class);
     }
 
     /**
      * Scope to query a specific company's data
-     * Useful for admin operations or background jobs
+     * 
+     * Safer alternative to withoutCompanyScope() when you need to query a specific company.
+     * Still bypasses the global scope but explicitly filters by company_id.
+     * 
+     * Use cases:
+     * - Background jobs processing specific companies
+     * - Platform admin viewing a specific company's data
+     * - System operations that need company-specific queries
+     * 
+     * @param int $companyId The company ID to query
      */
     public function scopeForCompany($query, int $companyId)
     {

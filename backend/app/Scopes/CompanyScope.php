@@ -18,8 +18,19 @@ class CompanyScope implements Scope
     public function apply(Builder $builder, Model $model): void
     {
         // Only apply if user is authenticated and has a company
-        if (Auth::check() && Auth::user()->company_id) {
-            $builder->where($model->getTable() . '.company_id', Auth::user()->company_id);
+        // Platform admins (company_id null) can see all companies
+        if (Auth::check()) {
+            $user = Auth::user();
+            
+            // Skip scope for platform admins (company_id null)
+            if ($user->company_id === null) {
+                return; // Platform admin can see all companies
+            }
+            
+            // Apply company scope for regular users
+            if ($user->company_id) {
+                $builder->where($model->getTable() . '.company_id', $user->company_id);
+            }
         }
     }
 }

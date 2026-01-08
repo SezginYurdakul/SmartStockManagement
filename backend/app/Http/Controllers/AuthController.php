@@ -17,6 +17,12 @@ class AuthController extends Controller
 {
     /**
      * Register a new user
+     * 
+     * NOTE: For SaaS applications, public registration is typically disabled.
+     * Users should be created by company administrators via UserController.
+     * This endpoint may be kept for initial company setup or removed entirely.
+     * 
+     * If kept, it requires company_id to be provided (for initial setup only).
      */
     public function register(Request $request): JsonResponse
     {
@@ -25,13 +31,24 @@ class AuthController extends Controller
             'last_name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
+            'company_id' => 'required|exists:companies,id',
         ]);
 
-        $user = User::create([
+        // Validate company is active
+        $company = \App\Models\Company::findOrFail($validated['company_id']);
+        if (!$company->is_active) {
+            throw ValidationException::withMessages([
+                'company_id' => ['The selected company is not active.'],
+            ]);
+        }
+
+        // Use forLogin scope to bypass company filter for creation
+        $user = User::forLogin()->create([
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
+            'company_id' => $validated['company_id'],
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -54,11 +71,37 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        $user = User::where('email', $validated['email'])->first();
+        // Use forLogin scope to bypass company filter (email is unique globally)
+        $user = User::forLogin()->where('email', $validated['email'])->first();
 
         if (!$user || !Hash::check($validated['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
+            ]);
+        }
+
+        // Validate company (skip for platform admins)
+        if ($user->company_id === null) {
+            // Platform admin - no company validation needed
+            if (!$user->hasRole('platform_admin')) {
+                throw ValidationException::withMessages([
+                    'email' => ['User does not belong to a company. Please contact support.'],
+                ]);
+            }
+        } else {
+            // Regular user - validate company
+            $company = $user->company;
+            if (!$company || !$company->is_active) {
+                throw ValidationException::withMessages([
+                    'email' => ['Company account is not active. Please contact support.'],
+                ]);
+            }
+        }
+
+        // Check if user is active
+        if (!$user->is_active) {
+            throw ValidationException::withMessages([
+                'email' => ['User account is inactive. Please contact administrator.'],
             ]);
         }
 

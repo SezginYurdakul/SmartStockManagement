@@ -3,6 +3,8 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Scopes\CompanyScope;
+use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -14,7 +16,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes, BelongsToCompany;
 
     /**
      * The attributes that are mass assignable.
@@ -132,5 +134,14 @@ class User extends Authenticatable
         }
 
         $this->roles()->detach($role);
+    }
+
+    /**
+     * Scope to query without company filter (for login)
+     * Login requires checking email across all companies since email is unique globally
+     */
+    public function scopeForLogin($query)
+    {
+        return $query->withoutGlobalScope(CompanyScope::class);
     }
 }

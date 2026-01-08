@@ -77,5 +77,29 @@ class UserSeeder extends Seeder
         }
 
         $this->command->info('Staff user created: staff@example.com / password');
+
+        // Create Platform Admin User
+        // Platform admin has company_id = null (not tied to any company)
+        // This allows them to see and manage all companies
+        $platformAdmin = User::firstOrCreate(
+            ['email' => 'platform@example.com'],
+            [
+                'company_id' => null, // Platform admin is not tied to any company
+                'first_name' => 'Platform',
+                'last_name' => 'Administrator',
+                'password' => Hash::make('password'),
+                'email_verified_at' => now(),
+                'is_active' => true,
+            ]
+        );
+
+        // Assign Platform Admin role
+        $platformAdminRole = Role::where('name', 'platform_admin')->first();
+        if ($platformAdminRole && !$platformAdmin->roles->contains($platformAdminRole->id)) {
+            $platformAdmin->roles()->attach($platformAdminRole);
+        }
+
+        $this->command->info('Platform Admin user created: platform@example.com / password');
+        $this->command->warn('⚠️  Platform Admin has access to ALL companies. Use with caution!');
     }
 }
