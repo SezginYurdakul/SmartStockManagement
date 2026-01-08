@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Exception;
 
 class WorkOrderService
 {
@@ -198,6 +199,7 @@ class WorkOrderService
 
     /**
      * Release work order for production
+     * Automatically reserves materials for all items
      */
     public function release(WorkOrder $workOrder): WorkOrder
     {
@@ -207,13 +209,34 @@ class WorkOrderService
 
         Log::info('Releasing work order', ['id' => $workOrder->id]);
 
-        $workOrder->update([
-            'status' => WorkOrderStatus::RELEASED,
-            'released_by' => Auth::id(),
-            'released_at' => now(),
-        ]);
+        DB::beginTransaction();
 
-        return $workOrder->fresh();
+        try {
+            $workOrder->update([
+                'status' => WorkOrderStatus::RELEASED,
+                'released_by' => Auth::id(),
+                'released_at' => now(),
+            ]);
+
+            // Automatically reserve materials for all items
+            $this->reserveMaterialsForOrder($workOrder);
+
+            DB::commit();
+
+            Log::info('Work order released and materials reserved', [
+                'work_order_id' => $workOrder->id,
+            ]);
+
+            return $workOrder->fresh(['materials.product']);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to release work order', [
+                'work_order_id' => $workOrder->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -263,6 +286,7 @@ class WorkOrderService
 
     /**
      * Cancel work order
+     * Releases any reserved materials if order was released
      */
     public function cancel(WorkOrder $workOrder, ?string $reason = null): WorkOrder
     {
@@ -272,12 +296,31 @@ class WorkOrderService
 
         Log::info('Cancelling work order', ['id' => $workOrder->id, 'reason' => $reason]);
 
-        $workOrder->update([
-            'status' => WorkOrderStatus::CANCELLED,
-            'notes' => $reason ? ($workOrder->notes . "\n\nCancelled: " . $reason) : $workOrder->notes,
-        ]);
+        DB::beginTransaction();
 
-        return $workOrder->fresh();
+        try {
+            // Release reserved materials if order was released
+            if (in_array($workOrder->status, [WorkOrderStatus::RELEASED, WorkOrderStatus::IN_PROGRESS, WorkOrderStatus::ON_HOLD])) {
+                $this->releaseMaterialsForOrder($workOrder);
+            }
+
+            $workOrder->update([
+                'status' => WorkOrderStatus::CANCELLED,
+                'notes' => $reason ? ($workOrder->notes . "\n\nCancelled: " . $reason) : $workOrder->notes,
+            ]);
+
+            DB::commit();
+
+            return $workOrder->fresh();
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to cancel work order', [
+                'work_order_id' => $workOrder->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -453,6 +496,7 @@ class WorkOrderService
 
     /**
      * Issue single material
+     * Releases reservation and issues physical stock
      */
     protected function issueMaterial(WorkOrder $workOrder, WorkOrderMaterial $material): void
     {
@@ -460,6 +504,24 @@ class WorkOrderService
 
         if ($outstandingQty <= 0) {
             return;
+        }
+
+        // Release reservation first (physical stock is being issued)
+        try {
+            $this->stockService->releaseReservation(
+                $material->product_id,
+                $material->warehouse_id,
+                $outstandingQty,
+                null // lot_number
+            );
+        } catch (BusinessException $e) {
+            // If reservation doesn't exist or is less, log warning but continue
+            Log::warning('Could not release reservation for work order material', [
+                'work_order_id' => $workOrder->id,
+                'material_id' => $material->id,
+                'product_id' => $material->product_id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         // Issue stock
@@ -713,5 +775,89 @@ class WorkOrderService
         }
 
         return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Reserve materials for all items in a released work order
+     */
+    protected function reserveMaterialsForOrder(WorkOrder $workOrder): void
+    {
+        if (!$workOrder->warehouse_id) {
+            Log::warning('Cannot reserve materials: work order has no warehouse', [
+                'work_order_id' => $workOrder->id,
+            ]);
+            return;
+        }
+
+        $workOrder->load('materials.product');
+
+        foreach ($workOrder->materials as $material) {
+            try {
+                $this->stockService->reserveStock(
+                    $material->product_id,
+                    $material->warehouse_id,
+                    $material->quantity_required,
+                    null, // lot_number
+                    Stock::OPERATION_PRODUCTION,
+                    false // skipQualityCheck
+                );
+
+                Log::info('Material reserved for work order', [
+                    'work_order_id' => $workOrder->id,
+                    'material_id' => $material->id,
+                    'product_id' => $material->product_id,
+                    'quantity' => $material->quantity_required,
+                ]);
+            } catch (BusinessException $e) {
+                Log::error('Failed to reserve material for work order', [
+                    'work_order_id' => $workOrder->id,
+                    'material_id' => $material->id,
+                    'product_id' => $material->product_id,
+                    'error' => $e->getMessage(),
+                ]);
+                // Continue with other materials even if one fails
+            }
+        }
+    }
+
+    /**
+     * Release reserved materials for all items in a work order
+     */
+    protected function releaseMaterialsForOrder(WorkOrder $workOrder): void
+    {
+        if (!$workOrder->warehouse_id) {
+            Log::warning('Cannot release materials: work order has no warehouse', [
+                'work_order_id' => $workOrder->id,
+            ]);
+            return;
+        }
+
+        $workOrder->load('materials.product');
+
+        foreach ($workOrder->materials as $material) {
+            try {
+                $this->stockService->releaseReservation(
+                    $material->product_id,
+                    $material->warehouse_id,
+                    $material->quantity_required,
+                    null // lot_number
+                );
+
+                Log::info('Material reservation released for work order', [
+                    'work_order_id' => $workOrder->id,
+                    'material_id' => $material->id,
+                    'product_id' => $material->product_id,
+                    'quantity' => $material->quantity_required,
+                ]);
+            } catch (BusinessException $e) {
+                Log::error('Failed to release material reservation for work order', [
+                    'work_order_id' => $workOrder->id,
+                    'material_id' => $material->id,
+                    'product_id' => $material->product_id,
+                    'error' => $e->getMessage(),
+                ]);
+                // Continue with other materials even if one fails
+            }
+        }
     }
 }
