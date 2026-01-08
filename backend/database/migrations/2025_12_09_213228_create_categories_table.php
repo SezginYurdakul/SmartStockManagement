@@ -20,6 +20,8 @@ return new class extends Migration
             $table->foreignId('parent_id')->nullable()->constrained('categories')->nullOnDelete();
             $table->boolean('is_active')->default(true);
             $table->integer('sort_order')->default(0);
+            $table->decimal('over_delivery_tolerance_percentage', 5, 2)->nullable()->after('sort_order')
+                ->comment('Over-delivery tolerance percentage for this category. Null means use product or system default.');
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
             $table->softDeletes();

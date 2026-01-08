@@ -38,6 +38,17 @@ return new class extends Migration
             $table->decimal('order_multiple', 15, 4)->default(1)->after('minimum_order_qty');
             $table->decimal('maximum_stock', 15, 4)->nullable()->after('order_multiple');
             
+            // Negative stock policy
+            $table->string('negative_stock_policy', 20)->default('NEVER')->after('maximum_stock');
+            $table->decimal('negative_stock_limit', 15, 3)->default(0)->after('negative_stock_policy');
+            
+            // Reservation policy
+            $table->string('reservation_policy', 20)->default('full')->after('negative_stock_limit');
+            
+            // Over-delivery tolerance
+            $table->decimal('over_delivery_tolerance_percentage', 5, 2)->nullable()->after('reservation_policy')
+                ->comment('Over-delivery tolerance percentage for this product. Null means use category or system default.');
+            
             $table->json('meta_data')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();

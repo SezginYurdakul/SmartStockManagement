@@ -28,6 +28,8 @@ return new class extends Migration
             $table->decimal('tax_amount', 15, 4)->default(0);
             $table->decimal('line_total', 15, 2)->default(0);
             $table->text('notes')->nullable();
+            $table->decimal('over_delivery_tolerance_percentage', 5, 2)->nullable()->after('notes')
+                ->comment('Over-delivery tolerance percentage for this specific order item. Null means use product, category or system default. This is the most specific level.');
             $table->timestamps();
 
             $table->index(['sales_order_id', 'line_number']);
