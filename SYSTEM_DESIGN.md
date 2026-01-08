@@ -1,6 +1,6 @@
 # Smart Stock Management System (MRP II) - Final Design Document
 
-**Version:** 5.7
+**Version:** 5.9
 **Date:** 2026-01-08
 **Status:** Production Ready Design
 **System Type:** Material Requirements Planning II (MRP II) - Modular Architecture
@@ -29,21 +29,36 @@
 ## 1. System Overview
 
 ### 1.1 Purpose
-An enterprise-grade **Material Requirements Planning (MRP)** system with comprehensive inventory management, production planning, procurement, sales order management, and real-time analytics.
+An enterprise-grade **Manufacturing Resource Planning (MRP II)** system with comprehensive inventory management, production planning, procurement, sales order management, capacity planning, and real-time analytics.
+
+**MRP II Components (Implemented):**
+- **Material Requirements Planning (MRP)**: Automated calculation of material needs based on demand, inventory levels, and production schedules
+- **Capacity Requirements Planning (CRP)**: Capacity analysis and planning for work centers and production resources
+- **Master Production Schedule (MPS)**: Production planning through Work Orders and BOM management
+- **Shop Floor Control**: Work Order management, operation tracking, and material consumption
+- **Inventory Management**: Real-time stock tracking, movements, reservations, and negative stock handling
+- **Procurement Planning**: Purchase order recommendations and supplier management
+- **Sales & Operations Planning**: Integration of sales orders with production planning
+
+**MRP II Components (Not Implemented - Future Roadmap):**
+- **Financial Planning & Cost Management**: Comprehensive cost accounting, financial planning, and budget management
+  - **Note**: This is a conscious design decision. The current focus is on planning and inventory management rather than full financial integration. Basic cost tracking (standard cost, average cost, work center costs) exists for operational purposes, but comprehensive financial planning is planned for future releases.
 
 ### 1.2 System Characteristics
+- **Multi-tenant SaaS Architecture**: Built with multi-tenancy in mind, ready for SaaS deployment
 - **Multi-language UI**: Complete interface translation via frontend i18n
 - **Multi-currency**: Support for multiple currencies with exchange rates
 - **Flexible Architecture**: Dynamic product attributes based on product types
 - **Scalable**: Designed for growth from small business to enterprise
 - **Modern Stack**: Laravel 12, PostgreSQL, Redis, Elasticsearch
+- **Data Isolation**: Automatic company-level data scoping ensures complete tenant isolation
 
 ### 1.3 Key Differentiators
 - ✅ **Multi-language UI**: Frontend translations (react-i18next / vue-i18n)
 - ✅ **Single Language Data**: User-entered data stored in user's language
 - ✅ **Multi-currency Pricing**: Automatic currency conversion, tiered pricing
 - ✅ **Dynamic Attributes**: Product type-specific attributes with validation
-- ✅ **MRP Logic**: Automated material requirement calculations
+- ✅ **MRP II Logic**: Complete Manufacturing Resource Planning with MRP, CRP, and Shop Floor Control
 - ✅ **BOM Management**: Multi-level product structures
 - ✅ **Advanced Search**: Elasticsearch with fuzzy matching
 - ✅ **Real-time Performance**: Redis caching layer
@@ -60,6 +75,7 @@ SmartStockManagement uses a **modular MRP II architecture** with feature flags f
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        SmartStockManagement                          │
+│                         (MRP II System)                              │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ┌──────────────┐   ┌──────────────────┐   ┌──────────────────┐    │
@@ -68,19 +84,37 @@ SmartStockManagement uses a **modular MRP II architecture** with feature flags f
 │  ├──────────────┤   ├──────────────────┤   ├──────────────────┤    │
 │  │ - Stock      │   │ - Suppliers      │   │ - BOM            │    │
 │  │ - Products   │   │ - PurchaseOrders │   │ - WorkOrders     │    │
-│  │ - Categories │   │ - Receiving      │   │ - Production     │    │
-│  │ - Warehouses │   │ - Basic QC       │   │ - Basic QC       │    │
-│  │ - Attributes │   │   (pass/fail)    │   │   (pass/fail)    │    │
-│  │ - UoM        │   │                  │   │                  │    │
+│  │ - Categories │   │ - GRN            │   │ - Routings       │    │
+│  │ - Warehouses │   │ - Receiving      │   │ - Work Centers   │    │
+│  │ - Attributes │   │ - Receiving QC   │   │ - MRP Engine     │    │
+│  │ - UoM        │   │   (only)         │   │ - CRP Engine     │    │
+│  │ - Currencies │   │                  │   │ - Production     │    │
+│  │              │   │                  │   │ - Production QC  │    │
+│  │              │   │                  │   │   (future)       │    │
 │  └──────────────┘   └──────────────────┘   └──────────────────┘    │
+│                                                                      │
+│  ┌──────────────────┐   ┌──────────────────┐                        │
+│  │  SALES          │   │  QUALITY CONTROL │                        │
+│  │  (Optional)      │   │  (Optional)       │                        │
+│  ├──────────────────┤   ├──────────────────┤                        │
+│  │ - Customers     │   │ - Acceptance     │                        │
+│  │ - Customer      │   │   Rules          │                        │
+│  │   Groups        │   │ - Inspections    │                        │
+│  │ - Sales Orders  │   │ - NCR Reports    │                        │
+│  │ - Delivery      │   │ - Quality        │                        │
+│  │   Notes         │   │   Statistics     │                        │
+│  │ - Stock         │   │                  │                        │
+│  │   Reservation   │   │                  │                        │
+│  └──────────────────┘   └──────────────────┘                        │
 │                                                                      │
 ├─────────────────────────────────────────────────────────────────────┤
 │                       INTEGRATION LAYER                              │
 │  ┌──────────────────────────────────────────────────────────────┐   │
-│  │  Webhook API for External Systems (Sales, Finance, etc.)     │   │
+│  │  Webhook API for External Systems (Finance, ERP, etc.)       │   │
 │  │  - Stock reservation webhooks                                 │   │
 │  │  - Stock movement notifications                               │   │
 │  │  - Inventory level alerts                                     │   │
+│  │  - Sales order status updates                                 │   │
 │  └──────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
                               │
@@ -151,15 +185,19 @@ Route::middleware('module:procurement')->group(function () {
 ### 2.4 Key Design Decisions
 
 1. **Logical Modules, Not Physical**: Module separation via config and middleware, not folder restructuring
-2. **Sales/Finance External Only**: No built-in Customer/SalesOrder - external systems integrate via webhooks
-3. **Standard QC**: Acceptance rules, inspections, NCR - no CAPA, SPC (can be added later)
-4. **Stateless Python Service**: Prediction service has no database - queries Laravel API for data
+2. **Sales Module (Optional)**: Customer management, Sales Orders, and Delivery Notes - can be enabled via `MODULE_SALES_ENABLED=true`. External systems can also integrate via webhooks.
+3. **Standard QC (Procurement Only)**: Acceptance rules, receiving inspections, NCR - currently implemented for procurement/receiving only. Manufacturing QC (production quality control, in-process inspection) is planned for future releases. No CAPA, SPC (can be added later)
+4. **Focus on Planning & Inventory**: System prioritizes material planning, capacity planning, and inventory management over financial integration
+5. **Financial Planning Deferred**: Comprehensive financial planning and cost accounting are not implemented - basic cost tracking exists for operational purposes only. This is a conscious design decision to focus on core planning capabilities first.
+6. **Stateless Python Service**: Prediction service has no database - queries Laravel API for data
 5. **Sync First, Async Later**: Start with HTTP for simplicity - add Redis Queue when needed
 6. **Graceful Degradation**: If Python service is down, Laravel continues to work
 
 ### 2.5 Quality Control (Standard Level)
 
-The system includes a standard-level QC module within Procurement:
+The system includes a standard-level QC module. **Current Implementation**: QC is currently implemented for **Procurement (Receiving)** only. **Manufacturing QC** (production quality control, in-process inspection, work order inspection) is planned for future releases.
+
+**Implemented (Procurement QC):**
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -179,17 +217,30 @@ The system includes a standard-level QC module within Procurement:
 │  Tables: acceptance_rules, receiving_inspections,               │
 │          non_conformance_reports                                │
 │                                                                  │
-│  Future Expansion: CAPA, Supplier Ratings, SPC                  │
+│  Current Scope: Procurement/Receiving QC only                    │
+│  Future Expansion: Manufacturing QC, CAPA, Supplier Ratings, SPC│
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**QC Workflow:**
+**Procurement QC Workflow (Current Implementation):**
 1. GRN created → Inspections auto-created per item
 2. Inspector records results (pass/fail quantities)
 3. Failed items → NCR created
 4. NCR workflow: Open → Review → Disposition → Close
 5. Dispositions: Accept, Reject, Rework, Return to Supplier, Use As-Is
 6. Stock quality status updated automatically based on disposition
+
+**Manufacturing QC (Not Implemented - Future Roadmap):**
+- **Status**: Not implemented - planned for future releases
+- **Planned Features**:
+  - In-process inspection during production
+  - Work Order operation inspection
+  - Finished goods quality control
+  - Production NCR tracking
+  - Quality gates in routing operations
+  - First Article Inspection (FAI)
+  - Statistical Process Control (SPC) for production
+- **Design Philosophy**: Current focus is on receiving quality control. Manufacturing QC will be added in subsequent phases to ensure production quality standards.
 
 **Stock Quality Status Tracking:**
 ```
@@ -348,7 +399,11 @@ Build Tool: Vite
 - **Localized Formats**: Date, number, currency formatting per locale
 
 ### 4.3 Advanced Features
-- MRP (Material Requirements Planning)
+- **MRP II (Manufacturing Resource Planning)**:
+  - Material Requirements Planning (MRP) with multi-level BOM explosion
+  - Capacity Requirements Planning (CRP) for work center capacity analysis
+  - Master Production Schedule (MPS) through Work Orders
+  - Shop Floor Control with operation tracking
 - Demand forecasting
 - Lot/batch/serial number tracking
 - Barcode/QR code support
@@ -567,6 +622,20 @@ products
 ├── reorder_point (decimal(15,3), default: 0)
 ├── safety_stock (decimal(15,3), default: 0)
 ├── lead_time_days (integer, default: 0)
+│
+├── -- Negative Stock Policy
+├── negative_stock_policy (varchar(20), default: 'NEVER')
+│   -- Policy: 'NEVER', 'ALLOWED', 'LIMITED'
+├── negative_stock_limit (decimal(15,3), default: 0)
+│   -- Maximum allowed negative quantity (for LIMITED policy)
+│
+├── -- Reservation Policy
+├── reservation_policy (varchar(20), default: 'full')
+│   -- Policy: 'full', 'partial', 'reject', 'wait'
+│
+├── -- Over-Delivery Tolerance
+├── over_delivery_tolerance_percentage (decimal(5,2), nullable)
+│   -- Product-specific tolerance percentage
 │
 ├── -- Costing (in base currency)
 ├── cost_method (enum: fifo, lifo, avg, std)
@@ -842,9 +911,319 @@ INDEX idx_movements_product ON stock_movements(product_id, created_at DESC)
 INDEX idx_movements_warehouse ON stock_movements(warehouse_id, created_at DESC)
 ```
 
+#### Stock Debts (Negative Stock Tracking)
+```sql
+stock_debts
+├── id (bigint, PK)
+├── company_id (bigint, FK)
+├── product_id (bigint, FK)
+├── warehouse_id (bigint, FK)
+├── stock_movement_id (bigint, FK, nullable)
+│   -- Which movement caused this debt
+├── quantity (decimal(15,3), NOT NULL)
+│   -- Debt amount (positive value)
+├── reconciled_quantity (decimal(15,3), default: 0)
+│   -- Settled amount
+├── outstanding_quantity (decimal(15,3) GENERATED AS (quantity - reconciled_quantity) STORED)
+├── reference_type (varchar(50), nullable)
+│   -- DeliveryNote, WorkOrder, etc.
+├── reference_id (bigint, nullable)
+├── created_at (timestamp)
+├── reconciled_at (timestamp, nullable)
+└── updated_at (timestamp)
+
+INDEX idx_stock_debts_outstanding ON stock_debts(company_id, product_id, warehouse_id, outstanding_quantity)
+INDEX idx_stock_debts_reference ON stock_debts(reference_type, reference_id)
+```
+
 ---
 
-### 6.5 Procurement
+### 6.5 Negative Stock Policy System
+
+The system implements a controlled negative stock mechanism with product-level policies and automatic debt tracking. This allows operational flexibility while maintaining data consistency and preventing uncontrolled negative stock scenarios.
+
+#### 6.5.1 Policy Types
+
+Each product can have a negative stock policy:
+
+| Policy | Behavior | Use Case |
+|--------|----------|----------|
+| **NEVER** | Cannot go negative. Reject transaction if insufficient stock. | Finished products, critical materials |
+| **ALLOWED** | Can go negative without limit. Stock debt is tracked. | Raw materials, operational flexibility |
+| **LIMITED** | Can go negative up to `negative_stock_limit`. Reject if limit exceeded. | Semi-finished products, controlled scenarios |
+
+#### 6.5.2 Database Schema
+
+**Products Table:**
+```sql
+products
+├── ...
+├── negative_stock_policy (varchar(20), default: 'NEVER')
+├── negative_stock_limit (decimal(15,3), default: 0)
+└── ...
+```
+
+**Stock Debts Table:**
+See Section 6.4.3 above for schema.
+
+#### 6.5.3 Automatic Debt Creation
+
+When stock goes negative:
+1. System checks product's `negative_stock_policy`
+2. If policy allows (ALLOWED or LIMITED within limit):
+   - Stock `quantity_on_hand` goes negative
+   - `StockDebt` record is created
+   - Debt is linked to the stock movement and reference (DeliveryNote, WorkOrder, etc.)
+3. If policy rejects (NEVER or LIMITED exceeded):
+   - Transaction is rejected with error message
+
+**StockService::issueStock() Logic:**
+```php
+if ($quantityAfter < 0) {
+    $product = $stock->product;
+    
+    if (!$this->canGoNegative($product, abs($quantityAfter))) {
+        throw new BusinessException("Insufficient stock...");
+    }
+    
+    // Create stock debt
+    $this->createStockDebt($stock, abs($quantityAfter), $data);
+}
+```
+
+#### 6.5.4 Automatic Debt Reconciliation
+
+When stock is received:
+1. System automatically reconciles outstanding debts (FIFO order)
+2. Oldest debts are settled first
+3. `reconciled_quantity` is updated
+4. `reconciled_at` timestamp is set
+
+**StockService::receiveStock() Logic:**
+```php
+// Update stock
+$stock->quantity_on_hand += $data['quantity'];
+$stock->save();
+
+// Automatically reconcile debts
+$this->reconcileStockDebts($stock, $data['quantity']);
+```
+
+#### 6.5.5 MRP II Integration
+
+Negative stock is considered in MRP (Material Requirements Planning) calculations:
+- Negative stock is treated as **priority requirement**
+- MRP recommendations are marked as high priority when negative stock exists
+- Net requirement calculation includes negative stock impact
+
+#### 6.5.6 Stock Alert Service
+
+The system provides alerts for:
+- Current negative stock items
+- Long-term outstanding debts (>7 days)
+- Products approaching negative stock limit
+- Debt reconciliation status
+
+**API Endpoints:**
+- `GET /api/stock-debts` - List all stock debts
+- `GET /api/stock-debts/outstanding` - List outstanding debts
+- `GET /api/stock-debts/{id}` - Get debt details
+- `GET /api/stock-alerts/negative-stock` - Get negative stock alerts
+
+#### 6.5.7 Benefits
+
+1. **Operational Flexibility**: Process transactions even when stock is temporarily unavailable
+2. **Data Consistency**: All movements are recorded, audit trail is maintained
+3. **Automatic Tracking**: Stock debts are automatically tracked and reconciled
+4. **MRP II Integration**: MRP (Material Requirements Planning) calculations consider negative stock as priority requirement
+5. **Controlled Scenarios**: Policy-based control prevents uncontrolled negative stock
+
+#### 6.5.8 Best Practices
+
+**Policy Recommendations:**
+- **Finished Products**: `NEVER` - Should never go negative
+- **Critical Raw Materials**: `NEVER` or `LIMITED` - Can stop production
+- **Standard Raw Materials**: `LIMITED` - Controlled negative stock
+- **Semi-Finished Products**: `LIMITED` - Internal production flexibility
+- **Auxiliary Materials**: `ALLOWED` - Maximum operational flexibility
+
+**Monitoring:**
+- Regular negative stock reports
+- Automatic alerts for long-term debts
+- Pre-MRP run negative stock checks (MRP II Material Requirements Planning)
+- Supplier performance evaluation based on debt patterns
+
+---
+
+### 6.6 Stock Reservation System
+
+The system implements a flexible stock reservation mechanism with configurable policies to handle stock reservations when insufficient stock is available. Reservations are automatically created and released based on order status transitions.
+
+#### 6.5.1 Reservation Policy Enum
+
+The system uses a `ReservationPolicy` enum to define how reservations are handled:
+
+```php
+enum ReservationPolicy: string
+{
+    case FULL = 'full';      // Only reserve if full quantity available
+    case PARTIAL = 'partial'; // Reserve available quantity even if less
+    case REJECT = 'reject';   // Reject reservation if insufficient
+    case WAIT = 'wait';       // Queue for future auto-retry (TODO: Future)
+}
+```
+
+**Policy Behaviors:**
+
+| Policy | Behavior | Use Case |
+|--------|----------|----------|
+| **FULL** | Only reserve if full quantity is available. Reject if insufficient. | Critical orders requiring exact quantities |
+| **PARTIAL** | Reserve available quantity even if less than requested. | Flexible orders where partial fulfillment is acceptable |
+| **REJECT** | Reject the reservation request if insufficient stock. | Strict inventory control, no partial reservations |
+| **WAIT** | Queue and auto-retry when stock becomes available. ⚠️ **NOT YET IMPLEMENTED** | Future: Automated retry mechanism |
+
+#### 6.5.2 Database Schema
+
+**Products Table:**
+```sql
+products
+├── ...
+├── reservation_policy (varchar(20), default: 'full')
+│   -- Policy for this product: 'full', 'partial', 'reject', 'wait'
+└── ...
+```
+
+**Stock Table:**
+```sql
+stock
+├── ...
+├── quantity_on_hand (decimal(15,3), default: 0)
+├── quantity_reserved (decimal(15,3), default: 0)
+├── quantity_available (decimal(15,3) GENERATED AS (quantity_on_hand - quantity_reserved) STORED)
+└── ...
+```
+
+#### 6.5.3 Automatic Reservation Flow
+
+**Sales Orders:**
+1. **Sales Order Confirmed** → Automatically reserve stock for all items
+   - Uses `StockService::reserveStock()` with product's `reservation_policy`
+   - Respects policy: FULL, PARTIAL, REJECT, or WAIT
+2. **Sales Order Cancelled/Rejected** → Automatically release reservations
+3. **Delivery Note Shipped** → Release reservations (physical stock issued)
+
+**Work Orders:**
+1. **Work Order Released** → Automatically reserve materials for all items
+   - Uses `StockService::reserveStock()` with product's `reservation_policy`
+   - Materials are reserved from the work order's warehouse
+2. **Work Order Cancelled** → Automatically release material reservations
+3. **Materials Issued** → Release reservations (physical stock issued)
+
+#### 6.5.4 Reservation Logic Implementation
+
+**StockService::reserveStock():**
+```php
+public function reserveStock(
+    int $productId,
+    int $warehouseId,
+    float $requestedQty,
+    ?string $lotNumber = null,
+    string $operationType = 'sale',
+    bool $skipQualityCheck = false
+): StockReservation
+{
+    // Get product and reservation policy
+    $product = Product::findOrFail($productId);
+    $policy = ReservationPolicy::tryFrom($product->reservation_policy ?? 'full') 
+        ?? ReservationPolicy::FULL;
+
+    $stock = $this->findOrCreateStock($productId, $warehouseId, $lotNumber);
+    $availableQty = $stock->quantity_available;
+
+    // Apply policy logic
+    if ($availableQty < $requestedQty) {
+        if ($policy === ReservationPolicy::PARTIAL) {
+            // Reserve available quantity
+            $reservedQty = $availableQty;
+        } elseif ($policy === ReservationPolicy::WAIT) {
+            // TODO: Queue for future retry
+            throw new BusinessException("Insufficient stock. WAIT policy not yet implemented.");
+        } else {
+            // FULL or REJECT: Reject reservation
+            throw new BusinessException("Insufficient stock. Available: {$availableQty}, Requested: {$requestedQty}");
+        }
+    } else {
+        $reservedQty = $requestedQty;
+    }
+
+    // Create reservation record
+    // Update stock.quantity_reserved
+    // Return StockReservation
+}
+```
+
+#### 6.5.5 Reservation Release
+
+**StockService::releaseReservation():**
+```php
+public function releaseReservation(
+    int $productId,
+    int $warehouseId,
+    float $quantity,
+    ?string $lotNumber = null
+): void
+{
+    // Find reservation
+    // Update stock.quantity_reserved (decrease)
+    // Mark reservation as released
+}
+```
+
+#### 6.5.6 Service Integration
+
+**SalesOrderService:**
+- `confirm()` → Calls `reserveStockForOrder()` → Automatically reserves stock
+- `cancel()` → Calls `releaseStockForOrder()` → Automatically releases reservations
+- `reject()` → Calls `releaseStockForOrder()` → Automatically releases reservations
+
+**DeliveryNoteService:**
+- `ship()` → Calls `releaseReservation()` → Releases reservation before issuing stock
+
+**WorkOrderService:**
+- `release()` → Calls `reserveMaterialsForOrder()` → Automatically reserves materials
+- `cancel()` → Calls `releaseMaterialsForOrder()` → Automatically releases reservations
+- `issueMaterials()` → Calls `releaseReservation()` → Releases reservation before issuing stock
+
+#### 6.5.7 Benefits
+
+1. **Flexible Policies**: Different products can have different reservation behaviors
+2. **Automatic Management**: Reservations created/released automatically based on order status
+3. **Stock Availability**: `quantity_available` automatically calculated (on_hand - reserved)
+4. **Partial Reservations**: Support for partial fulfillment when policy allows
+5. **Future-Ready**: WAIT policy placeholder for future queue/retry mechanism
+
+#### 6.5.8 Use Cases
+
+**High-Value Items (FULL policy):**
+- Electronics, precision instruments
+- Require exact quantities, no partial reservations
+
+**Bulk Materials (PARTIAL policy):**
+- Raw materials, chemicals
+- Accept partial fulfillment, reserve what's available
+
+**Strict Control (REJECT policy):**
+- Critical inventory items
+- No reservations if insufficient stock
+
+**Future: Automated Retry (WAIT policy):**
+- Queue reservation requests
+- Auto-retry when stock arrives
+- Requires queue system implementation
+
+---
+
+### 6.7 Procurement
 
 #### Suppliers
 ```sql
@@ -916,7 +1295,7 @@ purchase_order_items
 
 ---
 
-### 6.6 Sales Management (External Integration)
+### 6.8 Sales Management (Optional Module)
 
 #### Customers
 ```sql
@@ -988,13 +1367,13 @@ sales_order_items
 
 ---
 
-### 6.7 Over-Delivery Tolerance System
+### 6.9 Over-Delivery Tolerance System
 
 The system implements a flexible over-delivery tolerance mechanism for both **Sales Orders → Delivery Notes** and **Purchase Orders → Goods Received Notes (GRN)**. This allows partial deliveries while preventing excessive over-delivery through a hierarchical fallback system.
 
-#### 6.7.1 Tolerance Levels (Fallback Logic)
+#### 6.9.1 Tolerance Levels (Fallback Logic)
 
-The system uses a **5-level fallback hierarchy** (most specific to least specific):
+The system uses a **4-level fallback hierarchy** (most specific to least specific, SaaS application - no system level):
 
 ```
 1. Order Item Level (Most Specific)
@@ -1007,11 +1386,11 @@ The system uses a **5-level fallback hierarchy** (most specific to least specifi
 3. Category Level
    └── categories.over_delivery_tolerance_percentage (primary category)
 
-4. Company Level (Company-specific default)
+4. Company Level (Company-specific default - Final Fallback)
    └── settings.delivery.default_over_delivery_tolerance.{company_id}
-
-5. System Default (Least Specific - Global fallback)
-   └── settings.delivery.default_over_delivery_tolerance
+   
+Note: No system-level tolerance as this is a SaaS application where each company
+manages its own tolerance settings. Company-level is the final fallback.
 ```
 
 **Decision Logic:**
@@ -1019,16 +1398,17 @@ The system uses a **5-level fallback hierarchy** (most specific to least specifi
 $tolerance = $orderItem->over_delivery_tolerance_percentage
     ?? $product->over_delivery_tolerance_percentage
     ?? $category->over_delivery_tolerance_percentage
-    ?? Setting::get("delivery.default_over_delivery_tolerance.{$companyId}", null)
-    ?? Setting::get('delivery.default_over_delivery_tolerance', 0);
+    ?? Setting::get("delivery.default_over_delivery_tolerance.{$companyId}", 0);
+    
+// Note: Company-level is the final fallback (no system-level in SaaS architecture)
 ```
 
 **API Endpoints for Company-Level Tolerance:**
 - `GET /api/over-delivery-tolerance` - Get current company's default tolerance
 - `PUT /api/over-delivery-tolerance` - Update current company's default tolerance (Admin only)
-- `GET /api/over-delivery-tolerance/levels` - Get all tolerance levels (Company + System)
+- `GET /api/over-delivery-tolerance/levels` - Get all tolerance levels (Item, Product, Category, Company)
 
-#### 6.7.2 Database Schema
+#### 6.9.2 Database Schema
 
 **Products Table:**
 ```sql
@@ -1066,16 +1446,18 @@ purchase_order_items
 └── ...
 ```
 
-**System Settings:**
+**Company Settings (in Settings table):**
 ```sql
-system_settings
-├── category = 'delivery'
-├── key = 'default_over_delivery_tolerance'
-├── value = '0' (default: no tolerance)
+settings
+├── group = 'delivery'
+├── key = 'default_over_delivery_tolerance.{company_id}'
+├── value = '0' (default: no tolerance, company-specific)
 └── ...
+
+Note: Each company has its own default tolerance setting. No global system-level tolerance.
 ```
 
-#### 6.7.3 Sales Order → Delivery Note Flow
+#### 6.9.3 Sales Order → Delivery Note Flow
 
 **Quantity Control Logic:**
 1. Calculate total quantity already in delivery notes (including DRAFTs):
@@ -1107,7 +1489,7 @@ system_settings
 
 **Example Scenario:**
 - Sales Order Item: 1000 units ordered
-- System default tolerance: 5%
+- Company default tolerance: 5%
 - Max allowed: 1000 × 1.05 = 1050 units
 
 | Delivery Note | Quantity | Result | Reason |
@@ -1116,7 +1498,7 @@ system_settings
 | DN-002 | 50 | ✅ Success (Warning) | Within tolerance (1050 total) |
 | DN-003 | 1 | ❌ Error | Exceeds tolerance (1051 > 1050) |
 
-#### 6.7.4 Purchase Order → GRN Flow
+#### 6.9.4 Purchase Order → GRN Flow
 
 **Quantity Control Logic:**
 1. Calculate total quantity already in GRNs (including DRAFTs):
@@ -1154,7 +1536,7 @@ system_settings
 | GRN-002 | 15 | ✅ Success (Warning) | Within tolerance (515 total) |
 | GRN-003 | 1 | ❌ Error | Exceeds tolerance (516 > 515) |
 
-#### 6.7.5 Partial Delivery Support
+#### 6.9.5 Partial Delivery Support
 
 Both systems support **multiple partial deliveries**:
 
@@ -1163,7 +1545,7 @@ Both systems support **multiple partial deliveries**:
 - **Total Control**: System tracks total quantity across all delivery notes/GRNs (including DRAFTs)
 - **Tolerance Applied**: Tolerance is applied to the **total delivered/received quantity**, not per delivery
 
-#### 6.7.6 Service Implementation
+#### 6.9.6 Service Implementation
 
 **DeliveryNoteService:**
 ```php
@@ -1188,29 +1570,23 @@ protected function getOverDeliveryTolerance(SalesOrderItem $salesOrderItem): flo
         }
     }
 
-    // 4. Company default (company-specific)
+    // 4. Company default (company-specific, final fallback)
     $companyId = Auth::user()->company_id;
     $companyKey = "delivery.default_over_delivery_tolerance.{$companyId}";
-    $companyDefault = Setting::get($companyKey, null);
+    $companyDefault = Setting::get($companyKey, 0);
     
-    if ($companyDefault !== null) {
-        $tolerance = is_array($companyDefault) ? (float) ($companyDefault[0] ?? 0) : (float) $companyDefault;
-        if ($tolerance > 0 || $companyDefault === 0) {
-            return $tolerance;
-        }
-    }
-
-    // 5. System default (global fallback)
-    $systemDefault = Setting::get('delivery.default_over_delivery_tolerance', 0);
-    $tolerance = is_array($systemDefault) ? (float) ($systemDefault[0] ?? 0) : (float) $systemDefault;
+    $tolerance = is_array($companyDefault) ? (float) ($companyDefault[0] ?? 0) : (float) $companyDefault;
     return $tolerance;
+    
+    // Note: No system-level tolerance as this is a SaaS application.
+    // Company-level is the final fallback.
 }
 ```
 
 **GoodsReceivedNoteService:**
 - Same `getOverDeliveryTolerance()` method, but accepts `PurchaseOrderItem` instead
 
-#### 6.7.7 Benefits
+#### 6.9.7 Benefits
 
 1. **Flexibility**: Different tolerance levels for different products/categories
 2. **Control**: Prevents excessive over-delivery while allowing reasonable variations
@@ -1218,7 +1594,7 @@ protected function getOverDeliveryTolerance(SalesOrderItem $salesOrderItem): flo
 4. **Partial Delivery**: Supports multiple deliveries/receipts per order
 5. **Audit Trail**: Warning logs when tolerance is used
 
-#### 6.7.8 Use Cases
+#### 6.9.8 Use Cases
 
 **High-Value Items (0% tolerance):**
 - Electronics, precision instruments
@@ -1243,9 +1619,102 @@ protected function getOverDeliveryTolerance(SalesOrderItem $salesOrderItem): flo
 
 ---
 
-### 6.8 Manufacturing (Phase 5)
+### 6.10 Manufacturing (Phase 5) - MRP II Core
 
-Manufacturing modülü MRP II sisteminin çekirdeğidir. BOM, Work Centers, Routings ve Work Orders içerir.
+Manufacturing modülü **MRP II (Manufacturing Resource Planning)** sisteminin çekirdeğidir. MRP II, klasik MRP'nin (Material Requirements Planning) gelişmiş versiyonudur ve aşağıdaki bileşenleri içerir:
+
+#### 6.10.1 MRP II Components Overview
+
+**Implemented Components:**
+
+**1. Material Requirements Planning (MRP)**
+- Multi-level BOM explosion
+- Net requirement calculations
+- Purchase order and work order recommendations
+- Safety stock considerations
+- Lead time respect
+
+**2. Capacity Requirements Planning (CRP)**
+- Work center capacity analysis
+- Capacity load reports
+- Bottleneck identification
+- Calendar-based capacity planning
+- Work center availability tracking
+
+**3. Master Production Schedule (MPS)**
+- Work Orders as production schedule
+- Production planning horizon
+- Production order prioritization
+- Material availability checks
+
+**4. Shop Floor Control (Atölye Kontrolü)**
+- **Definition**: Shop Floor Control refers to the real-time monitoring and management of production activities on the manufacturing floor (shop floor). It bridges the gap between production planning (MPS/MRP) and actual execution.
+
+- **Key Features**:
+  - **Work Order Management**: Create, release, start, complete, cancel, and hold work orders
+  - **Operation Tracking**: Track individual operations within a work order (start, complete, status)
+  - **Material Consumption**: Issue materials from stock when production starts
+  - **Finished Goods Receipt**: Receive completed products back into inventory
+  - **Production Progress Tracking**: Monitor quantity completed vs. ordered
+  - **Status Management**: Track work order and operation statuses (draft, released, in_progress, completed, cancelled, on_hold)
+  - **Real-time Updates**: Actual start/end dates, actual quantities, scrap tracking
+  - **Capacity Integration**: Check work center availability before starting operations
+
+- **Workflow**:
+  1. Work Order created (draft) → Material requirements calculated from BOM
+  2. Work Order released → Materials automatically reserved
+  3. Work Order started → Status changes to "in_progress", actual start date recorded
+  4. Operations started/completed → Individual operation tracking
+  5. Materials issued → Stock consumed for production
+  6. Finished goods received → Completed products added to inventory
+  7. Work Order completed → Status finalized, actual end date recorded
+
+- **Integration Points**:
+  - Links to MRP recommendations (work orders can be created from MRP)
+  - Uses BOM for material requirements
+  - Uses Routing for operation sequences
+  - Integrates with Stock Service for material issuance and finished goods receipt
+  - Capacity planning checks work center availability
+
+**5. Bill of Materials (BOM) Management**
+- Multi-level product structures
+- BOM versioning and status management
+- Component quantity calculations
+- BOM explosion for MRP
+
+**6. Routing Management**
+- Manufacturing process definitions
+- Operation sequences
+- Work center assignments
+- Setup and run times
+- Lead time calculations
+
+**7. Work Center Management**
+- Production resource definitions
+- Capacity definitions (hours per day)
+- Efficiency tracking
+- Basic cost per hour tracking (for operational planning)
+- Availability calendars
+
+**Not Implemented (Future Roadmap):**
+
+**8. Financial Planning & Cost Management**
+- **Status**: Not implemented - conscious design decision
+- **Current Focus**: Planning and inventory management
+- **Basic Cost Tracking Available**: 
+  - Standard cost per product
+  - Average cost calculation
+  - Work center cost per hour (for operational planning)
+  - Estimated vs actual cost in Work Orders (basic tracking)
+- **Future Plans**: 
+  - Comprehensive cost accounting
+  - Financial planning and budgeting
+  - Cost center management
+  - Financial reporting and analysis
+  - Integration with external accounting systems
+
+**Design Philosophy:**
+The system prioritizes **planning and inventory management** over financial integration. While basic cost tracking exists for operational purposes (e.g., standard costs, work center costs), comprehensive financial planning is deferred to future releases. This allows the system to focus on its core strengths: material planning, capacity planning, and inventory control.
 
 #### Work Centers
 ```sql
@@ -1464,7 +1933,7 @@ work_order_materials
 INDEX idx_wo_materials ON work_order_materials(work_order_id, product_id)
 ```
 
-### 6.8 Manufacturing Enums
+### 6.10 Manufacturing Enums
 
 #### WorkCenterType
 ```
@@ -1499,7 +1968,7 @@ pending → in_progress → completed
                     → skipped
 ```
 
-### 6.9 Manufacturing Services
+### 6.11 Manufacturing Services
 
 #### WorkCenterService
 - CRUD operations
@@ -1573,68 +2042,11 @@ public function receiveFinishedGoods(WorkOrder $workOrder, float $quantity): voi
 }
 ```
 
-### 6.10 Manufacturing API Routes
+### 6.12 Manufacturing API Routes
 
-```
-# Work Centers
-GET    /api/v1/work-centers
-GET    /api/v1/work-centers/list
-POST   /api/v1/work-centers
-GET    /api/v1/work-centers/{id}
-PUT    /api/v1/work-centers/{id}
-DELETE /api/v1/work-centers/{id}
-POST   /api/v1/work-centers/{id}/toggle-active
+See Section 10.8 for complete Manufacturing module endpoint documentation.
 
-# BOMs
-GET    /api/v1/boms
-GET    /api/v1/boms/list
-POST   /api/v1/boms
-GET    /api/v1/boms/{id}
-PUT    /api/v1/boms/{id}
-DELETE /api/v1/boms/{id}
-POST   /api/v1/boms/{id}/items
-PUT    /api/v1/boms/{id}/items/{itemId}
-DELETE /api/v1/boms/{id}/items/{itemId}
-POST   /api/v1/boms/{id}/activate
-POST   /api/v1/boms/{id}/obsolete
-POST   /api/v1/boms/{id}/copy
-GET    /api/v1/boms/{id}/explode
-GET    /api/v1/boms/for-product/{productId}
-
-# Routings
-GET    /api/v1/routings
-GET    /api/v1/routings/list
-POST   /api/v1/routings
-GET    /api/v1/routings/{id}
-PUT    /api/v1/routings/{id}
-DELETE /api/v1/routings/{id}
-POST   /api/v1/routings/{id}/operations
-PUT    /api/v1/routings/{id}/operations/{opId}
-DELETE /api/v1/routings/{id}/operations/{opId}
-POST   /api/v1/routings/{id}/activate
-GET    /api/v1/routings/for-product/{productId}
-
-# Work Orders
-GET    /api/v1/work-orders
-GET    /api/v1/work-orders/statistics
-POST   /api/v1/work-orders
-GET    /api/v1/work-orders/{id}
-PUT    /api/v1/work-orders/{id}
-DELETE /api/v1/work-orders/{id}
-POST   /api/v1/work-orders/{id}/release
-POST   /api/v1/work-orders/{id}/start
-POST   /api/v1/work-orders/{id}/complete
-POST   /api/v1/work-orders/{id}/cancel
-POST   /api/v1/work-orders/{id}/hold
-POST   /api/v1/work-orders/{id}/resume
-POST   /api/v1/work-orders/{id}/operations/{opId}/start
-POST   /api/v1/work-orders/{id}/operations/{opId}/complete
-GET    /api/v1/work-orders/{id}/material-requirements
-POST   /api/v1/work-orders/{id}/issue-materials
-POST   /api/v1/work-orders/{id}/receive-finished-goods
-```
-
-### 6.11 Manufacturing Permissions
+### 6.13 Manufacturing Permissions
 
 ```
 manufacturing.view      - View work centers, BOMs, routings, work orders
@@ -1951,31 +2363,545 @@ CREATE INDEX idx_active_products ON products(id) WHERE status = 'active' AND del
 
 ## 10. API Structure
 
-### 10.1 API Versioning
+### 10.1 API Base URL
 ```
-/api/v1/...
+/api/...
 ```
 
-### 10.2 Core Endpoints
+**Note:** API versioning (`/api/v1/`) is not currently implemented. All endpoints use `/api/` prefix.
 
-**Authentication:**
+### 10.2 Authentication Endpoints
+
 ```
-POST   /api/v1/auth/login
-POST   /api/v1/auth/logout
-POST   /api/v1/auth/refresh
-GET    /api/v1/auth/me
+POST   /api/auth/register
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/auth/me
+POST   /api/auth/refresh
+POST   /api/auth/forgot-password
+POST   /api/auth/reset-password
+```
+
+### 10.3 Core System Endpoints
+
+**Users:**
+```
+GET    /api/users
+POST   /api/users
+GET    /api/users/{id}
+PUT    /api/users/{id}
+DELETE /api/users/{id}
+POST   /api/users/{id}/restore
+DELETE /api/users/{id}/force
+```
+
+**Roles & Permissions:**
+```
+GET    /api/roles
+POST   /api/roles
+GET    /api/roles/{id}
+PUT    /api/roles/{id}
+DELETE /api/roles/{id}
+POST   /api/roles/{id}/permissions/assign
+POST   /api/roles/{id}/permissions/revoke
+
+GET    /api/permissions
+POST   /api/permissions
+GET    /api/permissions/{id}
+PUT    /api/permissions/{id}
+DELETE /api/permissions/{id}
+GET    /api/permissions/modules/list
+```
+
+**Settings:**
+```
+GET    /api/settings
+POST   /api/settings
+GET    /api/settings/groups
+GET    /api/settings/group/{group}
+GET    /api/settings/{group}/{key}
+PUT    /api/settings/{group}/{key}
+DELETE /api/settings/{group}/{key}
+```
+
+**Over-Delivery Tolerance:**
+```
+GET    /api/over-delivery-tolerance
+PUT    /api/over-delivery-tolerance
+GET    /api/over-delivery-tolerance/levels
+```
+
+**Company Calendar:**
+```
+GET    /api/company-calendar
+POST   /api/company-calendar
+POST   /api/company-calendar/bulk
+GET    /api/company-calendar/date-range
+GET    /api/company-calendar/{id}
+PUT    /api/company-calendar/{id}
+DELETE /api/company-calendar/{id}
+```
+
+**Currencies:**
+```
+GET    /api/currencies
+POST   /api/currencies
+GET    /api/currencies/active
+GET    /api/currencies/{id}
+PUT    /api/currencies/{id}
+DELETE /api/currencies/{id}
+POST   /api/currencies/{id}/toggle-active
+GET    /api/currencies/exchange-rate/get
+GET    /api/currencies/exchange-rate/history
+POST   /api/currencies/exchange-rate/set
+POST   /api/currencies/convert
+```
+
+**Units of Measure:**
+```
+GET    /api/units-of-measure
+POST   /api/units-of-measure
+GET    /api/units-of-measure/list
+GET    /api/units-of-measure/types
+GET    /api/units-of-measure/{id}
+PUT    /api/units-of-measure/{id}
+DELETE /api/units-of-measure/{id}
+```
+
+### 10.4 Product Management Endpoints
+
+**Categories:**
+```
+GET    /api/categories
+POST   /api/categories
+GET    /api/categories/{id}
+PUT    /api/categories/{id}
+DELETE /api/categories/{id}
+GET    /api/categories/{id}/attributes
+POST   /api/categories/{id}/attributes
+PUT    /api/categories/{id}/attributes/{attributeId}
+DELETE /api/categories/{id}/attributes/{attributeId}
+```
+
+**Attributes:**
+```
+GET    /api/attributes
+POST   /api/attributes
+GET    /api/attributes/{id}
+PUT    /api/attributes/{id}
+DELETE /api/attributes/{id}
+POST   /api/attributes/{id}/values
+PUT    /api/attributes/{id}/values/{valueId}
+DELETE /api/attributes/{id}/values/{valueId}
+POST   /api/variants/bulk-generate
+```
+
+**Product Types:**
+```
+GET    /api/producttypes
+POST   /api/producttypes
+GET    /api/producttypes/{id}
+PUT    /api/producttypes/{id}
+DELETE /api/producttypes/{id}
 ```
 
 **Products:**
 ```
-GET    /api/v1/products
-POST   /api/v1/products
-GET    /api/v1/products/{id}
-PUT    /api/v1/products/{id}
-DELETE /api/v1/products/{id}
-GET    /api/v1/products/{id}/stock
-GET    /api/v1/products/{id}/bom
-POST   /api/v1/products/search (Elasticsearch)
+GET    /api/products
+POST   /api/products
+GET    /api/products/search
+GET    /api/products/{id}
+PUT    /api/products/{id}
+DELETE /api/products/{id}
+POST   /api/products/{id}/restore
+
+# Product Attributes
+GET    /api/products/{id}/attributes
+POST   /api/products/{id}/attributes
+PUT    /api/products/{id}/attributes/{attributeId}
+DELETE /api/products/{id}/attributes/{attributeId}
+
+# Product Images
+POST   /api/products/{id}/images
+PUT    /api/products/{id}/images/{imageId}
+DELETE /api/products/{id}/images/{imageId}
+POST   /api/products/{id}/images/reorder
+
+# Product Variants
+GET    /api/products/{id}/variants
+POST   /api/products/{id}/variants
+POST   /api/products/{id}/variants/generate
+POST   /api/products/{id}/variants/expand
+PUT    /api/products/{id}/variants/{variantId}
+DELETE /api/products/{id}/variants/{variantId}
+DELETE /api/products/{id}/variants/clear
+DELETE /api/products/{id}/variants/{variantId}/force
+DELETE /api/products/{id}/variants/force-clear
+
+# Product UOM Conversions
+GET    /api/products/{id}/uom-conversions
+POST   /api/products/{id}/uom-conversions
+POST   /api/products/{id}/uom-conversions/bulk
+POST   /api/products/{id}/uom-conversions/copy-from
+GET    /api/products/{id}/uom-conversions/{conversionId}
+PUT    /api/products/{id}/uom-conversions/{conversionId}
+DELETE /api/products/{id}/uom-conversions/{conversionId}
+POST   /api/products/{id}/uom-conversions/{conversionId}/toggle-active
+POST   /api/products/{id}/uom-conversions/convert
+```
+
+### 10.5 Inventory Management Endpoints
+
+**Warehouses:**
+```
+GET    /api/warehouses
+POST   /api/warehouses
+GET    /api/warehouses/list
+GET    /api/warehouses/quarantine-zones
+GET    /api/warehouses/rejection-zones
+GET    /api/warehouses/qc-zones
+GET    /api/warehouses/{id}
+PUT    /api/warehouses/{id}
+DELETE /api/warehouses/{id}
+POST   /api/warehouses/{id}/toggle-active
+POST   /api/warehouses/{id}/set-default
+GET    /api/warehouses/{id}/stock-summary
+```
+
+**Stock:**
+```
+GET    /api/stock
+GET    /api/stock/low-stock
+GET    /api/stock/expiring
+GET    /api/stock/product/{productId}
+GET    /api/stock/warehouse/{warehouseId}
+POST   /api/stock/receive
+POST   /api/stock/issue
+POST   /api/stock/transfer
+POST   /api/stock/adjust
+POST   /api/stock/reserve
+POST   /api/stock/release-reservation
+```
+
+**Stock Movements:**
+```
+GET    /api/stock-movements
+GET    /api/stock-movements/summary
+GET    /api/stock-movements/daily-report
+GET    /api/stock-movements/audit-trail
+GET    /api/stock-movements/product/{productId}
+GET    /api/stock-movements/warehouse/{warehouseId}
+GET    /api/stock-movements/types/movement
+GET    /api/stock-movements/types/transaction
+```
+
+**Stock Debts (Negative Stock):**
+```
+GET    /api/stock-debts
+GET    /api/stock-debts/{id}
+GET    /api/stock-debts/alerts
+GET    /api/stock-debts/weekly-report
+GET    /api/stock-debts/long-term
+```
+
+### 10.6 Procurement Module Endpoints
+
+**Suppliers:**
+```
+GET    /api/suppliers
+POST   /api/suppliers
+GET    /api/suppliers/list
+GET    /api/suppliers/{id}
+PUT    /api/suppliers/{id}
+DELETE /api/suppliers/{id}
+POST   /api/suppliers/{id}/toggle-active
+GET    /api/suppliers/{id}/statistics
+GET    /api/suppliers/for-product/{productId}
+POST   /api/suppliers/{id}/products
+PUT    /api/suppliers/{id}/products/{productId}
+DELETE /api/suppliers/{id}/products/{productId}
+
+# Supplier Quality (requires QC module)
+GET    /api/suppliers/quality-ranking
+GET    /api/suppliers/{id}/quality-score
+GET    /api/suppliers/{id}/quality-statistics
+```
+
+**Purchase Orders:**
+```
+GET    /api/purchase-orders
+POST   /api/purchase-orders
+GET    /api/purchase-orders/statistics
+GET    /api/purchase-orders/overdue
+GET    /api/purchase-orders/{id}
+PUT    /api/purchase-orders/{id}
+DELETE /api/purchase-orders/{id}
+POST   /api/purchase-orders/{id}/items
+PUT    /api/purchase-orders/{id}/items/{itemId}
+DELETE /api/purchase-orders/{id}/items/{itemId}
+POST   /api/purchase-orders/{id}/submit
+POST   /api/purchase-orders/{id}/approve
+POST   /api/purchase-orders/{id}/reject
+POST   /api/purchase-orders/{id}/send
+POST   /api/purchase-orders/{id}/cancel
+POST   /api/purchase-orders/{id}/close
+```
+
+**Goods Received Notes (GRN):**
+```
+GET    /api/goods-received-notes
+POST   /api/goods-received-notes
+GET    /api/goods-received-notes/pending-inspection
+GET    /api/goods-received-notes/for-purchase-order/{purchaseOrderId}
+GET    /api/goods-received-notes/{id}
+PUT    /api/goods-received-notes/{id}
+DELETE /api/goods-received-notes/{id}
+POST   /api/goods-received-notes/{id}/submit-inspection
+POST   /api/goods-received-notes/{id}/record-inspection
+POST   /api/goods-received-notes/{id}/complete
+POST   /api/goods-received-notes/{id}/cancel
+```
+
+### 10.7 Quality Control Module Endpoints
+
+**Acceptance Rules:**
+```
+GET    /api/acceptance-rules
+POST   /api/acceptance-rules
+GET    /api/acceptance-rules/list
+GET    /api/acceptance-rules/inspection-types
+GET    /api/acceptance-rules/sampling-methods
+POST   /api/acceptance-rules/find-applicable
+GET    /api/acceptance-rules/{id}
+PUT    /api/acceptance-rules/{id}
+DELETE /api/acceptance-rules/{id}
+```
+
+**Receiving Inspections:**
+```
+GET    /api/receiving-inspections
+GET    /api/receiving-inspections/statistics
+GET    /api/receiving-inspections/results
+GET    /api/receiving-inspections/dispositions
+GET    /api/receiving-inspections/for-grn/{grnId}
+GET    /api/receiving-inspections/{id}
+POST   /api/receiving-inspections/create-for-grn/{grnId}
+POST   /api/receiving-inspections/{id}/record-result
+POST   /api/receiving-inspections/{id}/approve
+PUT    /api/receiving-inspections/{id}/disposition
+POST   /api/receiving-inspections/{id}/transfer-to-qc
+```
+
+**Non-Conformance Reports (NCR):**
+```
+GET    /api/ncrs
+POST   /api/ncrs
+GET    /api/ncrs/statistics
+GET    /api/ncrs/statuses
+GET    /api/ncrs/severities
+GET    /api/ncrs/defect-types
+GET    /api/ncrs/dispositions
+GET    /api/ncrs/supplier/{supplierId}/summary
+GET    /api/ncrs/{id}
+PUT    /api/ncrs/{id}
+DELETE /api/ncrs/{id}
+POST   /api/ncrs/from-inspection/{inspectionId}
+POST   /api/ncrs/{id}/submit-review
+POST   /api/ncrs/{id}/complete-review
+POST   /api/ncrs/{id}/start-progress
+POST   /api/ncrs/{id}/set-disposition
+POST   /api/ncrs/{id}/close
+POST   /api/ncrs/{id}/cancel
+```
+
+### 10.8 Manufacturing Module Endpoints
+
+**Work Centers:**
+```
+GET    /api/work-centers
+POST   /api/work-centers
+GET    /api/work-centers/list
+GET    /api/work-centers/types
+GET    /api/work-centers/{id}
+GET    /api/work-centers/{id}/availability
+PUT    /api/work-centers/{id}
+DELETE /api/work-centers/{id}
+POST   /api/work-centers/{id}/toggle-active
+```
+
+**BOMs (Bill of Materials):**
+```
+GET    /api/boms
+POST   /api/boms
+GET    /api/boms/list
+GET    /api/boms/types
+GET    /api/boms/statuses
+GET    /api/boms/for-product/{productId}
+GET    /api/boms/{id}
+PUT    /api/boms/{id}
+DELETE /api/boms/{id}
+POST   /api/boms/{id}/items
+PUT    /api/boms/{id}/items/{itemId}
+DELETE /api/boms/{id}/items/{itemId}
+POST   /api/boms/{id}/activate
+POST   /api/boms/{id}/obsolete
+POST   /api/boms/{id}/set-default
+POST   /api/boms/{id}/copy
+GET    /api/boms/{id}/explode
+```
+
+**Routings:**
+```
+GET    /api/routings
+POST   /api/routings
+GET    /api/routings/list
+GET    /api/routings/statuses
+GET    /api/routings/for-product/{productId}
+GET    /api/routings/{id}
+PUT    /api/routings/{id}
+DELETE /api/routings/{id}
+POST   /api/routings/{id}/operations
+PUT    /api/routings/{id}/operations/{operationId}
+DELETE /api/routings/{id}/operations/{operationId}
+POST   /api/routings/{id}/operations/reorder
+POST   /api/routings/{id}/activate
+POST   /api/routings/{id}/obsolete
+POST   /api/routings/{id}/set-default
+POST   /api/routings/{id}/copy
+POST   /api/routings/{id}/calculate-lead-time
+```
+
+**Work Orders:**
+```
+GET    /api/work-orders
+POST   /api/work-orders
+GET    /api/work-orders/statistics
+GET    /api/work-orders/statuses
+GET    /api/work-orders/priorities
+GET    /api/work-orders/{id}
+PUT    /api/work-orders/{id}
+DELETE /api/work-orders/{id}
+POST   /api/work-orders/{id}/release
+POST   /api/work-orders/{id}/start
+POST   /api/work-orders/{id}/complete
+POST   /api/work-orders/{id}/cancel
+POST   /api/work-orders/{id}/hold
+POST   /api/work-orders/{id}/resume
+GET    /api/work-orders/{id}/material-requirements
+POST   /api/work-orders/{id}/issue-materials
+POST   /api/work-orders/{id}/receive-finished-goods
+POST   /api/work-orders/{id}/operations/{operationId}/start
+POST   /api/work-orders/{id}/operations/{operationId}/complete
+GET    /api/work-orders/{id}/check-capacity
+```
+
+**MRP (Material Requirements Planning) - MRP II Component:**
+```
+GET    /api/mrp
+POST   /api/mrp
+GET    /api/mrp/statistics
+GET    /api/mrp/statuses
+GET    /api/mrp/recommendation-types
+GET    /api/mrp/recommendation-statuses
+GET    /api/mrp/priorities
+GET    /api/mrp/products-needing-attention
+GET    /api/mrp/{id}
+GET    /api/mrp/{id}/progress
+GET    /api/mrp/{id}/recommendations
+POST   /api/mrp/{id}/cancel
+POST   /api/mrp/invalidate-cache
+POST   /api/mrp/recommendations/{id}/approve
+POST   /api/mrp/recommendations/{id}/reject
+POST   /api/mrp/recommendations/bulk-approve
+POST   /api/mrp/recommendations/bulk-reject
+```
+
+**Capacity Requirements Planning (CRP) - MRP II Component:**
+```
+GET    /api/capacity/overview
+GET    /api/capacity/load-report
+GET    /api/capacity/bottleneck-analysis
+GET    /api/capacity/day-types
+GET    /api/capacity/work-center/{id}
+GET    /api/capacity/work-center/{id}/daily
+GET    /api/capacity/work-center/{id}/find-slot
+GET    /api/capacity/work-center/{id}/calendar
+POST   /api/capacity/generate-calendar
+POST   /api/capacity/work-center/{id}/set-holiday
+POST   /api/capacity/work-center/{id}/set-maintenance
+PUT    /api/capacity/calendar/{id}
+```
+
+### 10.9 Sales Module Endpoints
+
+**Customer Groups:**
+```
+GET    /api/customer-groups
+POST   /api/customer-groups
+GET    /api/customer-groups/list
+GET    /api/customer-groups/{id}
+PUT    /api/customer-groups/{id}
+DELETE /api/customer-groups/{id}
+GET    /api/customer-groups/{id}/prices
+POST   /api/customer-groups/{id}/prices
+POST   /api/customer-groups/{id}/prices/bulk
+DELETE /api/customer-groups/{id}/prices/{priceId}
+```
+
+**Customers:**
+```
+GET    /api/customers
+POST   /api/customers
+GET    /api/customers/list
+GET    /api/customers/{id}
+PUT    /api/customers/{id}
+DELETE /api/customers/{id}
+GET    /api/customers/{id}/statistics
+```
+
+**Sales Orders:**
+```
+GET    /api/sales-orders
+POST   /api/sales-orders
+GET    /api/sales-orders/statistics
+GET    /api/sales-orders/statuses
+GET    /api/sales-orders/{id}
+PUT    /api/sales-orders/{id}
+DELETE /api/sales-orders/{id}
+POST   /api/sales-orders/{id}/submit-for-approval
+POST   /api/sales-orders/{id}/approve
+POST   /api/sales-orders/{id}/reject
+POST   /api/sales-orders/{id}/confirm
+POST   /api/sales-orders/{id}/cancel
+POST   /api/sales-orders/{id}/mark-as-shipped
+POST   /api/sales-orders/{id}/mark-as-delivered
+```
+
+**Delivery Notes:**
+```
+GET    /api/delivery-notes
+POST   /api/delivery-notes
+GET    /api/delivery-notes/statuses
+GET    /api/delivery-notes/for-sales-order/{salesOrderId}
+GET    /api/delivery-notes/{id}
+PUT    /api/delivery-notes/{id}
+DELETE /api/delivery-notes/{id}
+POST   /api/delivery-notes/{id}/confirm
+POST   /api/delivery-notes/{id}/ship
+POST   /api/delivery-notes/{id}/mark-as-delivered
+POST   /api/delivery-notes/{id}/cancel
+```
+
+### 10.10 Module Status Endpoints
+
+**Public (No Authentication):**
+```
+GET    /api/modules
+```
+
+**Protected:**
+```
+POST   /api/modules/clear-cache
 ```
 
 ### 10.3 Request Headers
@@ -2179,19 +3105,19 @@ class ProductResource extends JsonResource
 
 ### Phase 1: Foundation & Architecture
 
-**Week 1: Database & Core Setup**
+**Database & Core Setup**
 - ✅ PostgreSQL setup
 - ✅ Core migrations (companies, users, roles/permissions)
 - ✅ User authentication (Sanctum)
 - ✅ Multi-tenant setup
 
-**Week 2: Architecture Patterns**
+**Architecture Patterns**
 - 🔴 Service Layer Pattern
 - 🔴 Laravel Policies
 - 🔴 API Resources
 - 🔴 Polymorphic Media
 
-**Week 3: Product Catalog (Simplified)**
+**Product Catalog (Simplified)**
 - ✅ Product types
 - ✅ Categories (no translation tables)
 - ✅ Products (no translation tables)
@@ -2208,38 +3134,36 @@ class ProductResource extends JsonResource
 - Polymorphic media system
 - Frontend i18n (UI translations)
 
-### Phase 2: Inventory (Weeks 4-5)
+### Phase 2: Inventory
 - ✅ Warehouses
 - ✅ Stock tracking
 - ✅ Stock movements
 - ✅ Elasticsearch setup
 
-### Phase 3: Procurement (Weeks 6-7)
+### Phase 3: Procurement
 - ✅ Suppliers
 - ✅ Purchase orders
 - ✅ GRN
 
-### Phase 4: Sales (Weeks 8-9)
+### Phase 4: Sales
 - ✅ Customers
 - ✅ Sales orders
 - ✅ Stock reservation
 
-### Phase 5: Manufacturing (Weeks 10-11)
+### Phase 5: Manufacturing
 - ✅ BOM management
 - ✅ Production orders
 
-### Phase 6: Support & Reporting (Weeks 12-13)
+### Phase 6: Support & Reporting
 - ✅ Activity logs
 - ✅ Notifications
 - ✅ Dashboard
 - ✅ Reports
 
-### Phase 7: Testing & Deployment (Weeks 14-15)
+### Phase 7: Testing & Deployment
 - ✅ Unit tests
 - ✅ Feature tests
 - ✅ Production deployment
-
-**Total Timeline: 15 weeks (vs. 18 weeks with translation tables)**
 
 ---
 
@@ -2307,6 +3231,25 @@ function ProductForm() {
 
 ## Document History
 
+**Version 5.9** - 2026-01-08
+- ✅ **Negative Stock Policy System**: Comprehensive negative stock management with product-level policies
+- ✅ Added Section 6.5: Negative Stock Policy System with NEVER, ALLOWED, LIMITED policies
+- ✅ Added Stock Debt tracking system with automatic reconciliation
+- ✅ Documented automatic debt creation and reconciliation flow
+- ✅ Added `negative_stock_policy` and `negative_stock_limit` fields to Products table schema
+- ✅ Added Stock Debts table schema (Section 6.4.3)
+- ✅ Documented MRP integration with negative stock as priority requirement
+- ✅ Documented Stock Alert Service for negative stock monitoring
+- ✅ Renumbered sections: Stock Reservation (6.6), Procurement (6.7), Sales (6.8), Over-Delivery Tolerance (6.9), Manufacturing (6.10)
+
+**Version 5.8** - 2026-01-08
+- ✅ **Stock Reservation Policy System**: Comprehensive reservation management with configurable policies
+- ✅ Added Section 6.6: Stock Reservation System with ReservationPolicy enum
+- ✅ Documented automatic reservation flow for Sales Orders and Work Orders
+- ✅ Documented reservation policies: FULL, PARTIAL, REJECT, WAIT
+- ✅ Documented automatic reservation creation/release based on order status
+- ✅ Renumbered sections: Procurement (6.7), Sales (6.8), Over-Delivery Tolerance (6.9), Manufacturing (6.10)
+
 **Version 5.7** - 2026-01-08
 - ✅ **Over-Delivery Tolerance System**: Comprehensive tolerance management for Sales Orders and Purchase Orders
 - ✅ Added Section 6.7: Over-Delivery Tolerance System with hierarchical fallback logic
@@ -2314,7 +3257,7 @@ function ProductForm() {
 - ✅ Added `over_delivery_tolerance_percentage` to `sales_order_items` table
 - ✅ Added `over_delivery_tolerance_percentage` to `products` table
 - ✅ Added `over_delivery_tolerance_percentage` to `categories` table
-- ✅ Implemented 4-level fallback hierarchy: Order Item → Product → Category → System Default
+- ✅ Implemented 4-level fallback hierarchy: Order Item → Product → Category → Company Default (SaaS - no system level)
 - ✅ Delivery Note quantity control with tolerance validation
 - ✅ GRN quantity control with tolerance validation
 - ✅ Support for multiple partial deliveries per order
@@ -2357,7 +3300,7 @@ function ProductForm() {
 - ✅ Added module configuration system (`config/modules.php`)
 - ✅ Added module middleware for route protection
 - ✅ Core module (mandatory), Procurement (optional), Manufacturing (optional)
-- ✅ Sales/Finance as external integrations only (webhook API)
+- ✅ Sales module as optional module (can be enabled via `MODULE_SALES_ENABLED=true`) with webhook API for external integrations
 - ✅ Python Prediction Service integration (sync HTTP, async future)
 - ✅ Renumbered all sections to accommodate new architecture section
 - ✅ Updated system type from MRP to MRP II
@@ -2397,5 +3340,5 @@ function ProductForm() {
 
 ---
 
-*Current Version: 5.7*
+*Current Version: 5.9*
 *Last Updated: 2026-01-08*
