@@ -83,7 +83,10 @@ class OverDeliveryToleranceController extends Controller
     }
 
     /**
-     * Get tolerance settings for all levels (Company, Product, Category, System)
+     * Get tolerance settings for all levels (Company, Product, Category)
+     * 
+     * Note: System-level removed as this is a SaaS application where each company
+     * manages its own tolerance settings. Company-level is the final fallback.
      */
     public function levels(Request $request): JsonResponse
     {
@@ -97,31 +100,21 @@ class OverDeliveryToleranceController extends Controller
             $companyTolerance = null;
         }
 
-        // Get system default (global, no company_id)
-        $systemKey = 'delivery.default_over_delivery_tolerance';
-        $systemValue = Setting::get($systemKey, 0);
-        $systemTolerance = is_array($systemValue) ? (float) ($systemValue[0] ?? 0) : (float) $systemValue;
-
         return response()->json([
             'success' => true,
             'data' => [
                 'company' => [
                     'tolerance_percentage' => $companyTolerance,
                     'level' => 'company',
-                    'description' => 'Company-specific default tolerance',
-                ],
-                'system' => [
-                    'tolerance_percentage' => $systemTolerance,
-                    'level' => 'system',
-                    'description' => 'System-wide default tolerance (fallback)',
+                    'description' => 'Company-specific default tolerance (final fallback)',
                 ],
                 'fallback_order' => [
                     '1' => 'Order Item Level (most specific)',
                     '2' => 'Product Level',
                     '3' => 'Category Level',
-                    '4' => 'Company Level',
-                    '5' => 'System Level (least specific)',
+                    '4' => 'Company Level (least specific, final fallback)',
                 ],
+                'note' => 'This is a SaaS application. Each company manages its own tolerance settings. Company-level is the final fallback (no system-level tolerance).',
             ],
         ]);
     }

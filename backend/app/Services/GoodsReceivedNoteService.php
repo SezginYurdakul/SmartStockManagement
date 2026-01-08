@@ -625,7 +625,10 @@ class GoodsReceivedNoteService
      * 1. PurchaseOrderItem.over_delivery_tolerance_percentage
      * 2. Product.over_delivery_tolerance_percentage
      * 3. Category.over_delivery_tolerance_percentage (primary category)
-     * 4. System default (settings.delivery.default_over_delivery_tolerance)
+     * 4. Company default (settings.delivery.default_over_delivery_tolerance.{companyId})
+     * 
+     * Note: System-level tolerance removed as this is a SaaS application where each company
+     * manages its own tolerance settings. Company-level is the final fallback.
      * 
      * @param PurchaseOrderItem $purchaseOrderItem
      * @return float Tolerance percentage (e.g., 5.0 for 5%)
@@ -651,21 +654,12 @@ class GoodsReceivedNoteService
             }
         }
 
-        // 4. Company default (company-specific)
+        // 4. Company default (company-specific, final fallback)
         $companyId = Auth::user()->company_id;
         $companyKey = "delivery.default_over_delivery_tolerance.{$companyId}";
-        $companyDefault = Setting::get($companyKey, null);
+        $companyDefault = Setting::get($companyKey, 0);
         
-        if ($companyDefault !== null) {
-            $tolerance = is_array($companyDefault) ? (float) ($companyDefault[0] ?? 0) : (float) $companyDefault;
-            if ($tolerance > 0 || $companyDefault === 0) {
-                return $tolerance;
-            }
-        }
-
-        // 5. System default (global fallback)
-        $systemDefault = Setting::get('delivery.default_over_delivery_tolerance', 0);
-        $tolerance = is_array($systemDefault) ? (float) ($systemDefault[0] ?? 0) : (float) $systemDefault;
+        $tolerance = is_array($companyDefault) ? (float) ($companyDefault[0] ?? 0) : (float) $companyDefault;
         return $tolerance;
     }
 }
