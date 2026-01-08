@@ -77,6 +77,19 @@ class ProductController extends Controller
             'category_ids' => 'nullable|array',
             'category_ids.*' => 'exists:categories,id',
             'primary_category_id' => 'nullable|exists:categories,id',
+            // MRP Planning fields
+            'lead_time_days' => 'nullable|integer|min:0',
+            'safety_stock' => 'nullable|numeric|min:0',
+            'reorder_point' => 'nullable|numeric|min:0',
+            'make_or_buy' => 'nullable|string|in:make,buy',
+            'minimum_order_qty' => 'nullable|numeric|min:0',
+            'order_multiple' => 'nullable|numeric|min:1',
+            'maximum_stock' => 'nullable|numeric|min:0',
+            // Negative stock policy
+            'negative_stock_policy' => 'nullable|string|in:NEVER,ALLOWED,LIMITED',
+            'negative_stock_limit' => 'nullable|numeric|min:0',
+            // Reservation policy
+            'reservation_policy' => 'nullable|string|in:full,partial,reject,wait',
         ]);
 
         $product = $this->productService->create($validated);
@@ -127,6 +140,19 @@ class ProductController extends Controller
             'category_ids' => 'nullable|array',
             'category_ids.*' => 'exists:categories,id',
             'primary_category_id' => 'nullable|exists:categories,id',
+            // MRP Planning fields
+            'lead_time_days' => 'nullable|integer|min:0',
+            'safety_stock' => 'nullable|numeric|min:0',
+            'reorder_point' => 'nullable|numeric|min:0',
+            'make_or_buy' => 'nullable|string|in:make,buy',
+            'minimum_order_qty' => 'nullable|numeric|min:0',
+            'order_multiple' => 'nullable|numeric|min:1',
+            'maximum_stock' => 'nullable|numeric|min:0',
+            // Negative stock policy
+            'negative_stock_policy' => 'nullable|string|in:NEVER,ALLOWED,LIMITED',
+            'negative_stock_limit' => 'nullable|numeric|min:0',
+            // Reservation policy
+            'reservation_policy' => 'nullable|string|in:full,partial,reject,wait',
         ]);
 
         $product = $this->productService->update($product, $validated);

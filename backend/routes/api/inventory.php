@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\StockController;
+use App\Http\Controllers\StockDebtController;
 use App\Http\Controllers\StockMovementController;
 use Illuminate\Support\Facades\Route;
 
@@ -66,4 +67,13 @@ Route::prefix('stock-movements')->middleware('permission:inventory.view')->group
     Route::get('/warehouse/{warehouseId}', [StockMovementController::class, 'warehouseMovements']);
     Route::get('/types/movement', [StockMovementController::class, 'movementTypes']);
     Route::get('/types/transaction', [StockMovementController::class, 'transactionTypes']);
+});
+
+// Stock Debts (Negative Stock Management)
+Route::prefix('stock-debts')->middleware('permission:inventory.view')->group(function () {
+    Route::get('/', [StockDebtController::class, 'index']);
+    Route::get('/alerts', [StockDebtController::class, 'alerts']);
+    Route::get('/weekly-report', [StockDebtController::class, 'weeklyReport']);
+    Route::get('/long-term', [StockDebtController::class, 'longTerm']);
+    Route::get('/{stockDebt}', [StockDebtController::class, 'show']);
 });

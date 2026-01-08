@@ -25,6 +25,10 @@ class ProductListResource extends JsonResource
             'is_active' => $this->is_active,
             'is_featured' => $this->is_featured,
             'is_low_stock' => $this->isLowStock(),
+            // Negative stock policy (for quick overview in lists)
+            'negative_stock_policy' => $this->negative_stock_policy,
+            // Reservation policy (for quick overview in lists)
+            'reservation_policy' => $this->reservation_policy,
 
             // Minimal relations
             'primary_category' => $this->whenLoaded('categories', function () {

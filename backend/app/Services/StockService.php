@@ -4,10 +4,12 @@ namespace App\Services;
 
 use App\Exceptions\BusinessException;
 use App\Exceptions\QualityHoldException;
+use App\Enums\ReservationPolicy;
 use App\Models\Stock;
 use App\Models\Product;
 use App\Models\Warehouse;
 use App\Models\StockMovement;
+use App\Models\StockDebt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
@@ -156,6 +158,9 @@ class StockService
             $stock->status = $data['status'] ?? Stock::STATUS_AVAILABLE;
             $stock->save();
 
+            // If there is stock debt, automatically reconcile it
+            $this->reconcileStockDebts($stock, $data['quantity']);
+
             // Create movement record
             $this->movementService->createMovement([
                 'product_id' => $data['product_id'],
@@ -216,8 +221,23 @@ class StockService
                 $data['serial_number'] ?? null
             );
 
+            // If stock not found, check if we can create it (for negative stock with ALLOWED policy)
             if (!$stock) {
-                throw new BusinessException("Stock not found for the specified product and warehouse.");
+                $product = Product::findOrFail($data['product_id']);
+                $policy = $product->negative_stock_policy ?? 'NEVER';
+                
+                // Only allow creating stock if policy is ALLOWED or LIMITED
+                if ($policy === 'NEVER') {
+                    throw new BusinessException("Stock not found for the specified product and warehouse.");
+                }
+                
+                // Create stock record with 0 quantity (will go negative)
+                $stock = $this->findOrCreateStock(
+                    $data['product_id'],
+                    $data['warehouse_id'],
+                    $data['lot_number'] ?? null,
+                    $data['serial_number'] ?? null
+                );
             }
 
             // Check quality status for sale operation (unless skip_quality_check is set)
@@ -226,21 +246,40 @@ class StockService
                 $this->validateQualityStatus($stock, $operation);
             }
 
-            // Check available quantity
-            if ($stock->quantity_available < $data['quantity']) {
-                throw new BusinessException(
-                    "Insufficient stock. Available: {$stock->quantity_available}, Requested: {$data['quantity']}"
-                );
-            }
+            // Lock for update (atomicity)
+            $stock = Stock::where('id', $stock->id)
+                ->lockForUpdate()
+                ->first();
 
             $quantityBefore = $stock->quantity_on_hand;
+            $quantityAfter = $quantityBefore - $data['quantity'];
+
+            // Load product with fresh data
+            $product = Product::findOrFail($stock->product_id);
+            
+            // Check if we have enough stock or can go negative
+            if ($stock->quantity_available < $data['quantity']) {
+                // We don't have enough stock - check if we can go negative
+                $negativeAmount = $data['quantity'] - $stock->quantity_available;
+                
+                if (!$this->canGoNegative($product, $negativeAmount)) {
+                    $policy = $product->negative_stock_policy ?? 'NEVER';
+                    throw new BusinessException(
+                        "Insufficient stock. Available: {$stock->quantity_available}, Requested: {$data['quantity']}. " .
+                        "Product policy: {$policy}"
+                    );
+                }
+                
+                // We can go negative - quantityAfter will be negative
+                // Stock debt will be created below
+            }
 
             // Update stock
-            $stock->quantity_on_hand -= $data['quantity'];
+            $stock->quantity_on_hand = $quantityAfter;
             $stock->save();
 
             // Create movement record
-            $this->movementService->createMovement([
+            $movement = $this->movementService->createMovement([
                 'product_id' => $data['product_id'],
                 'warehouse_id' => $data['warehouse_id'],
                 'lot_number' => $data['lot_number'] ?? null,
@@ -251,10 +290,15 @@ class StockService
                 'reference_id' => $data['reference_id'] ?? null,
                 'quantity' => -$data['quantity'],
                 'quantity_before' => $quantityBefore,
-                'quantity_after' => $stock->quantity_on_hand,
+                'quantity_after' => $quantityAfter,
                 'unit_cost' => $stock->unit_cost,
                 'notes' => $data['notes'] ?? null,
             ]);
+
+            // Create stock debt if going negative
+            if ($quantityAfter < 0) {
+                $this->createStockDebt($stock, abs($quantityAfter), $data, $movement);
+            }
 
             DB::commit();
 
@@ -493,6 +537,48 @@ class StockService
             $this->validateQualityStatus($stock, $operation);
         }
 
+        // Get product and reservation policy
+        $product = Product::findOrFail($productId);
+        $policy = ReservationPolicy::tryFrom($product->reservation_policy ?? 'full') ?? ReservationPolicy::FULL;
+
+        $availableQty = $stock->quantity_available;
+        $requestedQty = $quantity;
+
+        // Check if we have enough stock
+        if ($availableQty < $requestedQty) {
+            // Handle based on reservation policy
+            if ($policy->shouldReject()) {
+                throw new BusinessException(
+                    "Cannot reserve {$requestedQty} units. Available: {$availableQty}. " .
+                    "Policy: {$policy->label()} (requires full quantity)."
+                );
+            }
+
+            // PARTIAL policy: reserve what's available
+            if ($policy->allowsPartial()) {
+                $quantity = $availableQty; // Reserve only available quantity
+                Log::info('Partial reservation applied', [
+                    'product_id' => $productId,
+                    'requested' => $requestedQty,
+                    'reserved' => $availableQty,
+                    'policy' => $policy->value,
+                ]);
+            }
+
+            // WAIT policy: TODO - Future implementation
+            // This policy should queue the reservation request and automatically retry
+            // when stock becomes available (e.g., via stock receipt webhook/event).
+            // Requires: Queue system, event listeners, retry mechanism.
+            if ($policy === ReservationPolicy::WAIT) {
+                throw new BusinessException(
+                    "Insufficient stock. Available: {$availableQty}, Requested: {$requestedQty}. " .
+                    "Policy: {$policy->label()} - ⚠️ WAIT policy is not yet implemented. " .
+                    "Currently throws error. Future: Will queue and auto-retry when stock arrives."
+                );
+            }
+        }
+
+        // Attempt reservation
         if (!$stock->reserve($quantity)) {
             throw new BusinessException(
                 "Cannot reserve {$quantity} units. Available: {$stock->quantity_available}"
@@ -502,6 +588,7 @@ class StockService
         Log::info('Stock reserved', [
             'stock_id' => $stock->id,
             'quantity' => $quantity,
+            'policy' => $policy->value,
         ]);
 
         return $stock->fresh();
@@ -658,5 +745,96 @@ class StockService
             ->where('quality_status', $qualityStatus)
             ->orderBy('updated_at', 'desc')
             ->paginate($perPage);
+    }
+
+    /**
+     * Check if product can go negative
+     */
+    protected function canGoNegative(Product $product, float $negativeAmount): bool
+    {
+        $policy = $product->negative_stock_policy ?? 'NEVER';
+        
+        if ($policy === 'NEVER') {
+            return false;
+        }
+        
+        if ($policy === 'ALLOWED') {
+            return true;
+        }
+        
+        if ($policy === 'LIMITED') {
+            $limit = $product->negative_stock_limit ?? 0;
+            $stockData = $this->getProductStock($product->id, null);
+            $currentStock = $stockData['total_available'] ?? 0;
+            $currentNegative = max(0, -$currentStock);
+            return ($currentNegative + $negativeAmount) <= $limit;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Create stock debt record
+     */
+    protected function createStockDebt(Stock $stock, float $debtQuantity, array $data, ?StockMovement $movement = null): void
+    {
+        StockDebt::create([
+            'company_id' => $stock->company_id,
+            'product_id' => $stock->product_id,
+            'warehouse_id' => $stock->warehouse_id,
+            'stock_movement_id' => $movement?->id,
+            'quantity' => $debtQuantity,
+            'reconciled_quantity' => 0,
+            'reference_type' => $data['reference_type'] ?? null,
+            'reference_id' => $data['reference_id'] ?? null,
+        ]);
+
+        Log::info('Stock debt created', [
+            'product_id' => $stock->product_id,
+            'warehouse_id' => $stock->warehouse_id,
+            'debt_quantity' => $debtQuantity,
+        ]);
+    }
+
+    /**
+     * Reconcile stock debts when stock is received
+     */
+    protected function reconcileStockDebts(Stock $stock, float $receivedQuantity): void
+    {
+        $debts = StockDebt::where('company_id', $stock->company_id)
+            ->where('product_id', $stock->product_id)
+            ->where('warehouse_id', $stock->warehouse_id)
+            ->whereColumn('reconciled_quantity', '<', 'quantity')
+            ->orderBy('created_at', 'asc') // FIFO
+            ->get();
+        
+        if ($debts->isEmpty()) {
+            return;
+        }
+        
+        $remaining = $receivedQuantity;
+        
+        foreach ($debts as $debt) {
+            if ($remaining <= 0) {
+                break;
+            }
+            
+            $outstanding = $debt->quantity - $debt->reconciled_quantity;
+            $toReconcile = min($remaining, $outstanding);
+            
+            $debt->reconciled_quantity += $toReconcile;
+            if ($debt->reconciled_quantity >= $debt->quantity) {
+                $debt->reconciled_at = now();
+            }
+            $debt->save();
+            
+            $remaining -= $toReconcile;
+            
+            Log::info('Stock debt reconciled', [
+                'debt_id' => $debt->id,
+                'reconciled_quantity' => $toReconcile,
+                'remaining_debt' => $debt->quantity - $debt->reconciled_quantity,
+            ]);
+        }
     }
 }

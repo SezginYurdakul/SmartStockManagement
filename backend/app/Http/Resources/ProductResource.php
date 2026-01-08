@@ -27,6 +27,11 @@ class ProductResource extends JsonResource
             'is_featured' => $this->is_featured,
             'is_low_stock' => $this->isLowStock(),
             'is_out_of_stock' => $this->isOutOfStock(),
+            // Negative stock policy
+            'negative_stock_policy' => $this->negative_stock_policy,
+            'negative_stock_limit' => $this->negative_stock_limit,
+            // Reservation policy
+            'reservation_policy' => $this->reservation_policy,
             'meta_data' => $this->meta_data,
 
             // Relations (only when loaded)
