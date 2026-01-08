@@ -176,7 +176,7 @@ class MrpRecommendation extends Model
         ]);
     }
 
-    public function reject(?string $notes = null): bool
+    public function reject(?string $notes = null, ?int $userId = null): bool
     {
         if (!$this->status->canReject()) {
             return false;
@@ -186,14 +186,15 @@ class MrpRecommendation extends Model
             'status' => MrpRecommendationStatus::REJECTED,
             'action_notes' => $notes,
             'actioned_at' => now(),
-            'actioned_by' => auth()->id(),
+            'actioned_by' => $userId,
         ]);
     }
 
     public function markAsActioned(
         string $referenceType,
         int $referenceId,
-        ?string $notes = null
+        ?string $notes = null,
+        ?int $userId = null
     ): bool {
         if (!$this->status->canAction()) {
             return false;
@@ -205,7 +206,7 @@ class MrpRecommendation extends Model
             'action_reference_id' => $referenceId,
             'action_notes' => $notes,
             'actioned_at' => now(),
-            'actioned_by' => auth()->id(),
+            'actioned_by' => $userId,
         ]);
     }
 

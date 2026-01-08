@@ -1235,6 +1235,11 @@ class MrpService
         $projectedStock = $currentStock;
         $safetyStock = $this->currentRun->include_safety_stock ? ($product->safety_stock ?? 0) : 0;
 
+        // If current stock is negative, this is a priority requirement
+        $negativeStock = min(0, $currentStock);
+        $hasNegativeStock = $negativeStock < 0;
+        $negativeStockImpact = $hasNegativeStock ? abs($negativeStock) : 0;
+
         // Group demands by date
         $demandsByDate = $demands->groupBy(function ($demand) {
             return $demand['required_date']->toDateString();
@@ -1265,6 +1270,13 @@ class MrpService
             $totalDemand = $dayDemands->sum('quantity');
 
             if ($totalDemand > 0) {
+                // If negative stock exists and this is the first demand, add negative stock impact
+                $adjustedDemand = $totalDemand;
+                if ($hasNegativeStock && $projectedStock < 0) {
+                    $adjustedDemand += $negativeStockImpact;
+                    $hasNegativeStock = false; // Only add to first demand
+                }
+
                 $projectedStock -= $totalDemand;
 
                 // Check if we fall below safety stock
@@ -1276,6 +1288,8 @@ class MrpService
                         'gross_requirement' => $totalDemand,
                         'net_requirement' => $shortage,
                         'projected_stock' => $projectedStock,
+                        'negative_stock_impact' => $hasNegativeStock ? $negativeStockImpact : 0,
+                        'priority' => ($hasNegativeStock || $projectedStock < 0) ? 'high' : 'normal',
                         'demands' => $dayDemands->toArray(),
                     ];
                 }
@@ -1292,6 +1306,8 @@ class MrpService
      */
     protected function generateRecommendations(Product $product, array $netRequirements): void
     {
+        $currentStock = $this->getCurrentStock($product);
+        $hasNegativeStock = $currentStock < 0;
         foreach ($netRequirements as $requirement) {
             $suggestedQty = $product->calculateOrderQuantity($requirement['net_requirement']);
 
@@ -1318,12 +1334,16 @@ class MrpService
                 ? $this->calculateOrderDate($product, $requiredDate)
                 : $requiredDate;
 
-            // Determine priority based on urgency
+            // Determine priority based on urgency and negative stock
             $priority = $this->determinePriority($suggestedDate);
             $isUrgent = $suggestedDate <= today();
             $urgencyReason = null;
 
-            if ($isUrgent) {
+            // If negative stock exists, mark as high priority
+            if ($hasNegativeStock || ($requirement['negative_stock_impact'] ?? 0) > 0) {
+                $priority = MrpPriority::HIGH;
+                $urgencyReason = 'Negative stock status: ' . abs($currentStock) . ' units. Priority requirement.';
+            } elseif ($isUrgent) {
                 $urgencyReason = 'Order date is today or in the past - immediate action required';
             } elseif ($suggestedDate <= today()->addDays(3)) {
                 $urgencyReason = 'Order date is within 3 days';
@@ -1357,6 +1377,7 @@ class MrpService
                     'lead_time_days' => $product->lead_time_days,
                     'minimum_order_qty' => $product->minimum_order_qty,
                     'order_multiple' => $product->order_multiple,
+                    'negative_stock_impact' => $requirement['negative_stock_impact'] ?? 0,
                     'demands' => $requirement['demands'],
                 ],
             ]);
@@ -1647,7 +1668,8 @@ class MrpService
         $recommendation->markAsActioned(
             \App\Models\PurchaseOrder::class,
             $purchaseOrder->id,
-            "Purchase Order {$purchaseOrder->order_number} created automatically"
+            "Purchase Order {$purchaseOrder->order_number} created automatically",
+            Auth::id()
         );
 
         Log::info('Purchase Order created from MRP recommendation', [
@@ -1722,7 +1744,8 @@ class MrpService
         $recommendation->markAsActioned(
             \App\Models\WorkOrder::class,
             $workOrder->id,
-            "Work Order {$workOrder->work_order_number} created automatically"
+            "Work Order {$workOrder->work_order_number} created automatically",
+            Auth::id()
         );
 
         Log::info('Work Order created from MRP recommendation', [
@@ -1737,7 +1760,7 @@ class MrpService
      */
     public function rejectRecommendation(MrpRecommendation $recommendation, ?string $notes = null): MrpRecommendation
     {
-        if (!$recommendation->reject($notes)) {
+        if (!$recommendation->reject($notes, Auth::id())) {
             throw new \Exception('Recommendation cannot be rejected.');
         }
 
@@ -1776,7 +1799,7 @@ class MrpService
             ->get();
 
         foreach ($recommendations as $recommendation) {
-            if ($recommendation->reject($notes)) {
+            if ($recommendation->reject($notes, Auth::id())) {
                 $count++;
             }
         }
