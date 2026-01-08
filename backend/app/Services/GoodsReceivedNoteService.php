@@ -651,8 +651,21 @@ class GoodsReceivedNoteService
             }
         }
 
-        // 4. System default
+        // 4. Company default (company-specific)
+        $companyId = Auth::user()->company_id;
+        $companyKey = "delivery.default_over_delivery_tolerance.{$companyId}";
+        $companyDefault = Setting::get($companyKey, null);
+        
+        if ($companyDefault !== null) {
+            $tolerance = is_array($companyDefault) ? (float) ($companyDefault[0] ?? 0) : (float) $companyDefault;
+            if ($tolerance > 0 || $companyDefault === 0) {
+                return $tolerance;
+            }
+        }
+
+        // 5. System default (global fallback)
         $systemDefault = Setting::get('delivery.default_over_delivery_tolerance', 0);
-        return (float) $systemDefault;
+        $tolerance = is_array($systemDefault) ? (float) ($systemDefault[0] ?? 0) : (float) $systemDefault;
+        return $tolerance;
     }
 }

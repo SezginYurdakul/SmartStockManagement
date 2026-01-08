@@ -27,6 +27,7 @@ class SalesOrderItem extends Model
         'tax_amount',
         'line_total',
         'notes',
+        'over_delivery_tolerance_percentage',
     ];
 
     protected $casts = [
@@ -39,6 +40,7 @@ class SalesOrderItem extends Model
         'tax_percentage' => 'decimal:2',
         'tax_amount' => 'decimal:4',
         'line_total' => 'decimal:2',
+        'over_delivery_tolerance_percentage' => 'decimal:2',
     ];
 
     /**

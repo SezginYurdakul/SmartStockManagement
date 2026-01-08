@@ -19,12 +19,14 @@ class Category extends Model
         'parent_id',
         'is_active',
         'sort_order',
+        'over_delivery_tolerance_percentage',
         'created_by',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'sort_order' => 'integer',
+        'over_delivery_tolerance_percentage' => 'decimal:2',
     ];
 
     /**

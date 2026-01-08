@@ -39,6 +39,13 @@ class Product extends Model
         'minimum_order_qty',
         'order_multiple',
         'maximum_stock',
+        // Negative stock policy
+        'negative_stock_policy',
+        'negative_stock_limit',
+        // Reservation policy
+        'reservation_policy',
+        // Over-delivery tolerance
+        'over_delivery_tolerance_percentage',
     ];
 
     protected $casts = [
@@ -58,6 +65,9 @@ class Product extends Model
         'minimum_order_qty' => 'decimal:4',
         'order_multiple' => 'decimal:4',
         'maximum_stock' => 'decimal:4',
+        'negative_stock_limit' => 'decimal:3',
+        'reservation_policy' => 'string',
+        'over_delivery_tolerance_percentage' => 'decimal:2',
     ];
 
     /**
@@ -553,5 +563,27 @@ class Product extends Model
     {
         $orderDate = \Carbon\Carbon::parse($requiredDate);
         return $orderDate->subDays($this->lead_time_days ?? 0);
+    }
+
+    /**
+     * Get negative stock limit based on policy
+     */
+    public function getNegativeStockLimit(): float
+    {
+        return match($this->negative_stock_policy ?? 'NEVER') {
+            'NEVER' => 0,
+            'ALLOWED' => PHP_FLOAT_MAX,
+            'LIMITED' => $this->negative_stock_limit ?? 0,
+            default => 0,
+        };
+    }
+
+    /**
+     * Check if product can go negative
+     */
+    public function canGoNegative(): bool
+    {
+        $policy = $this->negative_stock_policy ?? 'NEVER';
+        return $policy !== 'NEVER';
     }
 }

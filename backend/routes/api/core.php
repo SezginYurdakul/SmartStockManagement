@@ -4,6 +4,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\OverDeliveryToleranceController;
 use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\UnitOfMeasureController;
 use App\Http\Controllers\CompanyCalendarController;
@@ -53,6 +54,18 @@ Route::prefix('settings')->group(function () {
         Route::post('/', [SettingController::class, 'store']);
         Route::put('/{group}/{key}', [SettingController::class, 'update']);
         Route::delete('/{group}/{key}', [SettingController::class, 'destroy']);
+    });
+});
+
+// Over-Delivery Tolerance (Company-specific, Admin only)
+Route::prefix('over-delivery-tolerance')->group(function () {
+    Route::middleware(['permission:settings.view', 'role:admin'])->group(function () {
+        Route::get('/', [OverDeliveryToleranceController::class, 'show']);
+        Route::get('/levels', [OverDeliveryToleranceController::class, 'levels']);
+    });
+
+    Route::middleware(['permission:settings.edit', 'role:admin'])->group(function () {
+        Route::put('/', [OverDeliveryToleranceController::class, 'update']);
     });
 });
 

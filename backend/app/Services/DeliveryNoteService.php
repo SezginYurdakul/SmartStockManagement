@@ -10,6 +10,9 @@ use App\Models\DeliveryNoteItem;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use App\Models\Warehouse;
+use App\Models\Product;
+use App\Models\Category;
+use App\Models\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -150,17 +153,60 @@ class DeliveryNoteService
     protected function addItems(DeliveryNote $deliveryNote, array $items, SalesOrder $salesOrder): void
     {
         foreach ($items as $itemData) {
-            $salesOrderItem = SalesOrderItem::where('sales_order_id', $salesOrder->id)
+            $salesOrderItem = SalesOrderItem::with('product.primaryCategory')
+                ->where('sales_order_id', $salesOrder->id)
                 ->where('id', $itemData['sales_order_item_id'])
-                ->firstOrFail();
+                ->first();
+
+            if (!$salesOrderItem) {
+                throw new BusinessException(
+                    "SalesOrderItem not found. Sales Order ID: {$salesOrder->id}, Item ID: {$itemData['sales_order_item_id']}"
+                );
+            }
 
             $quantity = $itemData['quantity'];
-            $remainingQty = $salesOrderItem->quantity_ordered - $salesOrderItem->quantity_shipped;
+            
+            // Calculate total quantity already in delivery notes (including DRAFT ones)
+            // This prevents creating multiple delivery notes that exceed the ordered quantity
+            $query = DeliveryNoteItem::where('sales_order_item_id', $salesOrderItem->id);
+            
+            // Exclude current delivery note if updating
+            if ($deliveryNote->exists) {
+                $query->where('delivery_note_id', '!=', $deliveryNote->id);
+            }
+            
+            $totalInDeliveryNotes = $query->sum('quantity_shipped');
+            
+            $remainingQty = $salesOrderItem->quantity_ordered - $totalInDeliveryNotes;
+            
+            // Get over-delivery tolerance using fallback logic
+            $tolerancePercentage = $this->getOverDeliveryTolerance($salesOrderItem);
+            
+            // Calculate maximum allowed quantity (ordered + tolerance)
+            $maxAllowedQty = $salesOrderItem->quantity_ordered * (1 + $tolerancePercentage / 100);
+            $maxAllowedQtyInDeliveryNotes = $maxAllowedQty - $totalInDeliveryNotes;
 
+            // Check if quantity exceeds remaining (without tolerance)
             if ($quantity > $remainingQty) {
-                throw new BusinessException(
-                    "Cannot ship {$quantity} units. Only {$remainingQty} units remaining for product."
-                );
+                // Check if it's within tolerance
+                if ($quantity > $maxAllowedQtyInDeliveryNotes) {
+                    throw new BusinessException(
+                        "Cannot create delivery note with {$quantity} units. " .
+                        "Only {$remainingQty} units remaining (max allowed with tolerance: " . number_format($maxAllowedQtyInDeliveryNotes, 2) . "). " .
+                        "Total ordered: {$salesOrderItem->quantity_ordered}, " .
+                        "Tolerance: {$tolerancePercentage}%, " .
+                        "Already in delivery notes: {$totalInDeliveryNotes}."
+                    );
+                }
+                
+                // Within tolerance, log a warning
+                Log::warning('Over-delivery within tolerance', [
+                    'sales_order_item_id' => $salesOrderItem->id,
+                    'quantity_ordered' => $salesOrderItem->quantity_ordered,
+                    'quantity_requested' => $quantity,
+                    'tolerance_percentage' => $tolerancePercentage,
+                    'max_allowed' => $maxAllowedQty,
+                ]);
             }
 
             DeliveryNoteItem::create([
@@ -445,5 +491,56 @@ class DeliveryNoteService
             'label' => $status->label(),
             'color' => $status->color(),
         ], DeliveryNoteStatus::cases());
+    }
+
+    /**
+     * Get over-delivery tolerance percentage using fallback logic
+     * 
+     * Priority order (most specific to least specific):
+     * 1. SalesOrderItem.over_delivery_tolerance_percentage
+     * 2. Product.over_delivery_tolerance_percentage
+     * 3. Category.over_delivery_tolerance_percentage (primary category)
+     * 4. System default (settings.delivery.default_over_delivery_tolerance)
+     * 
+     * @param SalesOrderItem $salesOrderItem
+     * @return float Tolerance percentage (e.g., 5.0 for 5%)
+     */
+    protected function getOverDeliveryTolerance(SalesOrderItem $salesOrderItem): float
+    {
+        // 1. Check SalesOrderItem level (most specific)
+        if ($salesOrderItem->over_delivery_tolerance_percentage !== null) {
+            return (float) $salesOrderItem->over_delivery_tolerance_percentage;
+        }
+
+        // 2. Check Product level
+        $product = $salesOrderItem->product;
+        if ($product && $product->over_delivery_tolerance_percentage !== null) {
+            return (float) $product->over_delivery_tolerance_percentage;
+        }
+
+        // 3. Check Category level (primary category)
+        if ($product) {
+            $primaryCategory = $product->primaryCategory;
+            if ($primaryCategory && $primaryCategory->over_delivery_tolerance_percentage !== null) {
+                return (float) $primaryCategory->over_delivery_tolerance_percentage;
+            }
+        }
+
+        // 4. Company default (company-specific)
+        $companyId = Auth::user()->company_id;
+        $companyKey = "delivery.default_over_delivery_tolerance.{$companyId}";
+        $companyDefault = Setting::get($companyKey, null);
+        
+        if ($companyDefault !== null) {
+            $tolerance = is_array($companyDefault) ? (float) ($companyDefault[0] ?? 0) : (float) $companyDefault;
+            if ($tolerance > 0 || $companyDefault === 0) {
+                return $tolerance;
+            }
+        }
+
+        // 5. System default (global fallback)
+        $systemDefault = Setting::get('delivery.default_over_delivery_tolerance', 0);
+        $tolerance = is_array($systemDefault) ? (float) ($systemDefault[0] ?? 0) : (float) $systemDefault;
+        return $tolerance;
     }
 }

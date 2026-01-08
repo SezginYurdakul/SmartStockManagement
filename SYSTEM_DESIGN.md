@@ -994,7 +994,7 @@ The system implements a flexible over-delivery tolerance mechanism for both **Sa
 
 #### 6.7.1 Tolerance Levels (Fallback Logic)
 
-The system uses a **4-level fallback hierarchy** (most specific to least specific):
+The system uses a **5-level fallback hierarchy** (most specific to least specific):
 
 ```
 1. Order Item Level (Most Specific)
@@ -1007,7 +1007,10 @@ The system uses a **4-level fallback hierarchy** (most specific to least specifi
 3. Category Level
    └── categories.over_delivery_tolerance_percentage (primary category)
 
-4. System Default (Least Specific)
+4. Company Level (Company-specific default)
+   └── settings.delivery.default_over_delivery_tolerance.{company_id}
+
+5. System Default (Least Specific - Global fallback)
    └── settings.delivery.default_over_delivery_tolerance
 ```
 
@@ -1016,8 +1019,14 @@ The system uses a **4-level fallback hierarchy** (most specific to least specifi
 $tolerance = $orderItem->over_delivery_tolerance_percentage
     ?? $product->over_delivery_tolerance_percentage
     ?? $category->over_delivery_tolerance_percentage
+    ?? Setting::get("delivery.default_over_delivery_tolerance.{$companyId}", null)
     ?? Setting::get('delivery.default_over_delivery_tolerance', 0);
 ```
+
+**API Endpoints for Company-Level Tolerance:**
+- `GET /api/over-delivery-tolerance` - Get current company's default tolerance
+- `PUT /api/over-delivery-tolerance` - Update current company's default tolerance (Admin only)
+- `GET /api/over-delivery-tolerance/levels` - Get all tolerance levels (Company + System)
 
 #### 6.7.2 Database Schema
 
@@ -1179,9 +1188,22 @@ protected function getOverDeliveryTolerance(SalesOrderItem $salesOrderItem): flo
         }
     }
 
-    // 4. System default
+    // 4. Company default (company-specific)
+    $companyId = Auth::user()->company_id;
+    $companyKey = "delivery.default_over_delivery_tolerance.{$companyId}";
+    $companyDefault = Setting::get($companyKey, null);
+    
+    if ($companyDefault !== null) {
+        $tolerance = is_array($companyDefault) ? (float) ($companyDefault[0] ?? 0) : (float) $companyDefault;
+        if ($tolerance > 0 || $companyDefault === 0) {
+            return $tolerance;
+        }
+    }
+
+    // 5. System default (global fallback)
     $systemDefault = Setting::get('delivery.default_over_delivery_tolerance', 0);
-    return (float) $systemDefault;
+    $tolerance = is_array($systemDefault) ? (float) ($systemDefault[0] ?? 0) : (float) $systemDefault;
+    return $tolerance;
 }
 ```
 
@@ -1210,9 +1232,14 @@ protected function getOverDeliveryTolerance(SalesOrderItem $salesOrderItem): flo
 - Customer-specific tolerance for specific order
 - Set at Sales Order Item level
 
+**Company-Wide Default:**
+- Company-specific tolerance for all items (e.g., 0% = strict, 5% = flexible)
+- Set via API: `PUT /api/over-delivery-tolerance` (Admin only)
+- Managed per company independently
+
 **System-Wide Default:**
-- General tolerance for all items (e.g., 0% = strict, 5% = flexible)
-- Set in System Settings
+- Global fallback tolerance for all companies
+- Set in System Settings (for companies without company-specific setting)
 
 ---
 
