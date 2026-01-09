@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\SettingController;
@@ -29,6 +30,25 @@ Route::prefix('users')->group(function () {
     Route::delete('/{user}', [UserController::class, 'destroy'])->middleware('permission:users.delete');
     Route::post('/{id}/restore', [UserController::class, 'restore'])->middleware('permission:users.delete');
     Route::delete('/{id}/force', [UserController::class, 'forceDelete'])->middleware('role:admin');
+});
+
+// User Invitations
+Route::prefix('invitations')->group(function () {
+    // Public routes (no auth required)
+    Route::withoutMiddleware('auth:sanctum')->group(function () {
+        // Support both path parameter and query parameter for flexibility
+        Route::get('/accept/{token?}', [InvitationController::class, 'show']);
+        Route::post('/accept/{token?}', [InvitationController::class, 'accept']);
+    });
+
+    // Protected routes (require authentication)
+    Route::middleware('permission:users.view')->group(function () {
+        Route::get('/', [InvitationController::class, 'index']);
+    });
+
+    Route::post('/', [InvitationController::class, 'store'])->middleware('permission:users.create');
+    Route::post('/{id}/resend', [InvitationController::class, 'resend']); // Permission check in service (allows inviter)
+    Route::delete('/{id}', [InvitationController::class, 'destroy'])->middleware('permission:users.delete');
 });
 
 // Role & Permission Management (Admin only)
