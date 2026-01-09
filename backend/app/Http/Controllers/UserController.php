@@ -58,7 +58,7 @@ class UserController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'role_ids' => 'sometimes|array',
-            'role_ids.*' => 'exists:roles,id',
+            'role_ids.*' => 'required|integer|exists:roles,id',
         ]);
 
         $user = $this->userService->createUser($validated);

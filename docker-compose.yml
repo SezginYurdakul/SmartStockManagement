@@ -38,6 +38,14 @@ services:
       - REDIS_PORT=6379
       - ELASTICSEARCH_HOST=elasticsearch
       - ELASTICSEARCH_PORT=9200
+      - MAIL_MAILER=${MAIL_MAILER:-smtp}
+      - MAIL_HOST=${MAIL_HOST:-mailpit}
+      - MAIL_PORT=${MAIL_PORT:-1025}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_ENCRYPTION=${MAIL_ENCRYPTION:-}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS:-noreply@smartstock.local}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-Smart Stock Management}
     networks:
       - sms_network
 
@@ -198,6 +206,21 @@ services:
       - sms_network
     profiles:
       - redis
+      - all
+
+  # Mailpit - Email Testing Tool (Development)
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: sms_mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP port
+      - "8025:8025"  # Web UI port
+    networks:
+      - sms_network
+    profiles:
+      - mail
+      - dev
       - all
 
 networks:

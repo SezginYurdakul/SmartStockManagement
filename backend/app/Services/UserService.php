@@ -56,6 +56,23 @@ class UserService
         // Security: Prevent company_id from being set via request
         unset($data['company_id']);
 
+        // Check if user with this email exists (including soft deleted)
+        $existingUser = User::withTrashed()->where('email', $data['email'])->first();
+        
+        if ($existingUser) {
+            if ($existingUser->deleted_at === null) {
+                throw new BusinessException('A user with this email already exists.');
+            }
+            
+            // User is soft deleted - check if they belong to the same company
+            if ($existingUser->company_id !== $companyId) {
+                throw new BusinessException('A user with this email was previously deactivated in another company.');
+            }
+            
+            // User belongs to same company - suggest restoration
+            throw new BusinessException('A user with this email was previously deactivated. Please restore the user instead of creating a new one.');
+        }
+
         Log::info('Creating new user', [
             'first_name' => $data['first_name'],
             'last_name' => $data['last_name'],
@@ -75,7 +92,7 @@ class UserService
             ]);
 
             // Assign roles if provided
-            if (isset($data['role_ids'])) {
+            if (isset($data['role_ids']) && !empty($data['role_ids'])) {
                 $this->assignRoles($user, $data['role_ids']);
                 Log::debug('Assigned roles to user', [
                     'user_id' => $user->id,
@@ -85,12 +102,15 @@ class UserService
 
             DB::commit();
 
+            // Load roles relationship for response
+            $user->load('roles');
+
             Log::info('User created successfully', [
                 'user_id' => $user->id,
                 'email' => $user->email,
             ]);
 
-            return $user->fresh(['roles']);
+            return $user;
 
         } catch (Exception $e) {
             DB::rollBack();
