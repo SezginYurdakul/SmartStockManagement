@@ -26,6 +26,9 @@ services:
     working_dir: /var/www/backend
     volumes:
       - ./backend:/var/www/backend
+    depends_on:
+      - postgres
+      - redis
     environment:
       - DB_CONNECTION=${DB_CONNECTION:-pgsql}
       - DB_HOST=${DB_HOST:-postgres}
@@ -36,6 +39,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PASSWORD=null
       - REDIS_PORT=6379
+      - CACHE_STORE=${CACHE_STORE:-redis}
+      - QUEUE_CONNECTION=${QUEUE_CONNECTION:-redis}
       - ELASTICSEARCH_HOST=elasticsearch
       - ELASTICSEARCH_PORT=9200
       - MAIL_MAILER=${MAIL_MAILER:-smtp}
@@ -65,10 +70,6 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - sms_network
-    profiles:
-      - postgres
-      - database
-      - all
 
   # MySQL Database (Optional)
   mysql:
@@ -102,9 +103,6 @@ services:
       - redis_data:/data
     networks:
       - sms_network
-    profiles:
-      - redis
-      - all
 
   # Node.js for React Development (Optional - Full-stack mode only)
   node:
@@ -189,23 +187,6 @@ services:
     profiles:
       - postgres
       - database
-      - all
-
-  # Redis Commander (Redis GUI - Optional)
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: sms_redis_commander
-    restart: unless-stopped
-    ports:
-      - "8081:8081"
-    environment:
-      - REDIS_HOSTS=local:redis:6379
-    depends_on:
-      - redis
-    networks:
-      - sms_network
-    profiles:
-      - redis
       - all
 
   # Mailpit - Email Testing Tool (Development)

@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Log;
 class MrpCacheService
 {
     protected const CACHE_PREFIX = 'mrp:';
-    protected const CACHE_TTL = 14400; // 4 hours (increased from 1 hour for safety)
+    protected const CACHE_TTL = 14400; // 4 hours (for MRP calculations - long-running)
+    protected const BOM_EXPLODE_TTL = 3600; // 1 hour (for BOM explode endpoint - shorter for freshness)
     protected const LOCK_TTL = 10800; // 3 hours (increased from 5 minutes for long-running MRP)
     protected const CHUNK_SIZE = 100; // Process 100 products at a time
     protected const DIRTY_PRODUCTS_TTL = 86400; // 24 hours for dirty products tracking
@@ -43,6 +44,23 @@ class MrpCacheService
     {
         $qtyHash = md5((string) $quantity);
         return self::CACHE_PREFIX . "explosion:product:{$productId}:qty:{$qtyHash}";
+    }
+
+    /**
+     * Get cache key for BOM explosion (BOM ID based, quantity-independent)
+     * Quantity is excluded from cache key since BOM explosion scales linearly with quantity
+     */
+    protected function getBomExplodeCacheKey(int $bomId, bool $includeOptional, bool $aggregateByProduct, bool $asTree): string
+    {
+        // Create a hash from parameters (excluding quantity)
+        $params = [
+            'bom_id' => $bomId,
+            'opt' => $includeOptional ? 1 : 0,
+            'agg' => $aggregateByProduct ? 1 : 0,
+            'tree' => $asTree ? 1 : 0,
+        ];
+        $paramsHash = md5(json_encode($params));
+        return self::CACHE_PREFIX . "explode:bom:{$bomId}:{$paramsHash}";
     }
 
     /**
@@ -128,6 +146,69 @@ class MrpCacheService
     {
         $cacheKey = $this->getBomExplosionCacheKey($productId, $quantity);
         Redis::setex($cacheKey, self::CACHE_TTL, json_encode($explosion));
+    }
+
+    /**
+     * Get cached BOM explode result (BOM ID based, quantity-independent)
+     * Returns base structure (quantity=1), caller should scale quantities
+     */
+    public function getCachedBomExplode(int $bomId, bool $includeOptional, bool $aggregateByProduct, bool $asTree): ?array
+    {
+        $cacheKey = $this->getBomExplodeCacheKey($bomId, $includeOptional, $aggregateByProduct, $asTree);
+        $cached = Redis::get($cacheKey);
+        
+        return $cached ? json_decode($cached, true) : null;
+    }
+
+    /**
+     * Cache BOM explode result (BOM ID based, quantity-independent)
+     * Stores base structure (quantity=1) for linear scaling
+     */
+    public function cacheBomExplode(int $bomId, bool $includeOptional, bool $aggregateByProduct, bool $asTree, array $explosion): void
+    {
+        $cacheKey = $this->getBomExplodeCacheKey($bomId, $includeOptional, $aggregateByProduct, $asTree);
+        Redis::setex($cacheKey, self::BOM_EXPLODE_TTL, json_encode($explosion));
+    }
+
+    /**
+     * Invalidate BOM explode cache for a specific BOM
+     */
+    public function invalidateBomExplodeCache(int $bomId): void
+    {
+        $pattern = self::CACHE_PREFIX . "explode:bom:{$bomId}:*";
+        $keys = Redis::keys($pattern);
+        
+        if (!empty($keys)) {
+            Redis::del($keys);
+        }
+        
+        // Also invalidate structure cache
+        $structureKey = self::CACHE_PREFIX . "bom_structure:{$bomId}";
+        Redis::del($structureKey);
+    }
+
+    /**
+     * Scale BOM explosion quantities by a factor
+     * Used when retrieving cached base structure (quantity=1) for different quantities
+     */
+    public function scaleExplosionQuantities(array $explosion, float $scaleFactor): array
+    {
+        if (abs($scaleFactor - 1.0) < 0.0001) {
+            return $explosion; // No scaling needed
+        }
+
+        return array_map(function ($item) use ($scaleFactor) {
+            if (isset($item['quantity'])) {
+                $item['quantity'] = round($item['quantity'] * $scaleFactor, 4);
+            }
+            
+            // Recursively scale children if tree structure
+            if (isset($item['children']) && is_array($item['children'])) {
+                $item['children'] = $this->scaleExplosionQuantities($item['children'], $scaleFactor);
+            }
+            
+            return $item;
+        }, $explosion);
     }
 
     /**

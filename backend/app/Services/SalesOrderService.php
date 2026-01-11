@@ -20,11 +20,16 @@ class SalesOrderService
 {
     protected CustomerGroupPriceService $priceService;
     protected StockService $stockService;
+    protected AuditLogService $auditLogService;
 
-    public function __construct(CustomerGroupPriceService $priceService, StockService $stockService)
-    {
+    public function __construct(
+        CustomerGroupPriceService $priceService,
+        StockService $stockService,
+        AuditLogService $auditLogService
+    ) {
         $this->priceService = $priceService;
         $this->stockService = $stockService;
+        $this->auditLogService = $auditLogService;
     }
 
     /**
@@ -284,6 +289,13 @@ class SalesOrderService
             'status' => SalesOrderStatus::PENDING_APPROVAL->value,
         ]);
 
+        // Audit logging
+        $this->auditLogService->logEvent(
+            'submitted_for_approval',
+            $salesOrder,
+            "Sales order submitted for approval: {$salesOrder->order_number}"
+        );
+
         return $salesOrder->fresh();
     }
 
@@ -309,6 +321,14 @@ class SalesOrderService
             'approved_by' => Auth::id(),
             'approved_at' => now(),
         ]);
+
+        // Audit logging
+        $this->auditLogService->logEvent(
+            'approved',
+            $salesOrder,
+            "Sales order approved: {$salesOrder->order_number}",
+            ['approved_by' => Auth::id(), 'approved_at' => now()->toIso8601String()]
+        );
 
         return $salesOrder->fresh();
     }
@@ -345,6 +365,14 @@ class SalesOrderService
                     ? $salesOrder->internal_notes . "\nRejection reason: " . $reason
                     : $salesOrder->internal_notes,
             ]);
+
+            // Audit logging
+            $this->auditLogService->logEvent(
+                'rejected',
+                $salesOrder,
+                "Sales order rejected: {$salesOrder->order_number}",
+                ['reason' => $reason]
+            );
 
             DB::commit();
 
@@ -386,6 +414,13 @@ class SalesOrderService
 
             // Automatically reserve stock for all items
             $this->reserveStockForOrder($salesOrder);
+
+            // Audit logging
+            $this->auditLogService->logEvent(
+                'confirmed',
+                $salesOrder,
+                "Sales order confirmed: {$salesOrder->order_number} (stock reserved)"
+            );
 
             DB::commit();
 
@@ -433,6 +468,13 @@ class SalesOrderService
             'status' => SalesOrderStatus::SHIPPED->value,
         ]);
 
+        // Audit logging
+        $this->auditLogService->logEvent(
+            'shipped',
+            $salesOrder,
+            "Sales order marked as shipped: {$salesOrder->order_number}"
+        );
+
         return $salesOrder->fresh();
     }
 
@@ -455,6 +497,13 @@ class SalesOrderService
         $salesOrder->update([
             'status' => SalesOrderStatus::DELIVERED->value,
         ]);
+
+        // Audit logging
+        $this->auditLogService->logEvent(
+            'delivered',
+            $salesOrder,
+            "Sales order marked as delivered: {$salesOrder->order_number}"
+        );
 
         return $salesOrder->fresh();
     }
@@ -491,6 +540,14 @@ class SalesOrderService
                     ? $salesOrder->internal_notes . "\nCancellation reason: " . $reason
                     : $salesOrder->internal_notes,
             ]);
+
+            // Audit logging
+            $this->auditLogService->logEvent(
+                'cancelled',
+                $salesOrder,
+                "Sales order cancelled: {$salesOrder->order_number}",
+                ['reason' => $reason]
+            );
 
             DB::commit();
 

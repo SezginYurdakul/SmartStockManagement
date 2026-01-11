@@ -85,6 +85,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Register Observers for automatic MRP cache invalidation
         Bom::observe(BomObserver::class);
+        \App\Models\BomItem::observe(\App\Observers\BomItemObserver::class);
         Product::observe(ProductObserver::class);
         CompanyCalendar::observe(CompanyCalendarObserver::class);
     }

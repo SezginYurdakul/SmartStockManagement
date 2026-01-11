@@ -3,18 +3,39 @@
 namespace App\Observers;
 
 use App\Models\Product;
+use App\Services\AuditLogService;
 use App\Services\MrpCacheService;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Product Observer
  * Automatically invalidates MRP cache when product MRP-related fields change
+ * and logs audit events for compliance
  */
 class ProductObserver
 {
     public function __construct(
-        protected MrpCacheService $cacheService
+        protected MrpCacheService $cacheService,
+        protected AuditLogService $auditLogService
     ) {}
+
+    /**
+     * Handle the Product "created" event.
+     */
+    public function created(Product $product): void
+    {
+        // Note: We don't invalidate MRP cache on product creation because:
+        // 1. New product may not be used in any BOM yet
+        // 2. Low-Level Code calculation depends on BOMs, not individual products
+        // 3. BOM creation/update already invalidates cache (BomObserver)
+        // 4. MRP field changes are handled in updated() event
+        
+        // Audit logging
+        $this->auditLogService->logCreation(
+            $product,
+            "Product created: {$product->name} (SKU: {$product->sku})"
+        );
+    }
 
     /**
      * Handle the Product "updated" event.
@@ -38,6 +59,24 @@ class ProductObserver
             // Mark product as dirty for incremental MRP
             $this->markProductDirty($product);
         }
+        
+        // Audit logging (log all changes, not just MRP fields)
+        $this->auditLogService->logUpdate(
+            $product,
+            "Product updated: {$product->name} (SKU: {$product->sku})"
+        );
+    }
+
+    /**
+     * Handle the Product "deleted" event.
+     */
+    public function deleted(Product $product): void
+    {
+        // Audit logging
+        $this->auditLogService->logDeletion(
+            $product,
+            "Product deleted: {$product->name} (SKU: {$product->sku})"
+        );
     }
 
     /**

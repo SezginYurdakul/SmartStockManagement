@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Bom;
 use App\Services\BomService;
+use App\Services\MrpCacheService;
 use App\Http\Resources\BomResource;
 use App\Http\Resources\BomListResource;
 use App\Http\Resources\BomItemResource;
@@ -13,12 +14,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Validation\Rule;
 
 class BomController extends Controller
 {
     public function __construct(
-        protected BomService $bomService
+        protected BomService $bomService,
+        protected MrpCacheService $cacheService
     ) {}
 
     /**
@@ -293,45 +296,75 @@ class BomController extends Controller
         // Auto-detect aggregate_by_product based on BOM levels
         $aggregateByProduct = $validated['aggregate_by_product'] ?? null;
         
-        // First, explode without aggregation to check levels
-        $materials = $this->bomService->explodeBom($bom, $quantity, 10, $includeOptional, $explodeAllLevels, false);
+        // Check if BOM structure is cached (for determining single vs multi-level)
+        // We use a simple flag to check structure without full explosion
+        $structureCacheKey = "mrp:bom_structure:{$bom->id}";
+        $hasMultiLevel = null;
+        $cachedStructure = Redis::get($structureCacheKey);
         
-        // Check if BOM has multi-level structure
-        $hasMultiLevel = false;
-        foreach ($materials as $material) {
-            if ($material['level'] > 0) {
-                $hasMultiLevel = true;
-                break;
+        if ($cachedStructure !== null) {
+            $hasMultiLevel = json_decode($cachedStructure, true)['has_multi_level'] ?? null;
+        }
+        
+        // If structure not cached, do a quick explosion to determine it
+        if ($hasMultiLevel === null) {
+            $tempMaterials = $this->bomService->explodeBom($bom, 1, 10, false, false, false, false);
+            $hasMultiLevel = false;
+            foreach ($tempMaterials as $material) {
+                if ($material['level'] > 0) {
+                    $hasMultiLevel = true;
+                    break;
+                }
             }
+            // Cache structure info for 1 hour
+            Redis::setex($structureCacheKey, 3600, json_encode(['has_multi_level' => $hasMultiLevel]));
         }
         
-        // If single-level BOM, suggest using GET BOM instead
-        if (!$hasMultiLevel) {
-            return response()->json([
-                'message' => 'This BOM is single-level. Use GET /api/boms/{bom} to view direct components.',
-                'suggestion' => 'For single-level BOMs, GET /api/boms/' . $bom->id . ' provides the same information.',
-                'data' => [
-                    'bom' => BomListResource::make($bom),
-                    'is_single_level' => true,
-                ],
-            ], 200);
-        }
-        
-        // Auto-detect: Multi level → use tree structure (don't aggregate by default)
+        // Auto-detect aggregate_by_product based on BOM structure
         if ($aggregateByProduct === null) {
-            $aggregateByProduct = false; // Default: show detailed tree for multi-level
+            // Single-level: default to aggregate for cleaner output
+            // Multi-level: default to false for detailed tree
+            $aggregateByProduct = !$hasMultiLevel;
         }
         
-        // Explode with tree structure for multi-level BOMs (always all levels)
-        $materials = $this->bomService->explodeBom(
-            $bom, 
-            $quantity, 
-            10, 
-            $includeOptional, 
-            $explodeAllLevels, // Always true
+        $asTree = $hasMultiLevel; // Tree structure for multi-level
+        
+        // Check cache (quantity-independent, base structure for quantity=1)
+        $baseMaterials = $this->cacheService->getCachedBomExplode(
+            $bom->id,
+            $includeOptional,
             $aggregateByProduct,
-            $hasMultiLevel // asTree: true for multi-level
+            $asTree
         );
+        
+        if ($baseMaterials === null) {
+            // Cache miss - explode BOM with quantity=1 (base structure)
+            $baseMaterials = $this->bomService->explodeBom(
+                $bom, 
+                1, // Base quantity = 1 for caching
+                10, 
+                $includeOptional, 
+                $explodeAllLevels, // Always true
+                $aggregateByProduct,
+                $asTree // asTree: true for multi-level, false for single-level
+            );
+            
+            // Cache the base structure (quantity=1)
+            $this->cacheService->cacheBomExplode(
+                $bom->id,
+                $includeOptional,
+                $aggregateByProduct,
+                $asTree,
+                $baseMaterials
+            );
+        }
+        
+        // Scale quantities if needed (quantity != 1)
+        if (abs($quantity - 1.0) > 0.0001) {
+            $materials = $this->cacheService->scaleExplosionQuantities($baseMaterials, $quantity);
+        } else {
+            $materials = $baseMaterials;
+        }
 
         return response()->json([
             'data' => [
@@ -339,9 +372,10 @@ class BomController extends Controller
                 'quantity' => $quantity,
                 'include_optional' => $includeOptional,
                 'aggregate_by_product' => $aggregateByProduct,
-                'structure' => 'tree', // Always tree for multi-level
+                'is_single_level' => !$hasMultiLevel,
+                'structure' => $hasMultiLevel ? 'tree' : 'flat',
                 'materials' => $materials,
-                'total_materials' => $this->countTreeItems($materials),
+                'total_materials' => $hasMultiLevel ? $this->countTreeItems($materials) : count($materials),
             ],
         ]);
     }

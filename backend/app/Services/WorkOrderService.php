@@ -25,7 +25,8 @@ class WorkOrderService
     public function __construct(
         protected BomService $bomService,
         protected RoutingService $routingService,
-        protected StockService $stockService
+        protected StockService $stockService,
+        protected AuditLogService $auditLogService
     ) {}
 
     /**
@@ -221,6 +222,14 @@ class WorkOrderService
             // Automatically reserve materials for all items
             $this->reserveMaterialsForOrder($workOrder);
 
+            // Audit logging
+            $this->auditLogService->logEvent(
+                'released',
+                $workOrder,
+                "Work order released: {$workOrder->work_order_number} (materials reserved)",
+                ['released_by' => Auth::id(), 'released_at' => now()->toIso8601String()]
+            );
+
             DB::commit();
 
             Log::info('Work order released and materials reserved', [
@@ -255,6 +264,13 @@ class WorkOrderService
             'actual_start_date' => $workOrder->actual_start_date ?? now(),
         ]);
 
+        // Audit logging
+        $this->auditLogService->logEvent(
+            'started',
+            $workOrder,
+            "Work order started: {$workOrder->work_order_number}"
+        );
+
         return $workOrder->fresh();
     }
 
@@ -280,6 +296,14 @@ class WorkOrderService
             'completed_by' => Auth::id(),
             'completed_at' => now(),
         ]);
+
+        // Audit logging
+        $this->auditLogService->logEvent(
+            'completed',
+            $workOrder,
+            "Work order completed: {$workOrder->work_order_number}",
+            ['completed_by' => Auth::id(), 'completed_at' => now()->toIso8601String()]
+        );
 
         return $workOrder->fresh();
     }
@@ -308,6 +332,14 @@ class WorkOrderService
                 'status' => WorkOrderStatus::CANCELLED,
                 'notes' => $reason ? ($workOrder->notes . "\n\nCancelled: " . $reason) : $workOrder->notes,
             ]);
+
+            // Audit logging
+            $this->auditLogService->logEvent(
+                'cancelled',
+                $workOrder,
+                "Work order cancelled: {$workOrder->work_order_number}",
+                ['reason' => $reason]
+            );
 
             DB::commit();
 

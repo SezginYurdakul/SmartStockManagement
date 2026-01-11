@@ -3,18 +3,20 @@
 namespace App\Observers;
 
 use App\Models\CompanyCalendar;
+use App\Services\AuditLogService;
 use App\Services\MrpCacheService;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Company Calendar Observer
  * Automatically invalidates MRP cache when company calendar changes
- * (affects working day calculations)
+ * (affects working day calculations) and logs audit events for compliance
  */
 class CompanyCalendarObserver
 {
     public function __construct(
-        protected MrpCacheService $cacheService
+        protected MrpCacheService $cacheService,
+        protected AuditLogService $auditLogService
     ) {}
 
     /**
@@ -23,6 +25,12 @@ class CompanyCalendarObserver
     public function created(CompanyCalendar $calendar): void
     {
         $this->invalidateCache($calendar);
+        
+        // Audit logging
+        $this->auditLogService->logCreation(
+            $calendar,
+            "Company Calendar created: {$calendar->calendar_date} - {$calendar->day_type}"
+        );
     }
 
     /**
@@ -40,6 +48,12 @@ class CompanyCalendarObserver
         ])) {
             $this->invalidateCache($calendar);
         }
+        
+        // Audit logging
+        $this->auditLogService->logUpdate(
+            $calendar,
+            "Company Calendar updated: {$calendar->calendar_date} - {$calendar->day_type}"
+        );
     }
 
     /**
@@ -48,6 +62,12 @@ class CompanyCalendarObserver
     public function deleted(CompanyCalendar $calendar): void
     {
         $this->invalidateCache($calendar);
+        
+        // Audit logging
+        $this->auditLogService->logDeletion(
+            $calendar,
+            "Company Calendar deleted: {$calendar->calendar_date} - {$calendar->day_type}"
+        );
     }
 
     /**

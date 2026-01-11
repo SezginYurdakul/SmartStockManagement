@@ -3,17 +3,20 @@
 namespace App\Observers;
 
 use App\Models\Bom;
+use App\Services\AuditLogService;
 use App\Services\MrpCacheService;
 use Illuminate\Support\Facades\Log;
 
 /**
  * BOM Observer
  * Automatically invalidates MRP cache when BOMs are created, updated, or deleted
+ * and logs audit events for compliance
  */
 class BomObserver
 {
     public function __construct(
-        protected MrpCacheService $cacheService
+        protected MrpCacheService $cacheService,
+        protected AuditLogService $auditLogService
     ) {}
 
     /**
@@ -22,6 +25,12 @@ class BomObserver
     public function created(Bom $bom): void
     {
         $this->invalidateCache($bom);
+        
+        // Audit logging
+        $this->auditLogService->logCreation(
+            $bom,
+            "BOM created: {$bom->bom_number} - {$bom->name}"
+        );
     }
 
     /**
@@ -38,6 +47,12 @@ class BomObserver
                 $this->markProductDirty($bom);
             }
         }
+        
+        // Audit logging
+        $this->auditLogService->logUpdate(
+            $bom,
+            "BOM updated: {$bom->bom_number} - {$bom->name}"
+        );
     }
 
     /**
@@ -46,6 +61,12 @@ class BomObserver
     public function deleted(Bom $bom): void
     {
         $this->invalidateCache($bom);
+        
+        // Audit logging
+        $this->auditLogService->logDeletion(
+            $bom,
+            "BOM deleted: {$bom->bom_number} - {$bom->name}"
+        );
     }
 
     /**
@@ -57,6 +78,9 @@ class BomObserver
             // BOM changes always require LLC recalculation
             $this->cacheService->invalidateLowLevelCodes($bom->company_id);
             $this->cacheService->invalidateCompanyCache($bom->company_id);
+            
+            // Also invalidate BOM explode cache (for /api/boms/{bom}/explode endpoint)
+            $this->cacheService->invalidateBomExplodeCache($bom->id);
             
             Log::info('MRP cache invalidated due to BOM change', [
                 'bom_id' => $bom->id,

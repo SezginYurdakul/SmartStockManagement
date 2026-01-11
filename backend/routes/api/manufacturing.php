@@ -45,7 +45,7 @@ Route::prefix('boms')->group(function () {
         Route::get('/statuses', [BomController::class, 'statuses']);
         Route::get('/for-product/{productId}', [BomController::class, 'forProduct']);
         Route::get('/{bom}', [BomController::class, 'show']);
-        Route::get('/{bom}/explode', [BomController::class, 'explode']);
+        Route::match(['get', 'post'], '/{bom}/explode', [BomController::class, 'explode']);
     });
 
     Route::post('/', [BomController::class, 'store'])->middleware('permission:manufacturing.create');

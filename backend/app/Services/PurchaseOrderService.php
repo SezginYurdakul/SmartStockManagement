@@ -18,6 +18,12 @@ use Exception;
 
 class PurchaseOrderService
 {
+    protected AuditLogService $auditLogService;
+
+    public function __construct(AuditLogService $auditLogService)
+    {
+        $this->auditLogService = $auditLogService;
+    }
     /**
      * Get paginated purchase orders with filters
      */
@@ -316,6 +322,13 @@ class PurchaseOrderService
             'updated_by' => Auth::id(),
         ]);
 
+        // Audit logging
+        $this->auditLogService->logEvent(
+            'submitted_for_approval',
+            $purchaseOrder,
+            "Purchase order submitted for approval: {$purchaseOrder->order_number}"
+        );
+
         return $purchaseOrder->fresh();
     }
 
@@ -348,6 +361,14 @@ class PurchaseOrderService
             'updated_by' => Auth::id(),
         ]);
 
+        // Audit logging
+        $this->auditLogService->logEvent(
+            'approved',
+            $purchaseOrder,
+            "Purchase order approved: {$purchaseOrder->order_number}",
+            ['approved_by' => Auth::id(), 'approved_at' => now()->toIso8601String()]
+        );
+
         return $purchaseOrder->fresh();
     }
 
@@ -375,6 +396,14 @@ class PurchaseOrderService
             'updated_by' => Auth::id(),
         ]);
 
+        // Audit logging
+        $this->auditLogService->logEvent(
+            'rejected',
+            $purchaseOrder,
+            "Purchase order rejected: {$purchaseOrder->order_number}",
+            ['reason' => $reason]
+        );
+
         return $purchaseOrder->fresh();
     }
 
@@ -399,6 +428,13 @@ class PurchaseOrderService
             'status' => $targetStatus->value,
             'updated_by' => Auth::id(),
         ]);
+
+        // Audit logging
+        $this->auditLogService->logEvent(
+            'sent',
+            $purchaseOrder,
+            "Purchase order marked as sent to supplier: {$purchaseOrder->order_number}"
+        );
 
         return $purchaseOrder->fresh();
     }
@@ -427,6 +463,14 @@ class PurchaseOrderService
             'updated_by' => Auth::id(),
         ]);
 
+        // Audit logging
+        $this->auditLogService->logEvent(
+            'cancelled',
+            $purchaseOrder,
+            "Purchase order cancelled: {$purchaseOrder->order_number}",
+            ['reason' => $reason]
+        );
+
         return $purchaseOrder->fresh();
     }
 
@@ -451,6 +495,13 @@ class PurchaseOrderService
             'status' => $targetStatus->value,
             'updated_by' => Auth::id(),
         ]);
+
+        // Audit logging
+        $this->auditLogService->logEvent(
+            'closed',
+            $purchaseOrder,
+            "Purchase order closed: {$purchaseOrder->order_number}"
+        );
 
         return $purchaseOrder->fresh();
     }

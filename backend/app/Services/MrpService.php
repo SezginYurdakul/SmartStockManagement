@@ -43,7 +43,8 @@ class MrpService
     public function __construct(
         protected BomService $bomService,
         protected StockService $stockService,
-        protected MrpCacheService $cacheService
+        protected MrpCacheService $cacheService,
+        protected AuditLogService $auditLogService
     ) {}
 
     // =========================================
@@ -1565,11 +1566,27 @@ class MrpService
             ]);
 
             // Automatically create Purchase Order or Work Order based on recommendation type
+            $createdDocument = null;
             if ($recommendation->recommendation_type === MrpRecommendationType::PURCHASE_ORDER) {
-                $this->createPurchaseOrderFromRecommendation($recommendation);
+                $createdDocument = $this->createPurchaseOrderFromRecommendation($recommendation);
             } elseif ($recommendation->recommendation_type === MrpRecommendationType::WORK_ORDER) {
-                $this->createWorkOrderFromRecommendation($recommendation);
+                $createdDocument = $this->createWorkOrderFromRecommendation($recommendation);
             }
+
+            // Audit logging
+            $this->auditLogService->logEvent(
+                'approved',
+                $recommendation,
+                "MRP recommendation approved: {$recommendation->recommendation_type->value} for product {$recommendation->product->name}",
+                [
+                    'recommendation_type' => $recommendation->recommendation_type->value,
+                    'product_id' => $recommendation->product_id,
+                    'created_document' => $createdDocument ? [
+                        'type' => $recommendation->recommendation_type->value,
+                        'id' => $createdDocument->id ?? null,
+                    ] : null,
+                ]
+            );
 
             DB::commit();
 
@@ -1587,7 +1604,7 @@ class MrpService
     /**
      * Create Purchase Order from MRP recommendation
      */
-    protected function createPurchaseOrderFromRecommendation(MrpRecommendation $recommendation): void
+    protected function createPurchaseOrderFromRecommendation(MrpRecommendation $recommendation): PurchaseOrder
     {
         $product = $recommendation->product;
         $companyId = $recommendation->company_id;
@@ -1677,12 +1694,14 @@ class MrpService
             'purchase_order_id' => $purchaseOrder->id,
             'order_number' => $purchaseOrder->order_number,
         ]);
+
+        return $purchaseOrder;
     }
 
     /**
      * Create Work Order from MRP recommendation
      */
-    protected function createWorkOrderFromRecommendation(MrpRecommendation $recommendation): void
+    protected function createWorkOrderFromRecommendation(MrpRecommendation $recommendation): WorkOrder
     {
         $product = $recommendation->product;
         $companyId = $recommendation->company_id;
@@ -1753,6 +1772,8 @@ class MrpService
             'work_order_id' => $workOrder->id,
             'work_order_number' => $workOrder->work_order_number,
         ]);
+
+        return $workOrder;
     }
 
     /**

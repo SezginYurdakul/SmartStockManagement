@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Traits\BelongsToCompany;
+use App\Traits\Blameable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,7 +11,7 @@ use Laravel\Scout\Searchable;
 
 class Product extends Model
 {
-    use SoftDeletes, Searchable, BelongsToCompany;
+    use SoftDeletes, Searchable, BelongsToCompany, Blameable;
 
     protected $fillable = [
         'company_id',
@@ -30,6 +31,8 @@ class Product extends Model
         'is_featured',
         'meta_data',
         'created_by',
+        'updated_by',
+        'deleted_by',
         // MRP Planning fields
         'lead_time_days',
         'safety_stock',
