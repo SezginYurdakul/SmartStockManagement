@@ -8,6 +8,7 @@ use App\Models\WorkOrder;
 use App\Services\CapacityService;
 use App\Http\Resources\WorkCenterCalendarResource;
 use App\Enums\CalendarDayType;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -66,8 +67,8 @@ class CapacityController extends Controller
             $workCenter = WorkCenter::findOrFail($validated['work_center_id']);
             $count = $this->capacityService->generateCalendar(
                 $workCenter,
-                $validated['start_date'],
-                $validated['end_date'],
+                Carbon::parse($validated['start_date']),
+                Carbon::parse($validated['end_date']),
                 $holidays
             );
 
@@ -78,8 +79,8 @@ class CapacityController extends Controller
         }
 
         $results = $this->capacityService->generateAllCalendars(
-            $validated['start_date'],
-            $validated['end_date'],
+            Carbon::parse($validated['start_date']),
+            Carbon::parse($validated['end_date']),
             $holidays
         );
 
@@ -126,8 +127,8 @@ class CapacityController extends Controller
 
         $count = $this->capacityService->setHoliday(
             $workCenter->id,
-            $validated['start_date'],
-            $validated['end_date'],
+            Carbon::parse($validated['start_date']),
+            Carbon::parse($validated['end_date']),
             $validated['reason']
         );
 
@@ -150,7 +151,7 @@ class CapacityController extends Controller
 
         $entry = $this->capacityService->setMaintenance(
             $workCenter->id,
-            $validated['date'],
+            Carbon::parse($validated['date']),
             $validated['reduced_hours'],
             $validated['reason']
         );
@@ -176,8 +177,8 @@ class CapacityController extends Controller
         ]);
 
         $overview = $this->capacityService->getCapacityOverview(
-            $validated['start_date'],
-            $validated['end_date']
+            Carbon::parse($validated['start_date']),
+            Carbon::parse($validated['end_date'])
         );
 
         return response()->json([
@@ -197,8 +198,8 @@ class CapacityController extends Controller
 
         $capacity = $this->capacityService->getAvailableCapacity(
             $workCenter,
-            $validated['start_date'],
-            $validated['end_date']
+            Carbon::parse($validated['start_date']),
+            Carbon::parse($validated['end_date'])
         );
 
         return response()->json([
@@ -218,8 +219,8 @@ class CapacityController extends Controller
 
         $daily = $this->capacityService->getDailyCapacity(
             $workCenter,
-            $validated['start_date'],
-            $validated['end_date']
+            Carbon::parse($validated['start_date']),
+            Carbon::parse($validated['end_date'])
         );
 
         return response()->json([
@@ -252,7 +253,7 @@ class CapacityController extends Controller
         $slot = $this->capacityService->findNextAvailableSlot(
             $workCenter,
             $validated['required_hours'],
-            $validated['start_from'] ?? null
+            isset($validated['start_from']) ? Carbon::parse($validated['start_from']) : null
         );
 
         if (!$slot) {
@@ -282,8 +283,8 @@ class CapacityController extends Controller
         ]);
 
         $report = $this->capacityService->getLoadReport(
-            $validated['start_date'],
-            $validated['end_date']
+            Carbon::parse($validated['start_date']),
+            Carbon::parse($validated['end_date'])
         );
 
         return response()->json([
@@ -302,8 +303,8 @@ class CapacityController extends Controller
         ]);
 
         $analysis = $this->capacityService->getBottleneckAnalysis(
-            $validated['start_date'],
-            $validated['end_date']
+            Carbon::parse($validated['start_date']),
+            Carbon::parse($validated['end_date'])
         );
 
         return response()->json([

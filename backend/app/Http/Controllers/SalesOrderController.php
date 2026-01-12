@@ -48,7 +48,6 @@ class SalesOrderController extends Controller
             'order_date' => 'nullable|date',
             'expected_delivery_date' => 'nullable|date|after_or_equal:order_date',
             'shipping_address' => 'nullable|string',
-            'billing_address' => 'nullable|string',
             'notes' => 'nullable|string',
             'internal_notes' => 'nullable|string',
             'items' => 'required|array|min:1',
@@ -86,7 +85,6 @@ class SalesOrderController extends Controller
         $validated = $request->validate([
             'expected_delivery_date' => 'nullable|date',
             'shipping_address' => 'nullable|string',
-            'billing_address' => 'nullable|string',
             'notes' => 'nullable|string',
             'internal_notes' => 'nullable|string',
             'discount_amount' => 'nullable|numeric|min:0',

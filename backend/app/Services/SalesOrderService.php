@@ -111,10 +111,9 @@ class SalesOrderService
                 'warehouse_id' => $data['warehouse_id'],
                 'order_number' => $this->generateOrderNumber(),
                 'order_date' => $data['order_date'] ?? now(),
-                'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
+                'requested_delivery_date' => $data['expected_delivery_date'] ?? $data['requested_delivery_date'] ?? null,
                 'status' => SalesOrderStatus::DRAFT->value,
                 'shipping_address' => $data['shipping_address'] ?? $customer->shipping_address,
-                'billing_address' => $data['billing_address'] ?? $customer->billing_address,
                 'notes' => $data['notes'] ?? null,
                 'internal_notes' => $data['internal_notes'] ?? null,
                 'subtotal' => 0,
@@ -176,9 +175,8 @@ class SalesOrderService
             }
 
             $salesOrder->update([
-                'expected_delivery_date' => $data['expected_delivery_date'] ?? $salesOrder->expected_delivery_date,
+                'requested_delivery_date' => $data['expected_delivery_date'] ?? $data['requested_delivery_date'] ?? $salesOrder->requested_delivery_date,
                 'shipping_address' => $data['shipping_address'] ?? $salesOrder->shipping_address,
-                'billing_address' => $data['billing_address'] ?? $salesOrder->billing_address,
                 'notes' => $data['notes'] ?? $salesOrder->notes,
                 'internal_notes' => $data['internal_notes'] ?? $salesOrder->internal_notes,
                 'discount_amount' => $data['discount_amount'] ?? $salesOrder->discount_amount,

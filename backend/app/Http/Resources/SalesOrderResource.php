@@ -18,7 +18,8 @@ class SalesOrderResource extends JsonResource
             'id' => $this->id,
             'order_number' => $this->order_number,
             'order_date' => $this->order_date?->toDateString(),
-            'expected_delivery_date' => $this->expected_delivery_date?->toDateString(),
+            'expected_delivery_date' => $this->requested_delivery_date?->toDateString(),
+            'requested_delivery_date' => $this->requested_delivery_date?->toDateString(),
 
             // Status
             'status' => $this->status->value,
@@ -32,7 +33,6 @@ class SalesOrderResource extends JsonResource
 
             // Addresses
             'shipping_address' => $this->shipping_address,
-            'billing_address' => $this->billing_address,
 
             // Amounts
             'subtotal' => $this->subtotal,

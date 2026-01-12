@@ -62,7 +62,7 @@ Route::prefix('sales-orders')->group(function () {
 
     Route::middleware('permission:sales.edit')->group(function () {
         Route::put('/{salesOrder}', [SalesOrderController::class, 'update']);
-        Route::post('/{salesOrder}/submit-for-approval', [SalesOrderController::class, 'submitForApproval']);
+        Route::post('/{salesOrder}/submit', [SalesOrderController::class, 'submitForApproval']);
         Route::post('/{salesOrder}/confirm', [SalesOrderController::class, 'confirm']);
         Route::post('/{salesOrder}/cancel', [SalesOrderController::class, 'cancel']);
     });
@@ -94,7 +94,7 @@ Route::prefix('delivery-notes')->group(function () {
 
     Route::middleware('permission:sales.ship')->group(function () {
         Route::post('/{deliveryNote}/confirm', [DeliveryNoteController::class, 'confirm']);
-        Route::post('/{deliveryNote}/ship', [DeliveryNoteController::class, 'ship']);
+        Route::post('/{deliveryNote}/mark-as-shipped', [DeliveryNoteController::class, 'ship']);
         Route::post('/{deliveryNote}/mark-as-delivered', [DeliveryNoteController::class, 'markAsDelivered']);
         Route::post('/{deliveryNote}/cancel', [DeliveryNoteController::class, 'cancel']);
     });

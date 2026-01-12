@@ -984,10 +984,17 @@ class MrpService
                 Log::debug('MRP: No net requirements despite having demands', [
                     'product_id' => $product->id,
                     'product_sku' => $product->sku,
+                    'make_or_buy' => $product->make_or_buy,
                     'current_stock' => $currentStock,
                     'safety_stock' => $product->safety_stock,
                     'total_demands' => $allDemands->sum('quantity'),
                     'include_safety_stock' => $this->currentRun->include_safety_stock,
+                    'demands_by_date' => $allDemands->groupBy(function ($d) {
+                        return $d['required_date']->toDateString();
+                    })->map(function ($group) {
+                        return $group->sum('quantity');
+                    }),
+                    'scheduled_receipts_count' => $scheduledReceipts->count(),
                 ]);
             }
 
@@ -1280,9 +1287,13 @@ class MrpService
 
                 $projectedStock -= $totalDemand;
 
-                // Check if we fall below safety stock
-                if ($projectedStock < $safetyStock) {
-                    $shortage = $safetyStock - $projectedStock;
+                // Check if we fall below safety stock OR if projected stock becomes negative
+                // Net requirement should be created if:
+                // 1. Projected stock falls below safety stock, OR
+                // 2. Projected stock becomes negative (even if above safety stock)
+                if ($projectedStock < $safetyStock || $projectedStock < 0) {
+                    // Calculate shortage: either to safety stock level or to zero (whichever is higher)
+                    $shortage = max($safetyStock - $projectedStock, abs(min(0, $projectedStock)));
 
                     $requirements[] = [
                         'date' => $currentDate->copy(),
@@ -1325,9 +1336,22 @@ class MrpService
             }
 
             // Determine recommendation type based on make_or_buy
-            $type = $product->shouldManufacture()
-                ? MrpRecommendationType::WORK_ORDER
-                : MrpRecommendationType::PURCHASE_ORDER;
+            // For Work Orders, we need to check if product has a BOM
+            if ($product->shouldManufacture()) {
+                // Check if product has an active BOM before creating Work Order recommendation
+                if (!$product->hasActiveBom()) {
+                    Log::warning('MRP: Skipping Work Order recommendation - product has no active BOM', [
+                        'product_id' => $product->id,
+                        'product_sku' => $product->sku,
+                        'recommendation_type' => 'work_order',
+                        'net_requirement' => $requirement['net_requirement'],
+                    ]);
+                    continue; // Skip this recommendation - cannot create WO without BOM
+                }
+                $type = MrpRecommendationType::WORK_ORDER;
+            } else {
+                $type = MrpRecommendationType::PURCHASE_ORDER;
+            }
 
             // Calculate suggested order date (considering lead time and working days)
             $requiredDate = $requirement['date'];
@@ -1739,6 +1763,20 @@ class MrpService
             $warehouseId = $warehouse->id;
         }
 
+        // Map MRP Priority to Work Order Priority
+        // MRP: low, medium, high, critical
+        // Work Order: low, normal, high, urgent
+        $mrpPriority = $recommendation->priority;
+        $workOrderPriority = match ($mrpPriority) {
+            \App\Enums\MrpPriority::CRITICAL => \App\Enums\WorkOrderPriority::URGENT,
+            \App\Enums\MrpPriority::HIGH => \App\Enums\WorkOrderPriority::HIGH,
+            \App\Enums\MrpPriority::MEDIUM => \App\Enums\WorkOrderPriority::NORMAL,
+            \App\Enums\MrpPriority::LOW => \App\Enums\WorkOrderPriority::LOW,
+        };
+
+        // Get UOM from product (required field)
+        $uomId = $product->uom_id ?? 1; // Fallback to 1 if not set
+
         // Create Work Order
         $workOrderService = app(\App\Services\WorkOrderService::class);
         $workOrder = $workOrderService->create([
@@ -1746,8 +1784,9 @@ class MrpService
             'bom_id' => $bom->id,
             'routing_id' => $routing?->id,
             'warehouse_id' => $warehouseId,
+            'uom_id' => $uomId,
             'quantity_ordered' => $recommendation->suggested_quantity,
-            'priority' => $recommendation->priority->value,
+            'priority' => $workOrderPriority->value,
             'planned_start_date' => $recommendation->suggested_date,
             'planned_end_date' => $recommendation->required_date,
             'status' => WorkOrderStatus::DRAFT->value,
@@ -1794,15 +1833,37 @@ class MrpService
     public function bulkApprove(array $ids): int
     {
         $count = 0;
+        $errors = [];
 
         $recommendations = MrpRecommendation::whereIn('id', $ids)
             ->where('status', MrpRecommendationStatus::PENDING)
             ->get();
 
         foreach ($recommendations as $recommendation) {
-            if ($recommendation->approve()) {
+            try {
+                // Use the same approveRecommendation method to ensure Purchase Orders/Work Orders are created
+                $this->approveRecommendation($recommendation);
                 $count++;
+            } catch (\Exception $e) {
+                // Log error but continue with other recommendations
+                $errors[] = [
+                    'recommendation_id' => $recommendation->id,
+                    'error' => $e->getMessage(),
+                ];
+                Log::warning('Failed to approve MRP recommendation in bulk operation', [
+                    'recommendation_id' => $recommendation->id,
+                    'error' => $e->getMessage(),
+                ]);
             }
+        }
+
+        if (!empty($errors)) {
+            Log::error('Some recommendations failed during bulk approve', [
+                'total_requested' => count($ids),
+                'successful' => $count,
+                'failed' => count($errors),
+                'errors' => $errors,
+            ]);
         }
 
         return $count;

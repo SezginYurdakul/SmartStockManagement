@@ -104,6 +104,26 @@ services:
     networks:
       - sms_network
 
+  # Redis Commander - Redis GUI Tool (Development)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: sms_redis_commander
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+      - HTTP_USER=admin
+      - HTTP_PASSWORD=${REDIS_COMMANDER_PASSWORD:-admin}
+    depends_on:
+      - redis
+    networks:
+      - sms_network
+    profiles:
+      - redis
+      - dev
+      - all
+
   # Node.js for React Development (Optional - Full-stack mode only)
   node:
     image: node:20-alpine
